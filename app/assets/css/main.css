@@ -1,0 +1,54 @@
+/* Minimal reset — the default UA stylesheet's body margin (~8px) throws
+   off any `height: 100vh` section (e.g. the splash screen), clipping a
+   sliver off the bottom. */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Shared with SiteFooter.vue (its height) and Splash.vue (which subtracts
+   this from 100vh so splash + footer fit one screen, no scroll needed) —
+   keep these in sync by only ever changing it here. */
+:root {
+  --footer-height: 3.5vh;
+}
+
+/* Body font: Martian Mono (https://fonts.google.com/specimen/Martian+Mono).
+   Only regular (400) is loaded — nothing currently asks for other weights. */
+@import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400&display=swap');
+
+body {
+  font-family: 'Martian Mono', monospace;
+}
+
+/* Type scale: two sizes defined on top of the Martian Mono body font. */
+.text-12 {
+  font-size: 12pt;
+}
+
+.text-18 {
+  font-size: 18pt;
+}
+
+/*
+ * Default image treatment: a cool, silverish gray duotone (via the SVG
+ * filter #duotone-silver defined once in app.vue), full color on hover.
+ * Applies site-wide since most CMS images (DECODE.cms/content/wiki and
+ * elsewhere) should get it — opt a specific image out with `.no-duotone`.
+ */
+img {
+  filter: url(#duotone-silver);
+  transition: filter 0.3s ease;
+}
+
+img:hover,
+img.no-duotone {
+  filter: none;
+}

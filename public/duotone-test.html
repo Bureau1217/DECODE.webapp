@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Duotone test — wiki images</title>
+<style>
+  body { font-family: sans-serif; background: #fafafa; padding: 2rem; }
+  h1 { font-size: 1rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
+  figure { margin: 0; }
+  figcaption { font-size: 11px; color: #555; margin-top: 4px; word-break: break-all; }
+  img {
+    width: 100%;
+    height: 160px;
+    object-fit: cover;
+    display: block;
+    filter: url(#duotone-silver);
+    transition: filter 0.3s ease;
+  }
+  img:hover { filter: none; }
+</style>
+</head>
+<body>
+<h1>Duotone test — hover any image to see the original. Source: DECODE.cms/content/wiki</h1>
+
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <filter id="duotone-silver">
+    <feColorMatrix
+      type="matrix"
+      values="0.299 0.587 0.114 0 0
+              0.299 0.587 0.114 0 0
+              0.299 0.587 0.114 0 0
+              0     0     0     1 0"
+    />
+    <feComponentTransfer color-interpolation-filters="sRGB">
+      <feFuncR type="table" tableValues="0.95686 0.62353" />
+      <feFuncG type="table" tableValues="0.95686 0.63137" />
+      <feFuncB type="table" tableValues="0.94902 0.63922" />
+    </feComponentTransfer>
+  </filter>
+</svg>
+
+<div class="grid">
+  <figure><img src="http://localhost:8000/media/pages/wiki/3f819f0188-1791318262/55-savushkina-street.jpg" alt=""><figcaption>55-savushkina-street.jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/fe72718da6-1791318262/2020-belarusian-protests-minsk-16-august-p0024.jpg" alt=""><figcaption>2020-belarusian-protests...jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/0e659f725a-1791318262/bodleian-libraries-iohn-bull-exchanging-news-with-the-continent.jpg" alt=""><figcaption>bodleian-libraries...jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/81f9e0f0be-1791318262/brexit-campaigners-out-side-parliament-november-2016.jpg" alt=""><figcaption>brexit-campaigners...jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/2acd64a917-1791318262/cambridge-analytica-protest-parliament-square1.jpg" alt=""><figcaption>cambridge-analytica-protest...jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/6961af8cb7-1791318262/cctv-cameras-in-mumbai.jpg" alt=""><figcaption>cctv-cameras-in-mumbai.jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/a62a4cdeff-1791318265/egypt-revolution-25-january.jpg" alt=""><figcaption>egypt-revolution-25-january.jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/5e6a69cf7b-1791318265/vladimir-putin-official-portrait.jpg" alt=""><figcaption>vladimir-putin-official-portrait.jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/aa14622ad4-1791318265/volodymyr-zelensky-2022-official-portrait.jpg" alt=""><figcaption>volodymyr-zelensky-2022-official-portrait.jpg</figcaption></figure>
+  <figure><img src="http://localhost:8000/media/pages/wiki/d9171f3c6e-1791318263/not-a-russian-bot-46735096114.jpg" alt=""><figcaption>not-a-russian-bot...jpg</figcaption></figure>
+</div>
+</body>
+</html>
