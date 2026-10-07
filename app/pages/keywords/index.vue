@@ -18,7 +18,6 @@ const categories = await useKirbyCollection<Category>(
 
 <template>
   <article>
-    <h1>Mots-clés</h1>
     <ul>
       <li v-for="category in categories" :key="category.id">
         <NuxtLink :to="`/keywords/${category.id}`">{{ category.title }}</NuxtLink>

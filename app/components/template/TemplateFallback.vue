@@ -16,7 +16,5 @@ defineProps<{
     comments, no fields). Replace with a dedicated TemplateAbout.vue + an
     entry in app/kql/page-selects.ts once that blueprint has real fields.
   -->
-  <article>
-    <h1>{{ page.title }}</h1>
-  </article>
+  <article />
 </template>

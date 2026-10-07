@@ -17,24 +17,41 @@ body {
    this from 100vh so splash + footer fit one screen, no scroll needed) —
    keep these in sync by only ever changing it here. */
 :root {
-  --footer-height: 3.5vh;
+  --footer-height: 4vh;
+  --text-h3-size: 12pt;
+  --text-h4-size: 10pt;
 }
 
 /* Body font: Martian Mono (https://fonts.google.com/specimen/Martian+Mono).
-   Only regular (400) is loaded — nothing currently asks for other weights. */
-@import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400&display=swap');
+   Only regular (400) is loaded — nothing currently asks for other weights.
+   Archivo (https://fonts.google.com/specimen/Archivo): regular (400,
+   unused directly but kept as a fallback weight), medium (500, Splash's
+   big "Spotting / Deepfakes / Campaigns" display text), and bold (700,
+   SiteFooter's "DECODE" brand text — heavier than the display text so it
+   reads as the brand mark, not just another line of body copy). Stands in
+   for Extraset's Plakat, a commercial font not available to embed here
+   (Anton and Archivo Black were tried first — too condensed / too heavy).
+   EB Garamond (https://fonts.google.com/specimen/EB+Garamond): regular
+   and italic 400/700 — guide article cards' title/secondary-title, same
+   family Splash.vue's corner titles reference (those rely on the
+   visitor's own system Garamond, unloaded; this is the first place that
+   family is actually fetched). */
+@import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400&family=Archivo:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
 
 body {
   font-family: 'Martian Mono', monospace;
 }
 
-/* Type scale: two sizes defined on top of the Martian Mono body font. */
-.text-12 {
-  font-size: 12pt;
+/* Type scale: H3/H4-equivalent sizes on top of the Martian Mono body font,
+   sized from the --text-h*-size variables above. Both display all caps. */
+.text-h3 {
+  font-size: var(--text-h3-size);
+  text-transform: uppercase;
 }
 
-.text-18 {
-  font-size: 18pt;
+.text-h4 {
+  font-size: var(--text-h4-size);
+  text-transform: uppercase;
 }
 
 /*

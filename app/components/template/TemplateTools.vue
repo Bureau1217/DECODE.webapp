@@ -16,7 +16,6 @@ defineProps<{
 
 <template>
   <article>
-    <h1>{{ page.title }}</h1>
     <ul>
       <li v-for="tool in page.tools" :key="tool.slug">
         <NuxtLink :to="`/tools/${tool.slug}`">
