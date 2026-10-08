@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   }
 
   return await $fetch('/api/query', {
-    baseURL: cmsUrl,
+    baseURL: cmsUrl as string,
     method: 'POST',
     headers,
     body,
