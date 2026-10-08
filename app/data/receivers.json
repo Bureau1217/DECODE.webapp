@@ -1,0 +1,222 @@
+[
+  {
+    "campaign_id": "CAM_001",
+    "receiver_country": "Germany",
+    "receiver_target": "European news readers",
+    "target_type": "Media ecosystem",
+    "receiver_latitude": 51.1657,
+    "receiver_longitude": 10.4515,
+    "notes": "German media widely covered Trump's framing, reinforcing anti-China sentiment in Europe."
+  },
+  {
+    "campaign_id": "CAM_001",
+    "receiver_country": "China",
+    "receiver_target": "Chinese Communist Party officials",
+    "target_type": "Political group",
+    "receiver_latitude": 39.9042,
+    "receiver_longitude": 116.4074,
+    "notes": "CCP officials directly targeted, triggering a counter-disinformation campaign from Beijing."
+  },
+  {
+    "campaign_id": "CAM_001",
+    "receiver_country": "United States",
+    "receiver_target": "Asian-American communities",
+    "target_type": "Community",
+    "receiver_latitude": 37.7749,
+    "receiver_longitude": -122.4194,
+    "notes": "Spike in hate crimes against Asian-Americans linked to the 'Chinese virus' framing."
+  },
+  {
+    "campaign_id": "CAM_001",
+    "receiver_country": "Australia",
+    "receiver_target": "Australian media consumers",
+    "target_type": "Media ecosystem",
+    "receiver_latitude": -25.2744,
+    "receiver_longitude": 133.7751,
+    "notes": "Australian media amplified Trump's framing, affecting diplomatic relations with China."
+  },
+
+  {
+    "campaign_id": "CAM_002",
+    "receiver_country": "China",
+    "receiver_target": "Chinese domestic audience",
+    "target_type": "Country",
+    "receiver_latitude": 35.8617,
+    "receiver_longitude": 104.1954,
+    "notes": "State media promoted the Fort Detrick narrative domestically to deflect from Wuhan origin story."
+  },
+  {
+    "campaign_id": "CAM_002",
+    "receiver_country": "United States",
+    "receiver_target": "US general public",
+    "target_type": "Demographic group",
+    "receiver_latitude": 38.9072,
+    "receiver_longitude": -77.0369,
+    "notes": "Campaign aimed at sowing doubt about the pandemic's origin among American audiences."
+  },
+  {
+    "campaign_id": "CAM_002",
+    "receiver_country": "Nigeria",
+    "receiver_target": "West African online communities",
+    "target_type": "Community",
+    "receiver_latitude": 9.0820,
+    "receiver_longitude": 8.6753,
+    "notes": "Chinese state media Africa-facing accounts amplified the Fort Detrick narrative."
+  },
+  {
+    "campaign_id": "CAM_002",
+    "receiver_country": "Kenya",
+    "receiver_target": "East African social media users",
+    "target_type": "Community",
+    "receiver_latitude": -1.2921,
+    "receiver_longitude": 36.8219,
+    "notes": "Coordinated accounts spread narrative across East African networks on Twitter/X and Facebook."
+  },
+  {
+    "campaign_id": "CAM_002",
+    "receiver_country": "Brazil",
+    "receiver_target": "Portuguese-speaking social media users",
+    "target_type": "Community",
+    "receiver_latitude": -14.2350,
+    "receiver_longitude": -51.9253,
+    "notes": "China's Portuguese-language media outlets amplified the Fort Detrick narrative targeting Brazil."
+  },
+  {
+    "campaign_id": "CAM_002",
+    "receiver_country": "France",
+    "receiver_target": "French-speaking media consumers",
+    "target_type": "Media ecosystem",
+    "receiver_latitude": 46.2276,
+    "receiver_longitude": 2.2137,
+    "notes": "French-language state media relayed Chinese narratives on COVID origins, particularly via CGTN France."
+  },
+
+  {
+    "campaign_id": "CAM_003",
+    "receiver_country": "Philippines",
+    "receiver_target": "Filipino healthcare workers",
+    "target_type": "Community",
+    "receiver_latitude": 12.8797,
+    "receiver_longitude": 121.7740,
+    "notes": "Healthcare workers targeted via WhatsApp groups and Facebook pages with anti-Sinovac content."
+  },
+  {
+    "campaign_id": "CAM_003",
+    "receiver_country": "Philippines",
+    "receiver_target": "Filipino youth on social media",
+    "target_type": "Demographic group",
+    "receiver_latitude": 14.5995,
+    "receiver_longitude": 120.9842,
+    "notes": "Fake influencer accounts promoted anti-China vaccine messaging on TikTok and Facebook."
+  },
+  {
+    "campaign_id": "CAM_003",
+    "receiver_country": "Indonesia",
+    "receiver_target": "Vaccine-hesitant communities",
+    "target_type": "Community",
+    "receiver_latitude": -0.7893,
+    "receiver_longitude": 113.9213,
+    "notes": "Indonesian anti-vaccine communities amplified content originally targeting the Philippines."
+  },
+  {
+    "campaign_id": "CAM_003",
+    "receiver_country": "Malaysia",
+    "receiver_target": "Malaysian social media users",
+    "target_type": "Community",
+    "receiver_latitude": 4.2105,
+    "receiver_longitude": 101.9758,
+    "notes": "Malaysian-language anti-Sinovac content circulated widely on Telegram and Facebook."
+  },
+
+  {
+    "campaign_id": "CAM_004",
+    "receiver_country": "Brazil",
+    "receiver_target": "Brazilian voters",
+    "target_type": "Demographic group",
+    "receiver_latitude": -15.7801,
+    "receiver_longitude": -47.9292,
+    "notes": "Voters targeted with election integrity disinformation ahead of October 2022 elections."
+  },
+  {
+    "campaign_id": "CAM_004",
+    "receiver_country": "Argentina",
+    "receiver_target": "Latin American leftist communities",
+    "target_type": "Political group",
+    "receiver_latitude": -38.4161,
+    "receiver_longitude": -63.6167,
+    "notes": "Counter-narrative campaign framing Lula as a communist threat to the region."
+  },
+  {
+    "campaign_id": "CAM_004",
+    "receiver_country": "Venezuela",
+    "receiver_target": "Venezuelan diaspora online",
+    "target_type": "Community",
+    "receiver_latitude": 6.4238,
+    "receiver_longitude": -66.5897,
+    "notes": "Venezuelan diaspora targeted with narratives linking Lula to Maduro."
+  },
+  {
+    "campaign_id": "CAM_004",
+    "receiver_country": "United States",
+    "receiver_target": "Brazilian diaspora in Florida",
+    "target_type": "Community",
+    "receiver_latitude": 25.7617,
+    "receiver_longitude": -80.1918,
+    "notes": "Brazilian expat communities in Miami received targeted WhatsApp disinformation."
+  },
+
+  {
+    "campaign_id": "CAM_005",
+    "receiver_country": "United States",
+    "receiver_target": "US swing state voters",
+    "target_type": "Political group",
+    "receiver_latitude": 40.4172,
+    "receiver_longitude": -82.9071,
+    "notes": "Ohio, Pennsylvania and Wisconsin voters targeted with divisive content to suppress turnout."
+  },
+  {
+    "campaign_id": "CAM_005",
+    "receiver_country": "United States",
+    "receiver_target": "African-American communities",
+    "target_type": "Community",
+    "receiver_latitude": 41.8827,
+    "receiver_longitude": -87.6233,
+    "notes": "IRA specifically targeted Black voters with voter suppression messaging — largest non-Russian audience targeted."
+  },
+  {
+    "campaign_id": "CAM_005",
+    "receiver_country": "United States",
+    "receiver_target": "Progressive / Bernie Sanders supporters",
+    "target_type": "Political group",
+    "receiver_latitude": 44.3148,
+    "receiver_longitude": -85.6024,
+    "notes": "Pro-Bernie content designed to deepen divisions within the Democratic Party."
+  },
+  {
+    "campaign_id": "CAM_005",
+    "receiver_country": "United States",
+    "receiver_target": "Conservative Republican base",
+    "target_type": "Political group",
+    "receiver_latitude": 32.1656,
+    "receiver_longitude": -82.9001,
+    "notes": "IRA cultivated far-right Facebook groups with inflammatory anti-immigration content."
+  },
+  {
+    "campaign_id": "CAM_005",
+    "receiver_country": "United Kingdom",
+    "receiver_target": "UK Brexit supporters",
+    "target_type": "Political group",
+    "receiver_latitude": 51.5074,
+    "receiver_longitude": -0.1278,
+    "notes": "IRA-linked accounts targeted the Brexit debate with divisive content."
+  },
+  {
+    "campaign_id": "CAM_005",
+    "receiver_country": "France",
+    "receiver_target": "French political observers",
+    "target_type": "Media ecosystem",
+    "receiver_latitude": 48.8566,
+    "receiver_longitude": 2.3522,
+    "notes": "Russian disinformation tactics used in the US were partially replicated during the 2017 French election."
+  }
+]

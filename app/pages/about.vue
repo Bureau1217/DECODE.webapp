@@ -1,10 +1,13 @@
 <script setup lang="ts">
-// `about`'s blueprint (DECODE.cms/site/blueprints/pages/about.yml) is still
-// just TODO comments — no fields yet, so this renders via TemplateFallback
-// (title only) until that blueprint is filled in.
-const page = await useKirbyPage("page:about", "page('about')", 'about')
+const page = await useKirbyPage('page:about', "page('about')", 'about')
+
+// "Title of the website" (SiteFooter.vue's own "DE.CO.DE" brand text) —
+// not a field on the about page itself, it's the separate site_infos
+// singleton (content/infos/) — reused here instead of hardcoding the
+// same string a second place.
+const siteInfos = await useKirbyPage('page:infos', "page('infos')", 'site_infos')
 </script>
 
 <template>
-  <TemplateFallback :page="page" />
+  <TemplateAbout :page="page" :site-title="siteInfos.title" />
 </template>

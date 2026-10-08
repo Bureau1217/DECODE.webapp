@@ -35,7 +35,9 @@ body {
    and italic 400/700 — guide article cards' title/secondary-title, same
    family Splash.vue's corner titles reference (those rely on the
    visitor's own system Garamond, unloaded; this is the first place that
-   family is actually fetched). */
+   family is actually fetched). The article/resource detail panels' own
+   big body text (TemplateDefault.vue, TemplateRessource.vue) uses plain
+   Arial/Helvetica — no webfont needed for that one. */
 @import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400&family=Archivo:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
 
 body {

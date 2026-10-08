@@ -3,10 +3,18 @@
 // itself, but the color does change once it's gone — brown everywhere
 // else, matching the brand accent used by the nav/index bar/splash CTA).
 const showSplash = useSplashVisible()
+
+// Coral (FC7C6A), not the usual brown, while the Campaigns Maps tool is
+// open — same reskin as SiteNav.vue/SiteIndexBar.vue.
+const route = useRoute()
+const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
 </script>
 
 <template>
-  <footer class="site-footer" :class="{ 'is-branded': !showSplash }">
+  <footer
+    class="site-footer"
+    :class="{ 'is-branded': !showSplash, 'is-campaigns-map': isCampaignsMapPage }"
+  >
     <NuxtLink to="/" class="footer-brand">DE.CO.DE</NuxtLink>
     <span class="footer-tagline text-h4">
       DE.CO.DE IS AN OPEN MULTIMEDIA GUIDE EXPLORING DISINFORMATION
@@ -46,6 +54,10 @@ const showSplash = useSplashVisible()
 
 .is-branded {
   color: #a68764;
+}
+
+.is-campaigns-map {
+  color: #fc7c6a;
 }
 
 .footer-brand {

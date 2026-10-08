@@ -12,10 +12,8 @@
  *    resolving per block type on top of this.
  *  - `url` (tool/tools) collides with Kirby's native Page::url() — reached
  *    here via `page.content.url` (Content::get) instead of `page.url`.
- *  - `about` now has real fields (subtitle/image/3 paragraph blocks/team
- *    blocks — see site/blueprints/pages/about.yml) but isn't mapped below
- *    yet, so it still renders via `fallbackSelect` + TemplateFallback
- *    (title only). Not wired into the frontend yet.
+ *  - `about`'s own `teams` field (site/blueprints/pages/about.yml) isn't
+ *    selected/rendered yet — TemplateAbout.vue doesn't show it.
  */
 
 // `id` is the full root-relative path (e.g. `parent/child` for a nested
@@ -97,6 +95,10 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     source: true,
     description: true,
     file: fileLink('file'),
+    // Same "type" trick as resources/index.vue's flattened list — the CMS
+    // has no separate type field, the parent theme page's own title
+    // (Articles/Papers/Podcasts/Videos) doubles as it.
+    type: 'page.parent.title',
   },
 
   tags: {
@@ -119,18 +121,28 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
       query: 'page.children',
       select: {
         ...summary,
+        subtitle: true,
         description: true,
         image: fileUrl('image'),
         url: 'page.content.url.value',
+        themes: pagesRelation('themes'),
+        concepts: pagesRelation('concepts'),
+        platforms: pagesRelation('platforms'),
+        questions: pagesRelation('questions'),
       },
     },
   },
 
   tool: {
     ...summary,
+    subtitle: true,
     description: true,
     image: fileUrl('image'),
     url: 'page.content.url.value',
+    themes: pagesRelation('themes'),
+    concepts: pagesRelation('concepts'),
+    platforms: pagesRelation('platforms'),
+    questions: pagesRelation('questions'),
   },
 
   site_infos: {
@@ -142,12 +154,27 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     long_description: true,
     informations: true,
   },
+
+  about: {
+    ...summary,
+    header_subtitle: true,
+    // No header_image — TemplateAbout.vue doesn't show a cover image.
+    // Each paragraph_N_content is its own `blocks` field (same shape as
+    // `default`'s own `content` — see this file's header comment) — only
+    // `text` blocks are rendered (TemplateAbout.vue), same scope boundary
+    // as TemplateDefault.vue; paragraph_1_content's own `image` block
+    // isn't resolved/shown yet.
+    paragraph_1_title: true,
+    paragraph_1_content: 'page.content.paragraph_1_content.toBlocks.toArray',
+    paragraph_2_title: true,
+    paragraph_2_content: 'page.content.paragraph_2_content.toBlocks.toArray',
+    paragraph_3_title: true,
+    paragraph_3_content: 'page.content.paragraph_3_content.toBlocks.toArray',
+  },
 }
 
 /**
- * Used when a page's `intendedTemplate` has no entry above — currently
- * `about`, whose blueprint (site/blueprints/pages/about.yml) is still just
- * TODO comments with no fields defined.
+ * Used when a page's `intendedTemplate` has no entry above.
  */
 export const fallbackSelect: Record<string, unknown> = {
   ...summary,

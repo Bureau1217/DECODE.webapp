@@ -23,8 +23,29 @@ const id = assertSafeKirbyId(segments.join('/'))
 const page = await useKirbyPageAnyTemplate(`resources:${id}`, `page('${id}')`)
 
 const templateComponent = computed(() => templateComponents[page.value?.template as string] ?? TemplateFallback)
+
+// Same flattened, intendedTemplate:'ressource' order resources/index.vue's
+// own grid is built from — only meaningful for a single ressource item
+// (not the ressources theme listing), but cheap enough to always fetch.
+const resourceList = await useKirbyCollection<{ id: string }>(
+  'resources:order',
+  "site.index.filterBy('intendedTemplate', 'ressource')",
+  { id: true },
+)
+
+const currentIndex = computed(() => resourceList.value?.findIndex((r) => r.id === id) ?? -1)
+const prevTo = computed(() => {
+  const prev = currentIndex.value > 0 ? resourceList.value?.[currentIndex.value - 1] : null
+  return prev ? `/resources/${prev.id}` : null
+})
+const nextTo = computed(() => {
+  const list = resourceList.value
+  const next = list && currentIndex.value !== -1 && currentIndex.value < list.length - 1 ? list[currentIndex.value + 1] : null
+  return next ? `/resources/${next.id}` : null
+})
 </script>
 
 <template>
-  <component :is="templateComponent" :page="page" />
+  <TemplateRessource v-if="page?.template === 'ressource'" :page="page" :prev-to="prevTo" :next-to="nextTo" />
+  <component :is="templateComponent" v-else :page="page" />
 </template>

@@ -1,0 +1,80 @@
+[
+  {
+    "campaign_id": "CAM_001",
+    "title": "Trump's 'Chinese Virus' narrative",
+    "cover_image": "",
+    "short_description": "The Trump Administration systematically used the terms 'Chinese virus' or 'Wuhan virus', deflecting responsibility for the pandemic onto China and fuelling anti-Asian sentiment globally.",
+    "emitter_country": "United States",
+    "emitter_actor": "Trump Administration",
+    "date_or_period": "2020–2021",
+    "social_networks": ["X/Twitter"],
+    "strategy_used": ["Narrative framing", "Political messaging"],
+    "sources": ["https://www.bbc.com/news/world-asia-india-51928011"],
+    "page_content": "Trump Administration used the terms 'Chinese virus' or 'Wuhan virus', creating a blurred line about the origin of COVID-19 and accusing China of being responsible. It refers to the idea of a virus created by humans, specifically the narrative of COVID being born inside a laboratory complex in Wuhan.",
+    "emitter_latitude": 38.9072,
+    "emitter_longitude": -77.0369
+  },
+  {
+    "campaign_id": "CAM_002",
+    "title": "China's claim that the U.S. Army brought COVID-19 to Wuhan",
+    "cover_image": "",
+    "short_description": "A Chinese disinformation narrative alleging that U.S. military personnel introduced the coronavirus to China, used to deflect blame for the outbreak.",
+    "emitter_country": "China",
+    "emitter_actor": "Chinese state media and foreign ministry spokesperson",
+    "date_or_period": "2020–2021",
+    "social_networks": ["Weibo", "X/Twitter", "Facebook"],
+    "strategy_used": ["Coordinated posting", "State media amplification"],
+    "sources": ["https://www.bbc.com/news/world-52224331"],
+    "page_content": "Chinese Foreign Ministry spokesman Zhao Lijian claimed in March 2020 that the US military might have brought COVID-19 to Wuhan. The claim circulated during the early pandemic and later reappeared in amplified form around the Fort Detrick narrative.",
+    "emitter_latitude": 39.9042,
+    "emitter_longitude": 116.4074
+  },
+  {
+    "campaign_id": "CAM_003",
+    "title": "US Pentagon secret anti-vax campaign in Philippines",
+    "cover_image": "https://www.reuters.com/investigates/special-report/assets/usa-covid-propaganda/mastheads/usa-covid-propaganda-share.jpg",
+    "short_description": "During the COVID pandemic, the US Defense Department launched a covert campaign using fake social media accounts to undermine trust in China's Sinovac vaccine among Filipino audiences.",
+    "emitter_country": "United States",
+    "emitter_actor": "US Defense Department (Pentagon)",
+    "date_or_period": "2020–2021",
+    "social_networks": ["X/Twitter", "Facebook", "WhatsApp"],
+    "strategy_used": ["Bot amplification", "Fake personas", "Hashtag campaigns"],
+    "sources": ["https://www.reuters.com/investigates/special-report/usa-covid-propaganda/"],
+    "page_content": "Given China's influence over the Philippines, the US launched a campaign through fake social media accounts to spread fear of China's vaccines. Using hashtags such as #ChinaAngVirus, the campaign aimed to amplify contention surrounding COVID-19 vaccines and undermine Sinovac.",
+    "emitter_latitude": 38.9072,
+    "emitter_longitude": -77.0369
+  },
+  {
+    "campaign_id": "CAM_004",
+    "title": "Brazilian election disinformation campaign (2022)",
+    "cover_image": "",
+    "short_description": "Bolsonaro-aligned networks spread election integrity disinformation across Brazil and Latin America ahead of the October 2022 presidential election.",
+    "emitter_country": "Brazil",
+    "emitter_actor": "Bolsonaro-aligned networks",
+    "date_or_period": "2022",
+    "social_networks": ["WhatsApp", "Telegram", "YouTube", "Facebook"],
+    "strategy_used": ["Fake personas", "Bot amplification", "Coordinated posting"],
+    "sources": ["https://www.reuters.com/world/americas/brazil-election-disinformation-2022/"],
+    "page_content": "Bolsonaro-aligned networks targeted Brazilian voters with election integrity disinformation, framing Lula as a communist threat and casting doubt on Brazil's electronic voting system.",
+    "emitter_latitude": -15.7801,
+    "emitter_longitude": -47.9292
+  },
+  {
+    "campaign_id": "CAM_005",
+    "title": "Russian interference in the 2016 US election",
+    "cover_image": "",
+    "short_description": "A coordinated influence operation by the Internet Research Agency targeting US voters through fake accounts, divisive content and political messaging across multiple platforms.",
+    "emitter_country": "Russia",
+    "emitter_actor": "Internet Research Agency",
+    "date_or_period": "2014–2016",
+    "social_networks": ["Facebook", "X/Twitter", "Instagram", "YouTube"],
+    "strategy_used": ["Fake personas", "Troll accounts", "Targeted ads", "Coordinated posting"],
+    "sources": [
+      "https://www.intelligence.senate.gov/sites/default/files/documents/Report_Volume2.pdf",
+      "https://www.bbc.com/news/world-us-canada-42487425"
+    ],
+    "page_content": "The Internet Research Agency, a Russian 'troll factory', ran a sustained influence operation targeting American voters. The campaign exploited divisive social issues, created fake grassroots movements, and specifically targeted African-American communities, progressive voters, and conservative bases to deepen political polarisation.",
+    "emitter_latitude": 55.7558,
+    "emitter_longitude": 37.6173
+  }
+]

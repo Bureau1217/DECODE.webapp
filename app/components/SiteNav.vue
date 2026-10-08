@@ -16,6 +16,11 @@ function isActive(to: string) {
   return route.path.startsWith(to)
 }
 
+// The "Campaigns Maps" tool (TemplateCampaignsMap.vue) reskins the whole
+// app shell — nav/index-bar/footer — in its own coral accent (FC7C6A,
+// BADGE_COLORS[0]) instead of the site's usual brown, only while it's open.
+const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
+
 // Same folder-tab silhouette as Splash.vue's top tab (diagonal shoulders,
 // small rounded transition into the flat top line) — here closed with a
 // flat bottom edge, since each is its own standalone tab rather than one
@@ -84,7 +89,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <nav class="site-nav" :style="{ top: `${tabTop}px`, height: `${tabHeight}px` }">
+  <nav
+    class="site-nav"
+    :class="{ 'is-campaigns-map': isCampaignsMapPage }"
+    :style="{ top: `${tabTop}px`, height: `${tabHeight}px` }"
+  >
     <div
       v-for="link in links"
       :key="link.to"
@@ -172,6 +181,33 @@ onUnmounted(() => {
 
 .nav-tab-wrap:hover .nav-tab,
 .nav-tab-wrap.active .nav-tab {
+  color: #fff;
+}
+
+/* Coral instead of brown — only while the Campaigns Maps tool is open
+   (script). */
+.site-nav.is-campaigns-map .nav-tab-shape path {
+  stroke: #fc7c6a;
+}
+
+.site-nav.is-campaigns-map .nav-tab {
+  color: #fc7c6a;
+}
+
+.site-nav.is-campaigns-map .nav-tab-wrap:hover .nav-tab-shape path,
+.site-nav.is-campaigns-map .nav-tab-wrap.active .nav-tab-shape path {
+  fill: #fc7c6a;
+}
+
+/* .nav-tab's own base coral rule above has the same specificity as
+   .nav-tab-wrap.active .nav-tab { color: #fff } (3 class selectors each),
+   so source order alone decided the winner and this one (declared later)
+   was overriding the active tab's text back to coral even though its
+   background is filled solid. One more class here (4 selectors) is what
+   makes this win instead, restoring white text on the filled/active tab
+   while inactive ones stay coral. */
+.site-nav.is-campaigns-map .nav-tab-wrap:hover .nav-tab,
+.site-nav.is-campaigns-map .nav-tab-wrap.active .nav-tab {
   color: #fff;
 }
 </style>

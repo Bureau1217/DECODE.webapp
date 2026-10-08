@@ -1,16 +1,28 @@
 <script setup lang="ts">
-// Purely a view-mode switch for now (no content wiring yet, same "visual
-// only" status as the footer's own dark-mode toggle) — Index is the
-// default you land on; Visual is the alternative on the same side;
-// Reading mode is its own independent toggle on the right, not part of
-// that pair.
-type DisplayMode = 'index' | 'visual'
-const displayMode = ref<DisplayMode>('index')
-const readingMode = ref(false)
+// Index is the default you land on; Visual is the alternative on the same
+// side; Reading mode is its own independent toggle on the right, not part
+// of that pair. Both shared (app.vue and/or KeywordsPanel.vue react to
+// them), not local state.
+const displayMode = useDisplayMode()
+const readingMode = useReadingMode()
+
+// B8A084 only on /resources (its own grid of bordered cards reads better
+// against that color), 775937 only on /about (that page's own accent) —
+// white everywhere else, the divider's original color.
+const route = useRoute()
+const isResourcesPage = computed(() => route.path === '/resources')
+const isAboutPage = computed(() => route.path === '/about')
+// Coral (FC7C6A) instead of brown while the Campaigns Maps tool is open —
+// this bar also gains an "Exit tool" button, back to the tools list.
+const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
+// No tool has a "visual" layout to switch to (unlike guide/resources'
+// card grids) — hide the toggle across /tools and its sub-pages rather
+// than leaving a non-functional button.
+const isToolsSection = computed(() => route.path.startsWith('/tools'))
 </script>
 
 <template>
-  <div class="index-bar">
+  <div class="index-bar" :class="{ 'is-campaigns-map': isCampaignsMapPage }">
     <div class="index-bar-group">
       <button
         type="button"
@@ -22,6 +34,7 @@ const readingMode = ref(false)
         Index
       </button>
       <button
+        v-if="!isToolsSection"
         type="button"
         class="index-bar-item"
         :class="{ active: displayMode === 'visual' }"
@@ -39,23 +52,43 @@ const readingMode = ref(false)
       Search
     </button>
 
-    <button
-      type="button"
-      class="index-bar-item"
-      :class="{ active: readingMode }"
-      @click="readingMode = !readingMode"
-    >
-      <span class="index-bar-dot" aria-hidden="true" />
-      Reading mode
-    </button>
+    <div class="index-bar-group">
+      <button
+        type="button"
+        class="index-bar-item"
+        :class="{ active: readingMode }"
+        @click="readingMode = !readingMode"
+      >
+        <span class="index-bar-dot" aria-hidden="true" />
+        Reading mode
+      </button>
+
+      <!-- Only while the Campaigns Maps tool is open (script) — back to
+           the tools list, same cross as DetailPanelChrome.vue's own
+           close button. -->
+      <NuxtLink v-if="isCampaignsMapPage" to="/tools" class="index-bar-item index-bar-exit">
+        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+          <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
+          <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
+        </svg>
+        Exit tool
+      </NuxtLink>
+    </div>
   </div>
 
-  <!-- Fixed, not confined to .index-bar's own box — starts at this bar's
-       top edge (5vh: SiteNav's 1.5vh top margin + 3.5vh height) and runs
-       to the viewport's own bottom edge, independent of page scroll
-       height. z-index sits above the plain brown rectangle (unpositioned,
-       stacking level 0) but below .site-footer (see its own z-index). -->
+  <!-- Two segments, not one continuous line: the part crossing .index-bar
+       itself (this bar's own top edge, 5vh, to its bottom, 8.5vh) is this
+       bar's own chrome — stays white on every page. Only
+       .content-divider, below that, picks up a page's own accent color
+       (.is-resources). z-index sits above the plain brown rectangle
+       (unpositioned, stacking level 0) but below .site-footer (its own
+       z-index). -->
   <div class="index-bar-divider" aria-hidden="true" />
+  <div
+    class="content-divider"
+    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'reading-mode': readingMode }"
+    aria-hidden="true"
+  />
 </template>
 
 <style scoped>
@@ -79,10 +112,18 @@ const readingMode = ref(false)
   box-sizing: border-box;
 }
 
+.index-bar.is-campaigns-map {
+  background: #fc7c6a;
+}
+
 .index-bar-group {
   display: flex;
   align-items: center;
   gap: 28px;
+}
+
+.index-bar-exit {
+  text-decoration: none;
 }
 
 .index-bar-item {
@@ -135,10 +176,37 @@ const readingMode = ref(false)
 .index-bar-divider {
   position: fixed;
   top: 5vh;
-  bottom: 0;
+  height: 3.5vh;
   left: calc(50% - 0.5px);
   width: 1px;
   background: #fff;
   z-index: 3;
+}
+
+/* left tracks the keywords-panel/content boundary (KeywordsPanel.vue,
+   app.vue — both 50vw normally, 25vw in reading mode) — transition here
+   is what makes it slide smoothly in sync with that resize rather than
+   jumping to the new position. */
+.content-divider {
+  position: fixed;
+  top: 8.5vh;
+  bottom: 0;
+  left: calc(50vw - 0.5px);
+  width: 1px;
+  background: #fff;
+  z-index: 3;
+  transition: left 0.5s ease;
+}
+
+.content-divider.reading-mode {
+  left: calc(25vw - 0.5px);
+}
+
+.content-divider.is-resources {
+  background: #b8a084;
+}
+
+.content-divider.is-about {
+  background: #a68764;
 }
 </style>

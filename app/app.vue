@@ -2,12 +2,30 @@
 const showSplash = useSplashVisible()
 
 // Always visible (KeywordsPanel, below) on these — not on /keywords/*
-// itself or individual article/tool pages, which weren't asked for. Still
-// gated on !showSplash too: '/' matches this list, but shouldn't show the
-// panel until the splash itself is dismissed.
+// itself or individual tool pages, which weren't asked for. Still gated
+// on !showSplash too: '/' matches this list, but shouldn't show the panel
+// until the splash itself is dismissed. /guide and /resources are prefix
+// matches (not just the exact list/index route) — an article or resource
+// detail page (DetailPanelChrome.vue) should show it too, half-viewport
+// same as the lists.
 const route = useRoute()
-const KEYWORDS_PANEL_ROUTES = ['/', '/guide', '/tools', '/resources', '/about']
-const showKeywordsPanel = computed(() => !showSplash.value && KEYWORDS_PANEL_ROUTES.includes(route.path))
+const KEYWORDS_PANEL_EXACT_ROUTES = ['/', '/tools', '/about']
+const KEYWORDS_PANEL_PREFIX_ROUTES = ['/guide', '/resources']
+const showKeywordsPanel = computed(() => {
+  if (showSplash.value) return false
+  if (KEYWORDS_PANEL_EXACT_ROUTES.includes(route.path)) return true
+  return KEYWORDS_PANEL_PREFIX_ROUTES.some((p) => route.path === p || route.path.startsWith(`${p}/`))
+})
+
+// SiteIndexBar's own "Reading mode" toggle — shrinks KeywordsPanel to
+// 25vw (that component) and lets .app-content's own margin-left follow it
+// down from 50vw to match, below.
+const readingMode = useReadingMode()
+
+// /about shows TeamPanel (the about page's own "Équipes" field) in the
+// same fixed half-viewport slot KeywordsPanel otherwise occupies there —
+// never both at once.
+const isAboutPage = computed(() => route.path === '/about')
 </script>
 
 <template>
@@ -51,7 +69,8 @@ const showKeywordsPanel = computed(() => !showSplash.value && KEYWORDS_PANEL_ROU
       <SiteIndexBar />
     </template>
 
-    <KeywordsPanel v-if="showKeywordsPanel" />
+    <TeamPanel v-if="showKeywordsPanel && isAboutPage" />
+    <KeywordsPanel v-else-if="showKeywordsPanel" />
 
     <!-- Without this, app/pages/** (the CMS-driven routes) never render —
          app.vue's own template always wins. The flex:1 wrapper (below) is
@@ -64,7 +83,10 @@ const showKeywordsPanel = computed(() => !showSplash.value && KEYWORDS_PANEL_ROU
          padding-top does the same for SiteNav + SiteIndexBar — now fixed
          (not pushing this down on their own anymore either), so this has
          to clear them itself, only while they're actually rendered. -->
-    <div class="app-content" :class="{ 'has-keywords-panel': showKeywordsPanel, 'has-nav': !showSplash }">
+    <div
+      class="app-content"
+      :class="{ 'has-keywords-panel': showKeywordsPanel, 'has-nav': !showSplash, 'reading-mode': readingMode }"
+    >
       <NuxtPage />
     </div>
 
@@ -103,10 +125,18 @@ body {
      what would push the footer down instead of scrolling in place. */
   min-height: 0;
   overflow-y: auto;
+  /* Smooth, not an instant jump, when reading mode toggles this margin
+     (below) between 50vw and 25vw — matches KeywordsPanel's own width
+     transition so the two resize in lockstep. */
+  transition: margin-left 0.5s ease;
 }
 
 .app-content.has-keywords-panel {
   margin-left: 50vw;
+}
+
+.app-content.has-keywords-panel.reading-mode {
+  margin-left: 25vw;
 }
 
 /* SiteNav (1.5vh top margin + 3.5vh height) + SiteIndexBar (3.5vh) —
