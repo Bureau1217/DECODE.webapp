@@ -13,8 +13,11 @@ const route = useRoute()
 const isResourcesPage = computed(() => route.path === '/resources')
 const isAboutPage = computed(() => route.path === '/about')
 // Coral (FC7C6A) instead of brown while the Campaigns Maps tool is open —
-// this bar also gains an "Exit tool" button, back to the tools list.
+// the map itself gets its own exit button (DisinfoMap.vue, top-right
+// corner, same margin as MapFilters.vue) rather than this bar.
 const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
+// Same reskin, teal — Bot / Troll Detector's own accent.
+const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-detector')
 // No tool has a "visual" layout to switch to (unlike guide/resources'
 // card grids) — hide the toggle across /tools and its sub-pages rather
 // than leaving a non-functional button.
@@ -22,7 +25,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
 </script>
 
 <template>
-  <div class="index-bar" :class="{ 'is-campaigns-map': isCampaignsMapPage }">
+  <div class="index-bar" :class="{ 'is-campaigns-map': isCampaignsMapPage, 'is-bot-troll': isBotTrollDetectorPage }">
     <div class="index-bar-group">
       <button
         type="button"
@@ -52,28 +55,15 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
       Search
     </button>
 
-    <div class="index-bar-group">
-      <button
-        type="button"
-        class="index-bar-item"
-        :class="{ active: readingMode }"
-        @click="readingMode = !readingMode"
-      >
-        <span class="index-bar-dot" aria-hidden="true" />
-        Reading mode
-      </button>
-
-      <!-- Only while the Campaigns Maps tool is open (script) — back to
-           the tools list, same cross as DetailPanelChrome.vue's own
-           close button. -->
-      <NuxtLink v-if="isCampaignsMapPage" to="/tools" class="index-bar-item index-bar-exit">
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-          <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
-          <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
-        </svg>
-        Exit tool
-      </NuxtLink>
-    </div>
+    <button
+      type="button"
+      class="index-bar-item"
+      :class="{ active: readingMode }"
+      @click="readingMode = !readingMode"
+    >
+      <span class="index-bar-dot" aria-hidden="true" />
+      Reading mode
+    </button>
   </div>
 
   <!-- Two segments, not one continuous line: the part crossing .index-bar
@@ -116,14 +106,14 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   background: #fc7c6a;
 }
 
+.index-bar.is-bot-troll {
+  background: #3fa396;
+}
+
 .index-bar-group {
   display: flex;
   align-items: center;
   gap: 28px;
-}
-
-.index-bar-exit {
-  text-decoration: none;
 }
 
 .index-bar-item {

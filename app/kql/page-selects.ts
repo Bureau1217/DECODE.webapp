@@ -56,6 +56,42 @@ const fileLink = (field: string) => ({
   select: { url: true, filename: true },
 })
 
+// A single disinformation campaign (site/blueprints/pages/campaign.yml) —
+// child page of the Campaigns Maps tool only. `receivers` is a `structure`
+// field (rows editors add in the panel), resolved with `.toStructure`
+// same as `site_infos.sentences` below; `sources`/`social_networks`/
+// `strategy_used` are `tags` fields, stored as a comma-separated string
+// and split back into an array here (Kirby's `split()` trims each part,
+// so "a, b" and "a,b" both come out clean).
+const campaignSelect = {
+  ...summary,
+  cover_image: fileUrl('cover_image'),
+  short_description: true,
+  page_content: true,
+  sources: 'page.sources.split(",")',
+  receivers: 'page.receivers.toStructure',
+  emitter_country: true,
+  emitter_actor: true,
+  date_or_period: true,
+  emitter_latitude: 'page.emitter_latitude.toFloat',
+  emitter_longitude: 'page.emitter_longitude.toFloat',
+  social_networks: 'page.social_networks.split(",")',
+  strategy_used: 'page.strategy_used.split(",")',
+}
+
+// A bot/troll detection criterion (site/blueprints/pages/criterion.yml) —
+// child page of the Bot / Troll Detector tool only.
+const criterionSelect = {
+  ...summary,
+  interface_label: true,
+  category: true,
+  observable_signal: true,
+  why_it_matters: true,
+  example_of_evidence: true,
+  weight: 'page.weight.toInt',
+  platforms: 'page.platforms.split(",")',
+}
+
 export const pageSelects: Record<string, Record<string, unknown>> = {
   default: {
     ...summary,
@@ -143,6 +179,20 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     concepts: pagesRelation('concepts'),
     platforms: pagesRelation('platforms'),
     questions: pagesRelation('questions'),
+    // Structural children (template: campaign) — only the Campaigns Maps
+    // tool actually has any (site/blueprints/pages/tool.yml's "Campagnes"
+    // section is shared by all tool pages, but harmless/unused on the
+    // other two). DisinfoMap.vue reads this instead of a static JSON file.
+    campaigns: {
+      query: "page.children.filterBy('intendedTemplate', 'campaign')",
+      select: campaignSelect,
+    },
+    // Same pattern, for the Bot / Troll Detector's own "Critères" section
+    // — only that tool has any `criterion` children.
+    criteria: {
+      query: "page.children.filterBy('intendedTemplate', 'criterion')",
+      select: criterionSelect,
+    },
   },
 
   site_infos: {

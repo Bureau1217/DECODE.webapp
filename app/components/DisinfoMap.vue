@@ -7,11 +7,18 @@
 // panel (CampaignInfoPanel.vue) — this site's established "info on the
 // left, content on the right" layout (KeywordsPanel, TeamPanel), not that
 // project's own floating-drawer-over-the-map one.
-import type { CampaignWithReceivers } from '~/composables/useCampaigns'
+import type { CampaignWithReceivers } from '~/types/campaign'
 import worldCountries from '~/data/world-countries.json'
 
-const { campaigns } = useCampaigns()
-const { filterOptions, matchesFilter } = useMapFilters(campaigns)
+// Fetched by TemplateCampaignsMap.vue (the `tool` KQL select's own
+// `campaigns` relation — app/kql/page-selects.ts) from the CMS, where
+// editors manage them as child pages of tools/campaigns-map, rather than
+// loaded here from a static data file.
+const props = defineProps<{
+  campaigns: CampaignWithReceivers[]
+}>()
+
+const { filterOptions, matchesFilter } = useMapFilters(props.campaigns)
 
 // Our campaign data's country names don't all match world-countries.json's
 // own `properties.name` spelling (johan/world.geo.json) — only this one
@@ -40,7 +47,7 @@ const emitterMarkers: EmitterMarkerEntry[] = []
 let receiverMarkers: import('mapbox-gl').Marker[] = []
 
 function selectCampaign(campaign: CampaignWithReceivers) {
-  if (selectedCampaign.value?.campaign_id === campaign.campaign_id) {
+  if (selectedCampaign.value?.slug === campaign.slug) {
     deselectCampaign()
     return
   }
@@ -48,7 +55,7 @@ function selectCampaign(campaign: CampaignWithReceivers) {
   selectedCampaign.value = campaign
 
   emitterMarkers.forEach(({ el, campaign: c }) => {
-    el.classList.toggle('is-selected', c.campaign_id === campaign.campaign_id)
+    el.classList.toggle('is-selected', c.slug === campaign.slug)
   })
 
   map?.setFilter('countries-emitter-highlight', ['==', ['get', 'name'], geoCountryName(campaign.emitter_country)])
@@ -140,15 +147,15 @@ function clearReceivers() {
 
 watch(activeFilter, () => {
   const visible = activeFilter.value
-    ? new Set(campaigns.filter((c) => matchesFilter(c, activeFilter.value!)).map((c) => c.campaign_id))
+    ? new Set(props.campaigns.filter((c) => matchesFilter(c, activeFilter.value!)).map((c) => c.slug))
     : null
 
   for (const { el, campaign } of emitterMarkers) {
-    const show = !visible || visible.has(campaign.campaign_id)
+    const show = !visible || visible.has(campaign.slug)
     el.style.display = show ? '' : 'none'
   }
 
-  if (selectedCampaign.value && visible && !visible.has(selectedCampaign.value.campaign_id)) {
+  if (selectedCampaign.value && visible && !visible.has(selectedCampaign.value.slug)) {
     deselectCampaign()
   }
 })
@@ -246,7 +253,7 @@ onMounted(async () => {
       },
     })
 
-    for (const campaign of campaigns) {
+    for (const campaign of props.campaigns) {
       const el = document.createElement('div')
       el.className = 'emitter-marker'
       el.setAttribute('aria-label', campaign.title)
@@ -301,9 +308,9 @@ onMounted(async () => {
     // above (just a reasonable fallback for the instant before this
     // fires) — so nothing starts off-screen regardless of which
     // campaigns the data happens to have.
-    if (campaigns.length) {
+    if (props.campaigns.length) {
       const bounds = new mapboxgl!.LngLatBounds()
-      for (const campaign of campaigns) {
+      for (const campaign of props.campaigns) {
         bounds.extend([campaign.emitter_longitude, campaign.emitter_latitude])
       }
       map!.fitBounds(bounds, { padding: 160, maxZoom: 3, duration: 0 })
@@ -331,6 +338,14 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-wrapper">
     <MapFilters v-model="activeFilter" :filter-options="filterOptions" class="map-filters-overlay" />
+    <!-- Back to the tools list — top-right corner, same 14px margin as
+         MapFilters' own top-left placement above. Icon only, no label. -->
+    <NuxtLink to="/tools" class="map-exit-overlay" aria-label="Exit tool">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+        <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
+        <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
+      </svg>
+    </NuxtLink>
     <div ref="mapContainer" class="disinfo-map" />
   </div>
 </template>
@@ -354,6 +369,30 @@ onBeforeUnmount(() => {
   top: 14px;
   left: 14px;
   z-index: 2;
+}
+
+/* Same rectangle-button look as MapFilters.vue's own tabs (1px coral
+   border, square corners, translucent white fill) — top-right corner,
+   same 14px margin as that overlay's own top-left placement. */
+.map-exit-overlay {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border: 1px solid #fc7c6a;
+  background: rgba(255, 255, 255, 0.92);
+  color: #e2654f;
+}
+
+.map-exit-overlay:hover {
+  background: #fc7c6a;
+  color: #fff;
 }
 
 /* Row, pin then label — label sits to the right of the pin (script's own

@@ -7,7 +7,7 @@
 // the same color "Disinformation Campaigns" (guide article 1) and this
 // tool's own "Related tool" button (TemplateDefault.vue) already use, so
 // the color carries through from the article that links here.
-import type { CampaignWithReceivers } from '~/composables/useCampaigns'
+import type { CampaignWithReceivers } from '~/types/campaign'
 
 const props = defineProps<{
   campaign: CampaignWithReceivers | null
@@ -33,7 +33,9 @@ const display = computed(() => {
     actor: c?.emitter_actor || '-',
     period: c?.date_or_period || '-',
     platforms: c?.social_networks?.length ? c.social_networks : ['-'],
-    audiences: c?.receivers.length ? c.receivers.map((r) => `${r.receiver_country} — ${r.receiver_target}`) : ['-'],
+    audiences: c?.receivers.length
+      ? c.receivers.map((r) => (r.receiver_target ? `${r.receiver_country} — ${r.receiver_target}` : r.receiver_country))
+      : ['-'],
     analysis: c?.page_content || '-',
     strategies: c?.strategy_used?.length ? c.strategy_used : ['-'],
     sources: c?.sources?.length ? c.sources : ['-'],
@@ -99,7 +101,8 @@ const display = computed(() => {
 
     <h3>Analysis</h3>
     <ul>
-      <li class="campaign-panel-analysis-row">{{ display.analysis }}</li>
+      <!-- eslint-disable-next-line vue/no-v-html -->
+      <li class="campaign-panel-analysis-row" v-html="display.analysis" />
     </ul>
 
     <h3>Strategies</h3>
@@ -200,9 +203,13 @@ const display = computed(() => {
 
 .campaign-panel li.campaign-panel-analysis-row {
   padding: 14px 10px;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Martian Mono', monospace;
   font-size: 12pt;
   line-height: 1.5;
+}
+
+.campaign-panel li.campaign-panel-analysis-row :deep(p) {
+  margin: 0;
 }
 
 /* Tool name (intro state only) — same family, size and weight as the

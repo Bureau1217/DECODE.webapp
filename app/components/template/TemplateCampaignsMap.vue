@@ -6,14 +6,18 @@
 // DECODE.map project). Self-contained: doesn't use app.vue's own
 // KeywordsPanel slot (individual tool pages aren't in its route list),
 // it lays out its own fixed left panel + offset right content here.
-import type { CampaignWithReceivers } from '~/composables/useCampaigns'
+import type { CampaignWithReceivers } from '~/types/campaign'
 
-// Same `tool` KQL select ([tool].vue) TemplateTool.vue takes — only the
-// two fields CampaignInfoPanel's own intro state actually shows.
-defineProps<{
+// Same `tool` KQL select ([tool].vue) TemplateTool.vue takes — `title`/
+// `description` feed CampaignInfoPanel's intro state, `campaigns` (the
+// select's own structural-children relation) feeds the map and is what
+// editors manage in the CMS (child pages under tools/campaigns-map,
+// template: campaign) instead of a static data file.
+const props = defineProps<{
   page: {
     title: string
     description?: string
+    campaigns: CampaignWithReceivers[]
   }
 }>()
 
@@ -31,7 +35,7 @@ const readingMode = useReadingMode()
   <div class="campaigns-map-page">
     <CampaignInfoPanel :campaign="selectedCampaign" :tool="page" />
     <div class="campaigns-map-content" :class="{ 'reading-mode': readingMode }">
-      <DisinfoMap v-model:campaign="selectedCampaign" />
+      <DisinfoMap v-model:campaign="selectedCampaign" :campaigns="props.page.campaigns" />
     </div>
   </div>
 </template>

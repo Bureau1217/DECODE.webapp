@@ -1,4 +1,4 @@
-import type { CampaignWithReceivers } from '~/composables/useCampaigns'
+import type { CampaignWithReceivers } from '~/types/campaign'
 
 // Ported from DECODE.map (app/composables/useMapFilters.js) — unchanged
 // logic, just typed. Used by DisinfoMap.vue to drive MapFilters.vue's own

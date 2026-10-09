@@ -20,6 +20,11 @@ function isActive(to: string) {
 // app shell — nav/index-bar/footer — in its own coral accent (FC7C6A,
 // BADGE_COLORS[0]) instead of the site's usual brown, only while it's open.
 const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
+// Same reskin, teal instead — Bot / Troll Detector's own accent (a
+// deeper shade than the B4EAE1/BADGE_COLORS[1] used for panel fills, so
+// white nav text stays legible against it, same reasoning as the coral
+// case above).
+const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-detector')
 
 // Same folder-tab silhouette as Splash.vue's top tab (diagonal shoulders,
 // small rounded transition into the flat top line) — here closed with a
@@ -91,7 +96,7 @@ onUnmounted(() => {
 <template>
   <nav
     class="site-nav"
-    :class="{ 'is-campaigns-map': isCampaignsMapPage }"
+    :class="{ 'is-campaigns-map': isCampaignsMapPage, 'is-bot-troll': isBotTrollDetectorPage }"
     :style="{ top: `${tabTop}px`, height: `${tabHeight}px` }"
   >
     <div
@@ -208,6 +213,26 @@ onUnmounted(() => {
    while inactive ones stay coral. */
 .site-nav.is-campaigns-map .nav-tab-wrap:hover .nav-tab,
 .site-nav.is-campaigns-map .nav-tab-wrap.active .nav-tab {
+  color: #fff;
+}
+
+/* Teal instead of brown — only while the Bot / Troll Detector tool is
+   open (script). Same specificity reasoning as the coral block above. */
+.site-nav.is-bot-troll .nav-tab-shape path {
+  stroke: #3fa396;
+}
+
+.site-nav.is-bot-troll .nav-tab {
+  color: #3fa396;
+}
+
+.site-nav.is-bot-troll .nav-tab-wrap:hover .nav-tab-shape path,
+.site-nav.is-bot-troll .nav-tab-wrap.active .nav-tab-shape path {
+  fill: #3fa396;
+}
+
+.site-nav.is-bot-troll .nav-tab-wrap:hover .nav-tab,
+.site-nav.is-bot-troll .nav-tab-wrap.active .nav-tab {
   color: #fff;
 }
 </style>

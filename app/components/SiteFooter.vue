@@ -8,12 +8,14 @@ const showSplash = useSplashVisible()
 // open — same reskin as SiteNav.vue/SiteIndexBar.vue.
 const route = useRoute()
 const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
+// Same reskin, teal — Bot / Troll Detector's own accent.
+const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-detector')
 </script>
 
 <template>
   <footer
     class="site-footer"
-    :class="{ 'is-branded': !showSplash, 'is-campaigns-map': isCampaignsMapPage }"
+    :class="{ 'is-branded': !showSplash, 'is-campaigns-map': isCampaignsMapPage, 'is-bot-troll': isBotTrollDetectorPage }"
   >
     <NuxtLink to="/" class="footer-brand">DE.CO.DE</NuxtLink>
     <span class="footer-tagline text-h4">
@@ -58,6 +60,10 @@ const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
 
 .is-campaigns-map {
   color: #fc7c6a;
+}
+
+.is-bot-troll {
+  color: #3fa396;
 }
 
 .footer-brand {
