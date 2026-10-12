@@ -6,18 +6,34 @@
 const displayMode = useDisplayMode()
 const readingMode = useReadingMode()
 
+// Below 768px, INDEX stops being the Index/Visual display-mode pair's own
+// "Index" option (Visual doesn't exist on mobile at all — see the
+// isToolsSection-style v-if below) and instead becomes a full-view toggle
+// — swap in whichever info panel the current route has (InfoPanel.vue's
+// mobile media query), in place of the page's main content
+// (app.vue/TemplateToolPageLayout.vue's own mobile overrides). Reading
+// mode has nothing to shrink on mobile either (no side-by-side split to
+// begin with), so it's hidden there too, same as Visual.
+const isMobile = useIsMobile()
+const mobileIndexOpen = useMobileIndexOpen()
+function onIndexClick() {
+  if (isMobile.value) {
+    mobileIndexOpen.value = !mobileIndexOpen.value
+  } else {
+    displayMode.value = 'index'
+  }
+}
+
 // B8A084 only on /resources (its own grid of bordered cards reads better
 // against that color), 775937 only on /about (that page's own accent) —
 // white everywhere else, the divider's original color.
 const route = useRoute()
 const isResourcesPage = computed(() => route.path === '/resources')
 const isAboutPage = computed(() => route.path === '/about')
-// Coral (FC7C6A) instead of brown while the Campaigns Maps tool is open —
-// the map itself gets its own exit button (DisinfoMap.vue, top-right
-// corner, same margin as MapFilters.vue) rather than this bar.
-const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
-// Same reskin, teal — Bot / Troll Detector's own accent.
-const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-detector')
+// A custom tool page reskins this bar in its own accent instead of
+// brown — the map itself gets its own exit button (DisinfoMap.vue,
+// top-right corner, same margin as MapFilters.vue) rather than this bar.
+const { theme, isThemed } = useToolTheme()
 // No tool has a "visual" layout to switch to (unlike guide/resources'
 // card grids) — hide the toggle across /tools and its sub-pages rather
 // than leaving a non-functional button.
@@ -25,13 +41,13 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
 </script>
 
 <template>
-  <div class="index-bar" :class="{ 'is-campaigns-map': isCampaignsMapPage, 'is-bot-troll': isBotTrollDetectorPage }">
+  <div class="index-bar" :class="{ 'is-tool-themed': isThemed }" :style="{ '--local-accent': theme?.chromeAccent }">
     <div class="index-bar-group">
       <button
         type="button"
-        class="index-bar-item"
-        :class="{ active: displayMode === 'index' }"
-        @click="displayMode = 'index'"
+        class="index-bar-item index-bar-index"
+        :class="{ active: isMobile ? mobileIndexOpen : displayMode === 'index' }"
+        @click="onIndexClick"
       >
         <span class="index-bar-dot" aria-hidden="true" />
         Index
@@ -39,7 +55,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
       <button
         v-if="!isToolsSection"
         type="button"
-        class="index-bar-item"
+        class="index-bar-item index-bar-visual"
         :class="{ active: displayMode === 'visual' }"
         @click="displayMode = 'visual'"
       >
@@ -49,7 +65,8 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
     </div>
 
     <!-- Anchored to the bar's own center, then pulled further left of it —
-         not simply centered. -->
+         not simply centered (desktop only — below 768px this becomes the
+         index bar's own second half, see the media query below). -->
     <button type="button" class="index-bar-item index-bar-search">
       <span class="index-bar-dot" aria-hidden="true" />
       Search
@@ -57,7 +74,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
 
     <button
       type="button"
-      class="index-bar-item"
+      class="index-bar-item index-bar-reading"
       :class="{ active: readingMode }"
       @click="readingMode = !readingMode"
     >
@@ -94,7 +111,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   z-index: 2;
   width: 100vw;
   height: 3.5vh;
-  background: #a68764;
+  background: var(--color-brand);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -102,12 +119,8 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   box-sizing: border-box;
 }
 
-.index-bar.is-campaigns-map {
-  background: #fc7c6a;
-}
-
-.index-bar.is-bot-troll {
-  background: #3fa396;
+.index-bar.is-tool-themed {
+  background: var(--local-accent);
 }
 
 .index-bar-group {
@@ -124,11 +137,11 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12pt;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #fff;
+  color: var(--color-surface);
   cursor: pointer;
 }
 
@@ -150,13 +163,13 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   width: 1em;
   height: 1em;
   border-radius: 50%;
-  border: 1px solid #fff;
+  border: 1px solid var(--color-surface);
   background: transparent;
   transition: background-color 0.15s ease;
 }
 
 .index-bar-item.active .index-bar-dot {
-  background-color: #fff;
+  background-color: var(--color-surface);
 }
 
 /* Above .index-bar (z-index 2) now — visibly crosses over the brown bar
@@ -169,7 +182,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   height: 3.5vh;
   left: calc(50% - 0.5px);
   width: 1px;
-  background: #fff;
+  background: var(--color-surface);
   z-index: 3;
 }
 
@@ -183,7 +196,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   bottom: 0;
   left: calc(50vw - 0.5px);
   width: 1px;
-  background: #fff;
+  background: var(--color-surface);
   z-index: 3;
   transition: left 0.5s ease;
 }
@@ -193,10 +206,46 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
 }
 
 .content-divider.is-resources {
-  background: #b8a084;
+  background: var(--color-brand-resources);
 }
 
 .content-divider.is-about {
-  background: #a68764;
+  background: var(--color-brand);
+}
+
+/* Below 768px: just INDEX | SEARCH, each half the bar (mirrors
+   .index-bar-divider above, which already sits at the viewport's own
+   center — no change needed there). Visual has nothing to switch to on
+   mobile (no permanent side panel to reformat) and Reading mode has
+   nothing to shrink (no side-by-side split to begin with) — both hidden.
+   .content-divider tracks the desktop 50vw/25vw panel boundary, which
+   doesn't exist on mobile either. */
+@media (max-width: 768px) {
+  .index-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 0;
+  }
+
+  .index-bar-group {
+    padding-left: 12px;
+  }
+
+  .index-bar-visual,
+  .index-bar-reading {
+    display: none;
+  }
+
+  .index-bar-search {
+    position: static;
+    transform: none;
+    width: 100%;
+    justify-content: flex-end;
+    padding-right: 12px;
+  }
+
+  .content-divider {
+    display: none;
+  }
 }
 </style>

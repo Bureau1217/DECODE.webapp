@@ -71,7 +71,7 @@ function isRelated(tagId: string) {
 </script>
 
 <template>
-  <aside class="keywords-panel" :class="{ 'reading-mode': readingMode }">
+  <InfoPanel class="keywords-panel" :reading-mode="readingMode">
     <template v-for="category in categories" :key="category.id">
       <h3>{{ category.title }}</h3>
       <ul>
@@ -98,37 +98,14 @@ function isRelated(tagId: string) {
         </li>
       </ul>
     </template>
-  </aside>
+  </InfoPanel>
 </template>
 
 <style scoped>
-/* Fixed, not in normal page flow — this is what makes it "always visible"
-   independent of whatever each page's own content does. top: 8.5vh clears
-   SiteNav + SiteIndexBar (1.5vh + 3.5vh + 3.5vh, both always rendered on
-   every route this panel shows on — was 5vh, clearing only the nav, which
-   left the first category hidden behind the (higher z-index) index bar).
-   bottom: 0, not var(--footer-height) — same reasoning as .app-content
-   (app.vue): this scrolls internally, and a long list runs behind the
-   footer rather than being stopped short above it, with the footer's own
-   opaque background + higher z-index covering it there. */
-.keywords-panel {
-  position: fixed;
-  z-index: 1;
-  left: 0;
-  top: 8.5vh;
-  bottom: 0;
-  width: 50vw;
-  overflow-y: auto;
-  /* The smooth resize reading mode asks for — h3/li below are sized as
-     100% of this, not their own fixed vw value, so they (and every row's
-     own border-bottom "trim" with them) resize in lockstep each frame of
-     this transition rather than needing their own separate one. */
-  transition: width 0.5s ease;
-}
-
-.keywords-panel.reading-mode {
-  width: 25vw;
-}
+/* Shell (fixed position, 50vw<->25vw reading-mode width, scroll) lives in
+   InfoPanel.vue now — shared with TeamPanel/CampaignInfoPanel/
+   BotTrollCriteriaPanel/SourceDatabasePanel. Only this panel's own header/
+   row/popup styling stays here. */
 
 /* 100% of the panel (not a fixed 50vw) — see .keywords-panel's own
    comment on why. border-bottom (not each li's own border-top too) is
@@ -141,15 +118,15 @@ function isRelated(tagId: string) {
   height: 30px;
   width: 100%;
   padding-left: 10px;
-  background: #b8a084;
-  color: #fff;
-  font-family: 'Martian Mono', monospace;
+  background: var(--color-brand-resources);
+  color: var(--color-surface);
+  font-family: var(--font-mono);
   font-weight: 500;
   font-size: 12pt;
   text-transform: uppercase;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .keywords-panel ul {
@@ -175,8 +152,8 @@ function isRelated(tagId: string) {
   box-sizing: border-box;
   min-height: 26px;
   width: 100%;
-  background: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-strong);
   transition: background-color 0.15s ease, opacity 0.15s ease;
   display: flex;
   flex-direction: column;
@@ -262,10 +239,10 @@ function isRelated(tagId: string) {
   z-index: 3;
   box-sizing: border-box;
   padding: 8px 10px;
-  background: #fff;
-  border: 1px solid #a68764;
+  background: var(--color-surface);
+  border: 1px solid var(--color-brand);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-  color: #a68764;
+  color: var(--color-brand);
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -307,9 +284,9 @@ function isRelated(tagId: string) {
   width: 100%;
   padding: 4px 10px;
   line-height: 1.3;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11pt;
-  color: #3b382f;
+  color: var(--color-ink);
   text-decoration: none;
 }
 </style>

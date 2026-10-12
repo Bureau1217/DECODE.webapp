@@ -92,6 +92,21 @@ const criterionSelect = {
   platforms: 'page.platforms.split(",")',
 }
 
+// A reliability-rated source (site/blueprints/pages/source.yml) — child
+// page of the Source Reliability tool only.
+const sourceSelect = {
+  ...summary,
+  source_domain: true,
+  source_type: true,
+  country_or_region: true,
+  topic_area: true,
+  trust_score_100: 'page.trust_score_100.toInt',
+  trust_level: true,
+  trust_score_explanation: true,
+  bias_notes: true,
+  authority_sources: true,
+}
+
 export const pageSelects: Record<string, Record<string, unknown>> = {
   default: {
     ...summary,
@@ -179,19 +194,23 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     concepts: pagesRelation('concepts'),
     platforms: pagesRelation('platforms'),
     questions: pagesRelation('questions'),
-    // Structural children (template: campaign) — only the Campaigns Maps
-    // tool actually has any (site/blueprints/pages/tool.yml's "Campagnes"
-    // section is shared by all tool pages, but harmless/unused on the
-    // other two). DisinfoMap.vue reads this instead of a static JSON file.
+    // [tool].vue fetches every tool page with this same 'tool' select key
+    // regardless of slug — each tool now has its own dedicated template
+    // (campaigns-map-tool.yml, bot-troll-tool.yml, source-reliability-
+    // tool.yml) so only its own sidebar section actually has children of
+    // the matching type, but querying all three relations here is
+    // harmless (empty array) for whichever two a given tool doesn't use.
     campaigns: {
       query: "page.children.filterBy('intendedTemplate', 'campaign')",
       select: campaignSelect,
     },
-    // Same pattern, for the Bot / Troll Detector's own "Critères" section
-    // — only that tool has any `criterion` children.
     criteria: {
       query: "page.children.filterBy('intendedTemplate', 'criterion')",
       select: criterionSelect,
+    },
+    sources: {
+      query: "page.children.filterBy('intendedTemplate', 'source')",
+      select: sourceSelect,
     },
   },
 

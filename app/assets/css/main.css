@@ -20,6 +20,58 @@ body {
   --footer-height: 4vh;
   --text-h3-size: 12pt;
   --text-h4-size: 10pt;
+
+  /* Neutrals. --color-ink/--color-text-soft consolidate what had drifted
+     into three near-black (#1a1a1a/#000/#3b382f) and four near-grey
+     (#6f6f6f/#333/#444/#5f6368) literals across components with no
+     actual intent behind the differences — one component even used two
+     of the near-blacks itself. --color-border's 0.1 alpha is the most
+     common of a 0.08/0.1/0.15 spread that was never meant to be three
+     different values either. */
+  --color-ink: #1a1a1a;
+  --color-text-soft: #6f6f6f;
+  --color-surface: #fff;
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-border-strong: rgba(0, 0, 0, 0.3);
+
+  /* Brand — the site's default brown, plus the two page-specific accents
+     (about/resources) that replace it on those routes (SiteNav.vue and
+     friends' own per-page theming). */
+  --color-brand: #a68764;
+  --color-brand-about: #775937;
+  --color-brand-resources: #b8a084;
+
+  /* Tool accents — one pair per custom tool page (Campaigns Maps/Bot
+     Troll Detector/Source Reliability), each cycling the next color in
+     app/utils/badgeColors.ts's BADGE_COLORS (keep these numerically in
+     sync with that file). The "-deep" shade is each tool's own
+     hand-picked higher-contrast variant for text/nav/buttons — BADGE_
+     COLORS itself only has the one (lighter, panel-fill) shade. */
+  --tool-campaigns-accent: #fc7c6a;
+  --tool-campaigns-accent-deep: #e2654f;
+  --tool-bottroll-accent: #b4eae1;
+  --tool-bottroll-accent-deep: #3fa396;
+  --tool-sourcerel-accent: #cdb4ea;
+  --tool-sourcerel-accent-deep: #8a5fc7;
+
+  /* Each tool's own light wash for a filled band/hover tint (distinct
+     from -accent above, which is the panel-fill/badge shade) — reused
+     across that tool's own panel + content components, so promoted here
+     rather than left as a repeated literal. */
+  --tool-bottroll-tint: #e8f8f5;
+  --tool-bottroll-signal: #2e8577;
+  --tool-sourcerel-tint: #e4d4f2;
+
+  /* Status text — "it saved"/"this source is well-rated" message color,
+     reused across otherwise-unrelated components (BotTrollAccountPanel's
+     save confirmation, SourcePluginInfoPanel's illustrative high-trust
+     badge), not any one tool's own accent. */
+  --color-success: #1e6b31;
+
+  /* Fonts — see the @import below for what each family is used for. */
+  --font-mono: 'Martian Mono', monospace;
+  --font-serif: 'EB Garamond', Garamond, serif;
+  --font-display: 'Archivo', sans-serif;
 }
 
 /* Body font: Martian Mono (https://fonts.google.com/specimen/Martian+Mono).
@@ -41,7 +93,7 @@ body {
 @import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400&family=Archivo:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
 
 body {
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 /* Type scale: H3/H4-equivalent sizes on top of the Martian Mono body font,

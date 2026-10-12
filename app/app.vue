@@ -26,6 +26,19 @@ const readingMode = useReadingMode()
 // same fixed half-viewport slot KeywordsPanel otherwise occupies there —
 // never both at once.
 const isAboutPage = computed(() => route.path === '/about')
+
+// Mobile's INDEX/MENU toggles (SiteIndexBar.vue/SiteNav.vue) — reset on
+// every navigation so arriving at a new page always shows its content
+// first, never leaving a visitor stuck on the previous page's index/menu.
+const mobileIndexOpen = useMobileIndexOpen()
+const mobileMenuOpen = useMobileMenuOpen()
+watch(
+  () => route.path,
+  () => {
+    mobileIndexOpen.value = false
+    mobileMenuOpen.value = false
+  },
+)
 </script>
 
 <template>
@@ -65,8 +78,18 @@ const isAboutPage = computed(() => route.path === '/about')
 
     <template v-if="!showSplash">
       <Map />
+      <!-- Mobile only (CSS) — a plain opaque backdrop behind the full
+           8.5vh top-chrome strip. SiteNav/SiteIndexBar's own backgrounds
+           don't quite cover that whole strip themselves (SiteNav's own
+           box starts at `tabTop`, ~1.5vh down, not flush at 0) — normally
+           invisible, but app-content/TemplateToolPageLayout's own mobile
+           INDEX slide (both translateY past their own top edge) can pass
+           behind that uncovered sliver mid-slide without this, showing
+           through whatever content was last scrolled behind it. -->
+      <div class="mobile-chrome-backdrop" aria-hidden="true" />
       <SiteNav />
       <SiteIndexBar />
+      <MobileMenuOverlay v-if="mobileMenuOpen" />
     </template>
 
     <TeamPanel v-if="showKeywordsPanel && isAboutPage" />
@@ -85,7 +108,12 @@ const isAboutPage = computed(() => route.path === '/about')
          to clear them itself, only while they're actually rendered. -->
     <div
       class="app-content"
-      :class="{ 'has-keywords-panel': showKeywordsPanel, 'has-nav': !showSplash, 'reading-mode': readingMode }"
+      :class="{
+        'has-keywords-panel': showKeywordsPanel,
+        'has-nav': !showSplash,
+        'reading-mode': readingMode,
+        'mobile-index-open': mobileIndexOpen,
+      }"
     >
       <NuxtPage />
     </div>
@@ -144,5 +172,48 @@ body {
    combined height. */
 .app-content.has-nav {
   padding-top: 8.5vh;
+}
+
+.mobile-chrome-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-chrome-backdrop {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    width: 100%;
+    height: 8.5vh;
+    background: var(--color-surface);
+  }
+}
+
+/* No side-by-side split below 768px — the keywords/team panel (InfoPanel.
+   vue's own mobile media query) takes the full screen instead of a 50vw/
+   25vw slice beside this. Both become identical fixed, full-screen boxes
+   and slide vertically past each other (this one up and out, the panel
+   up and into view from below) when the same mobile-index-open state
+   toggles — a visible scroll/slide, not an instant display swap. */
+@media (max-width: 768px) {
+  .app-content.has-keywords-panel,
+  .app-content.has-keywords-panel.reading-mode {
+    margin-left: 0;
+    padding-top: 0;
+    position: fixed;
+    top: 8.5vh;
+    bottom: var(--footer-height);
+    left: 0;
+    width: 100%;
+    transform: translateY(0);
+    transition: transform 0.4s ease;
+  }
+
+  .app-content.has-keywords-panel.mobile-index-open {
+    transform: translateY(-100%);
+    pointer-events: none;
+  }
 }
 </style>

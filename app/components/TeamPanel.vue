@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// Same fixed half-viewport panel as KeywordsPanel.vue (shared styling
-// duplicated here, not imported — scoped styles don't carry across
-// components), but only ever shown on /about (app.vue) in place of it:
-// sourced from the about page's own "Équipes" field
+// Same fixed half-viewport shell as KeywordsPanel.vue (InfoPanel.vue),
+// but only ever shown on /about (app.vue) in place of it: sourced from
+// the about page's own "Équipes" field
 // (DECODE.cms/site/blueprints/blocks/team.yml) instead of the global
 // keyword taxonomy — team name instead of a keyword category, members
 // instead of keywords.
@@ -42,7 +41,7 @@ const readingMode = useReadingMode()
 </script>
 
 <template>
-  <aside class="team-panel" :class="{ 'reading-mode': readingMode }">
+  <InfoPanel class="team-panel" :reading-mode="readingMode">
     <template v-for="team in teams" :key="team.title">
       <h3>{{ team.title }}</h3>
       <ul>
@@ -51,24 +50,11 @@ const readingMode = useReadingMode()
         </li>
       </ul>
     </template>
-  </aside>
+  </InfoPanel>
 </template>
 
 <style scoped>
-.team-panel {
-  position: fixed;
-  z-index: 1;
-  left: 0;
-  top: 8.5vh;
-  bottom: 0;
-  width: 50vw;
-  overflow-y: auto;
-  transition: width 0.5s ease;
-}
-
-.team-panel.reading-mode {
-  width: 25vw;
-}
+/* Shell lives in InfoPanel.vue now — see KeywordsPanel.vue's own note. */
 
 .team-panel h3 {
   box-sizing: border-box;
@@ -76,15 +62,15 @@ const readingMode = useReadingMode()
   height: 30px;
   width: 100%;
   padding-left: 10px;
-  background: #b8a084;
-  color: #fff;
-  font-family: 'Martian Mono', monospace;
+  background: var(--color-brand-resources);
+  color: var(--color-surface);
+  font-family: var(--font-mono);
   font-weight: 500;
   font-size: 12pt;
   text-transform: uppercase;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--color-border-strong);
 }
 
 .team-panel ul {
@@ -97,8 +83,8 @@ const readingMode = useReadingMode()
   box-sizing: border-box;
   min-height: 26px;
   width: 100%;
-  background: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-strong);
   transition: background-color 0.15s ease;
   display: flex;
   align-items: center;
@@ -114,8 +100,8 @@ const readingMode = useReadingMode()
   width: 100%;
   padding: 4px 10px;
   line-height: 1.3;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11pt;
-  color: #3b382f;
+  color: var(--color-ink);
 }
 </style>

@@ -20,8 +20,9 @@ interface SiteInfo {
 
 defineEmits<{ continue: [] }>()
 
-// Shared across the numbered article badges and the per-image labels.
-const BADGE_COLORS = ['#FC7C6A', '#B4EAE1', '#CDB4EA']
+// BADGE_COLORS itself comes from app/utils/badgeColors.ts (Nuxt
+// auto-import, same as badgeColorFor() in GuideCard.vue/ToolCard.vue) —
+// this used to be its own local copy of that same array.
 
 // Horizontal rhythm for the big display sentences (assumes CMS order
 // Spotting/Deepfakes/Campaigns): first line shifted left a bit, second
@@ -576,7 +577,7 @@ onUnmounted(() => {
     >
       <path
         :d="folderTabPath"
-        fill="#fff"
+        fill="var(--color-surface)"
         stroke="#000"
         stroke-width="1"
         stroke-linejoin="round"
@@ -697,7 +698,7 @@ onUnmounted(() => {
             <rect
               v-for="(rect, ri) in paragraphMask.base"
               :key="`b${ri}`"
-              fill="#fff"
+              fill="var(--color-surface)"
               :x="rect.left"
               :y="rect.top"
               :width="rect.width"
@@ -731,6 +732,25 @@ onUnmounted(() => {
     <button type="button" class="splash-cta" :style="ctaStyle" @click="$emit('continue')">
       Enter the investigation guide
     </button>
+
+    <!-- Below 768px only (CSS, like SiteNav.vue's own mobile row) — every
+         element above is tuned for a wide desktop canvas (window-width-
+         driven grid/tab math, a headline reveal-mask built from measured
+         per-line pixel boxes) and no mobile maquette exists for this
+         screen yet, so rather than guess a pixel design that might
+         contradict one the user hasn't shared, this is a plain
+         simplified hero using the same CMS fields already fetched above
+         (info.header_subtitle, same text the desktop .splash-subtitle
+         shows) — no JS-driven inline positioning of its own, so it can't
+         conflict with the desktop elements' own computed styles the way
+         trying to override those with plain CSS would. -->
+    <div class="splash-mobile-hero">
+      <span class="splash-mobile-brand">DE.CO.DE</span>
+      <p v-if="info?.header_subtitle" class="splash-mobile-subtitle">{{ info.header_subtitle }}</p>
+      <button type="button" class="splash-mobile-cta" @click="$emit('continue')">
+        Enter the investigation guide
+      </button>
+    </div>
   </section>
 </template>
 
@@ -852,7 +872,7 @@ onUnmounted(() => {
   /* White rectangle sized to the text, not the other way round — inline
      so the box hugs exactly the three lines of text inside it. */
   display: inline-block;
-  background: #fff;
+  background: var(--color-surface);
   padding: 12px;
   /* Wide enough for "AN OPEN MULTIMEDIA GUIDE EXPLORING DISINFORMATION" on
      one line; the second sentence wraps on its own into two more. */
@@ -868,8 +888,8 @@ onUnmounted(() => {
      centers this button's own box exactly on that line. */
   transform: translate(-50%, -50%);
   z-index: 2;
-  background-color: #a68764;
-  color: #fff;
+  background-color: var(--color-brand);
+  color: var(--color-surface);
   border: none;
   border-radius: 0;
   padding: 18px;
@@ -886,7 +906,7 @@ onUnmounted(() => {
 .splash-corner {
   position: absolute;
   z-index: 2;
-  font-family: Garamond, 'EB Garamond', serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 34px;
   text-align: center;
@@ -926,10 +946,10 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 1px 4px;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 400;
   font-size: 20px;
-  color: #000;
+  color: var(--color-ink);
 }
 
 /* Pixel-art country silhouettes (public/splash/*.svg), scattered like
@@ -960,7 +980,7 @@ onUnmounted(() => {
    of sharing one center axis. */
 .splash-sentences {
   position: relative;
-  font-family: 'Archivo', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 120px;
   line-height: 1;
@@ -986,7 +1006,7 @@ onUnmounted(() => {
 .sentence-fill {
   position: absolute;
   inset: -80px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .sentence-line {
@@ -1076,7 +1096,7 @@ onUnmounted(() => {
   left: 0;
   z-index: 1;
   padding: 2px 6px;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -1090,6 +1110,76 @@ onUnmounted(() => {
        the image list back to back — lands precisely where the first copy
        started, so the loop has no visible seam. */
     transform: translateX(-50%);
+  }
+}
+
+/* Hidden by default — only shown below 768px (media query further down),
+   same "both always render, CSS alone picks which one shows" pattern
+   SiteNav.vue's own mobile row uses, so there's no hydration flash
+   switching between this and the desktop layout above. */
+.splash-mobile-hero {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Every one of these has either window-width-driven JS math behind it
+     (the tab, the grid, the reveal-mask headline) or simply has no mobile
+     maquette to match yet — see the template comment above
+     .splash-mobile-hero for why this is a plain simplified fallback
+     rather than an attempt to reflow them. */
+  .splash-tab,
+  .splash-tab-ticker,
+  .splash-grid,
+  .splash-corner,
+  .splash-countries,
+  .splash-images,
+  .splash-info,
+  .splash-cta {
+    display: none;
+  }
+
+  .splash-mobile-hero {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    box-sizing: border-box;
+    padding: 10vh 8% 0;
+    text-align: center;
+  }
+
+  .splash-mobile-brand {
+    color: var(--color-brand);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 32pt;
+  }
+
+  .splash-mobile-subtitle {
+    margin: 0;
+    max-width: 32em;
+    color: var(--color-ink);
+    font-family: var(--font-serif);
+    font-size: 15pt;
+    line-height: 1.5;
+  }
+
+  .splash-mobile-cta {
+    appearance: none;
+    border: none;
+    border-radius: 0;
+    padding: 14px 24px;
+    background: var(--color-brand);
+    color: var(--color-surface);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11pt;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    cursor: pointer;
   }
 }
 </style>

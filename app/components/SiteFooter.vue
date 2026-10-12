@@ -4,22 +4,20 @@
 // else, matching the brand accent used by the nav/index bar/splash CTA).
 const showSplash = useSplashVisible()
 
-// Coral (FC7C6A), not the usual brown, while the Campaigns Maps tool is
-// open — same reskin as SiteNav.vue/SiteIndexBar.vue.
-const route = useRoute()
-const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
-// Same reskin, teal — Bot / Troll Detector's own accent.
-const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-detector')
+// A custom tool page's own accent, not the usual brown, while it's open
+// — same reskin as SiteNav.vue/SiteIndexBar.vue.
+const { theme, isThemed } = useToolTheme()
 </script>
 
 <template>
   <footer
     class="site-footer"
-    :class="{ 'is-branded': !showSplash, 'is-campaigns-map': isCampaignsMapPage, 'is-bot-troll': isBotTrollDetectorPage }"
+    :class="{ 'is-branded': !showSplash, 'is-tool-themed': isThemed }"
+    :style="{ '--local-accent': theme?.chromeAccent }"
   >
     <NuxtLink to="/" class="footer-brand">DE.CO.DE</NuxtLink>
     <span class="footer-tagline text-h4">
-      DE.CO.DE IS AN OPEN MULTIMEDIA GUIDE EXPLORING DISINFORMATION
+      {{ SITE_TAGLINE }}
     </span>
 
     <!-- Visual only for now — no i18n/theme switching wired up yet. -->
@@ -47,7 +45,7 @@ const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-d
   /* Opaque — otherwise SiteIndexBar's fixed, viewport-tall divider (z-index
      1, so behind this on paper) would still show straight through an
      unpainted/transparent footer box. */
-  background: #fff;
+  background: var(--color-surface);
   height: var(--footer-height);
   width: 100vw;
   border-top: 2px solid #d2d2d28d;
@@ -55,19 +53,15 @@ const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-d
 }
 
 .is-branded {
-  color: #a68764;
+  color: var(--color-brand);
 }
 
-.is-campaigns-map {
-  color: #fc7c6a;
-}
-
-.is-bot-troll {
-  color: #3fa396;
+.is-tool-themed {
+  color: var(--local-accent);
 }
 
 .footer-brand {
-  font-family: 'Archivo', sans-serif;
+  font-family: var(--font-display);
   font-weight: 800;
   /* The only footer text that gets the +2pt bump — default browser
      text-size (~12pt, no --text-* var covers this one) + 2. */
@@ -125,5 +119,14 @@ const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-d
   height: 1em;
   border-radius: 50%;
   border: 1px solid currentColor;
+}
+
+/* Moved to the top ticker (SiteNav.vue's own mobile row) — keeping both
+   would collide with .footer-brand/.footer-controls at this width, and
+   every mobile maquette's footer only ever shows brand + lang/dark-mode. */
+@media (max-width: 768px) {
+  .footer-tagline {
+    display: none;
+  }
 }
 </style>

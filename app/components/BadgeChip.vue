@@ -1,0 +1,27 @@
+<script setup lang="ts">
+// Shared "badge chip" look — a shrink-to-fit tinted rectangle behind a
+// short label, in the keyword/badge color — duplicated identically
+// (modulo margin, which stays each consumer's own layout concern) in
+// GuideCard.vue, ToolCard.vue and TemplateDefault.vue's own subtitle.
+defineProps<{
+  color: string
+}>()
+</script>
+
+<template>
+  <span class="badge-chip" :style="{ backgroundColor: color }">
+    <slot />
+  </span>
+</template>
+
+<style scoped>
+.badge-chip {
+  display: inline-block;
+  padding: 1px;
+  color: var(--color-ink);
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 12pt;
+}
+</style>

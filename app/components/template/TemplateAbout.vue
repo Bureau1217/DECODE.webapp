@@ -46,7 +46,7 @@ const activeIndex = ref(0)
 </script>
 
 <template>
-  <DetailPanelChrome background="#fff" text-color="#775937">
+  <DetailPanelChrome background="var(--color-surface)" text-color="var(--color-brand-about)">
     <article class="about-detail">
       <header class="about-detail-header">
         <h1 class="about-detail-title">{{ siteTitle }}</h1>
@@ -56,7 +56,7 @@ const activeIndex = ref(0)
       <!-- In place of the article template's divider band — one tab per
            paragraph, styled like that template's own
            .article-detail-tool-btn (Splash.vue's .splash-cta look) only
-           once active; otherwise a plain #775937 stroke. -->
+           once active; otherwise a plain var(--color-brand-about) stroke. -->
       <nav class="about-detail-nav">
         <button
           v-for="(section, index) in paragraphs"
@@ -70,7 +70,7 @@ const activeIndex = ref(0)
         </button>
       </nav>
 
-      <div class="about-detail-body">
+      <TemplateDetailBody color="var(--color-brand-about)">
         <section v-if="paragraphs[activeIndex]">
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div
@@ -81,7 +81,7 @@ const activeIndex = ref(0)
             v-html="block.content?.text"
           />
         </section>
-      </div>
+      </TemplateDetailBody>
     </article>
   </DetailPanelChrome>
 </template>
@@ -95,8 +95,8 @@ const activeIndex = ref(0)
 /* Same face as SiteFooter.vue's own "DE.CO.DE" brand text. */
 .about-detail-title {
   margin: 0;
-  color: #775937;
-  font-family: 'Archivo', sans-serif;
+  color: var(--color-brand-about);
+  font-family: var(--font-display);
   font-weight: 800;
   font-size: 48px;
 }
@@ -104,8 +104,8 @@ const activeIndex = ref(0)
 .about-detail-subtitle {
   margin: 10px auto 0;
   max-width: 60%;
-  color: #775937;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-brand-about);
+  font-family: var(--font-serif);
   font-size: 28pt;
   line-height: 1.4;
 }
@@ -119,8 +119,8 @@ const activeIndex = ref(0)
   justify-content: center;
 }
 
-/* Stroke-only #775937 at rest — a real tab's "not currently showing"
-   state, not a disabled/secondary look. .active fills solid #775937
+/* Stroke-only var(--color-brand-about) at rest — a real tab's "not currently showing"
+   state, not a disabled/secondary look. .active fills solid var(--color-brand-about)
    instead. margin-left:-1px (every button but the first) pulls each one
    left by exactly its own border-width, landing its left border on top
    of the previous button's right border — one line instead of two —
@@ -129,9 +129,9 @@ const activeIndex = ref(0)
 .about-detail-nav-btn {
   position: relative;
   display: inline-block;
-  background: #fff;
-  color: #775937;
-  border: 1px solid #775937;
+  background: var(--color-surface);
+  color: var(--color-brand-about);
+  border: 1px solid var(--color-brand-about);
   border-radius: 0;
   padding: 14px 60px;
   font-family: Arial, Helvetica, sans-serif;
@@ -152,31 +152,42 @@ const activeIndex = ref(0)
 }
 
 .about-detail-nav-btn.active {
-  background: #775937;
-  color: #fff;
+  background: var(--color-brand-about);
+  color: var(--color-surface);
 }
 
-.about-detail-body {
-  padding: 40px 10% 0;
-  color: #775937;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 26px;
-  line-height: 1.4;
-}
-
+/* Body box/font/v-html paragraph-spacing rules live in
+   TemplateDetailBody.vue now — only this template's own per-block spacing
+   and the alinea indent (first block only) stay here. */
 .about-detail-paragraph + .about-detail-paragraph {
-  margin-top: 1em;
-}
-
-.about-detail-paragraph :deep(p) {
-  margin: 0;
-}
-
-.about-detail-paragraph :deep(p + p) {
   margin-top: 1em;
 }
 
 .about-detail-alinea :deep(:first-child) {
   text-indent: 2em;
+}
+
+/* No mobile maquette shows this page's content state (only its Index/Team
+   state, covered by InfoPanel.vue's own mobile media query) — this is a
+   reasonable responsive extrapolation, not a pixel match: the fixed
+   padding:14px 60px tabs would overflow/clip at phone width otherwise. */
+@media (max-width: 768px) {
+  .about-detail-title {
+    font-size: 30px;
+  }
+
+  .about-detail-subtitle {
+    max-width: 90%;
+    font-size: 16pt;
+  }
+
+  .about-detail-nav {
+    flex-wrap: wrap;
+  }
+
+  .about-detail-nav-btn {
+    padding: 10px 18px;
+    font-size: 11pt;
+  }
 }
 </style>

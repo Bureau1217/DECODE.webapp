@@ -113,12 +113,17 @@ function placeholderGradient(seed: string) {
 
       <div class="bt-handle-row">
         <h1 class="bt-handle">{{ account.handle }}</h1>
-        <button type="button" class="bt-search-toggle" aria-label="Search another account" @click="toggleSearch">
+        <ButtonOutline
+          class="bt-search-toggle"
+          accent="var(--tool-bottroll-accent-deep)"
+          aria-label="Search another account"
+          @click="toggleSearch"
+        >
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
             <line x1="20" y1="20" x2="15.2" y2="15.2" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
           </svg>
-        </button>
+        </ButtonOutline>
       </div>
 
       <form v-if="searchOpen" class="bt-search-form" @submit.prevent="submitSearch">
@@ -206,9 +211,9 @@ function placeholderGradient(seed: string) {
         </label>
 
         <div class="bt-save-row">
-          <button type="button" class="bt-save" :disabled="!selectedVerdict || saving" @click="save">
+          <ButtonOutline class="bt-save" :disabled="!selectedVerdict || saving" @click="save">
             {{ saving ? 'Saving…' : 'Save to review table' }}
-          </button>
+          </ButtonOutline>
           <span v-if="saved" class="bt-save-status">Saved.</span>
           <span v-if="saveError" class="bt-save-status bt-save-status--error">Couldn't save — try again.</span>
         </div>
@@ -221,8 +226,8 @@ function placeholderGradient(seed: string) {
 .bt-account {
   box-sizing: border-box;
   padding: 24px 32px 48px;
-  font-family: 'Martian Mono', monospace;
-  color: #1a1a1a;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
 }
 
 .bt-eyebrow {
@@ -231,7 +236,7 @@ function placeholderGradient(seed: string) {
   font-size: 9pt;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #6f6f6f;
+  color: var(--color-text-soft);
 }
 
 .bt-handle-row {
@@ -241,32 +246,22 @@ function placeholderGradient(seed: string) {
   gap: 12px;
   padding-bottom: 16px;
   margin-bottom: 20px;
-  border-bottom: 2px solid #1a1a1a;
+  border-bottom: 2px solid var(--color-ink);
 }
 
 .bt-handle {
   margin: 0;
-  font-family: 'Archivo', sans-serif;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 26pt;
 }
 
+/* Border/fill/hover-invert chrome lives in ButtonOutline.vue now — only
+   this icon toggle's own sizing stays here. */
 .bt-search-toggle {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 36px;
   height: 36px;
-  border: 1px solid #3fa396;
-  background: #fff;
-  color: #3fa396;
-  cursor: pointer;
-}
-
-.bt-search-toggle:hover {
-  background: #3fa396;
-  color: #fff;
 }
 
 .bt-search-form {
@@ -277,20 +272,20 @@ function placeholderGradient(seed: string) {
 
 .bt-search-input {
   flex: 1;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10pt;
   padding: 8px 10px;
-  border: 1px solid #3fa396;
+  border: 1px solid var(--tool-bottroll-accent-deep);
 }
 
 .bt-search-submit {
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10pt;
   text-transform: uppercase;
   padding: 8px 16px;
-  border: 1px solid #3fa396;
-  background: #b4eae1;
-  color: #1a1a1a;
+  border: 1px solid var(--tool-bottroll-accent-deep);
+  background: var(--tool-bottroll-accent);
+  color: var(--color-ink);
   cursor: pointer;
 }
 
@@ -305,12 +300,12 @@ function placeholderGradient(seed: string) {
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--color-border);
   margin-bottom: 28px;
 }
 
 .bt-stat {
-  background: #e8f8f5;
+  background: var(--tool-bottroll-tint);
   padding: 12px 14px;
   box-sizing: border-box;
 }
@@ -320,7 +315,7 @@ function placeholderGradient(seed: string) {
   font-size: 8.5pt;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #2e8577;
+  color: var(--tool-bottroll-signal);
   margin-bottom: 4px;
 }
 
@@ -349,7 +344,7 @@ function placeholderGradient(seed: string) {
   display: flex;
   gap: 14px;
   padding: 16px;
-  background: #e8f8f5;
+  background: var(--tool-bottroll-tint);
   margin-bottom: 28px;
 }
 
@@ -376,15 +371,15 @@ function placeholderGradient(seed: string) {
   flex-wrap: wrap;
   gap: 10px;
   font-size: 9pt;
-  color: #6f6f6f;
+  color: var(--color-text-soft);
 }
 
 .bt-post-hashtags {
-  color: #3fa396;
+  color: var(--tool-bottroll-accent-deep);
 }
 
 .bt-verdict {
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-top: 1px solid var(--color-border);
   padding-top: 20px;
 }
 
@@ -396,25 +391,25 @@ function placeholderGradient(seed: string) {
 }
 
 .bt-verdict-option {
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10pt;
   font-weight: 700;
   text-transform: uppercase;
   padding: 14px 8px;
-  border: 1px solid #1a1a1a;
-  background: #fff;
-  color: #1a1a1a;
+  border: 1px solid var(--color-ink);
+  background: var(--color-surface);
+  color: var(--color-ink);
   cursor: pointer;
   text-align: center;
 }
 
 .bt-verdict-option:hover {
-  background: #e8f8f5;
+  background: var(--tool-bottroll-tint);
 }
 
 .bt-verdict-option--active {
-  background: #1a1a1a;
-  color: #fff;
+  background: var(--color-ink);
+  color: var(--color-surface);
 }
 
 .bt-note {
@@ -428,16 +423,16 @@ function placeholderGradient(seed: string) {
   font-size: 9pt;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #6f6f6f;
+  color: var(--color-text-soft);
 }
 
 .bt-note textarea {
   width: 100%;
   box-sizing: border-box;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10pt;
   padding: 10px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-border);
   resize: vertical;
 }
 
@@ -447,34 +442,36 @@ function placeholderGradient(seed: string) {
   gap: 12px;
 }
 
+/* Border/fill/hover-invert/disabled chrome lives in ButtonOutline.vue now
+   (default accent is var(--color-ink), matching this button's own) — only
+   this button's own sizing/typography stays here. */
 .bt-save {
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 10pt;
   font-weight: 700;
   text-transform: uppercase;
   padding: 12px 22px;
-  border: 1px solid #1a1a1a;
-  background: #fff;
-  color: #1a1a1a;
-  cursor: pointer;
-}
-
-.bt-save:hover:not(:disabled) {
-  background: #1a1a1a;
-  color: #fff;
-}
-
-.bt-save:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .bt-save-status {
   font-size: 9pt;
-  color: #1e6b31;
+  color: var(--color-success);
 }
 
 .bt-save-status--error {
   color: #9c2c30;
+}
+
+/* 2 columns, not 3 — Outil_2-1.png's own mobile mockup; 3 stat
+   tiles/verdict buttons cram too tight at phone width. */
+@media (max-width: 768px) {
+  .bt-account {
+    padding: 20px 16px 40px;
+  }
+
+  .bt-stats,
+  .bt-verdict-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>

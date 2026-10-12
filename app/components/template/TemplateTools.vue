@@ -33,7 +33,13 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: #fff;
+  background: var(--color-surface);
   height: calc(100vh - 8.5vh - var(--footer-height));
 }
+
+/* No mobile override — this already stacks the 3 tools vertically (one
+   row per tool, sharing the available height equally), and each row's
+   own image-left/text-right layout (ToolCard.vue, also unmodified for
+   mobile) already reads as a short, wide "horizontal" shape rather than
+   a tall one. */
 </style>

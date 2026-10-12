@@ -32,33 +32,12 @@ const readingMode = useReadingMode()
 </script>
 
 <template>
-  <div class="campaigns-map-page">
-    <CampaignInfoPanel :campaign="selectedCampaign" :tool="page" />
-    <div class="campaigns-map-content" :class="{ 'reading-mode': readingMode }">
+  <TemplateToolPageLayout :reading-mode="readingMode" :scrollable="false">
+    <template #panel>
+      <CampaignInfoPanel :campaign="selectedCampaign" :tool="page" />
+    </template>
+    <template #content>
       <DisinfoMap v-model:campaign="selectedCampaign" :campaigns="props.page.campaigns" />
-    </div>
-  </div>
+    </template>
+  </TemplateToolPageLayout>
 </template>
-
-<style scoped>
-.campaigns-map-page {
-  position: relative;
-}
-
-/* Fills exactly the space between SiteNav/SiteIndexBar (8.5vh, top) and
-   SiteFooter (var(--footer-height), bottom) — same formula used
-   throughout (guide/index.vue, DetailPanelChrome.vue). margin-left makes
-   room for CampaignInfoPanel (fixed, 50vw normally/25vw in reading mode,
-   so it doesn't push layout on its own) — kept in sync with that panel's
-   own width (CampaignInfoPanel.vue) by reacting to the same readingMode
-   state, with the same transition so they resize together. */
-.campaigns-map-content {
-  margin-left: 50vw;
-  height: calc(100vh - 8.5vh - var(--footer-height));
-  transition: margin-left 0.5s ease;
-}
-
-.campaigns-map-content.reading-mode {
-  margin-left: 25vw;
-}
-</style>

@@ -44,7 +44,7 @@ const display = computed(() => {
 </script>
 
 <template>
-  <aside class="campaign-panel" :class="{ 'reading-mode': readingMode }">
+  <InfoPanel class="campaign-panel" :reading-mode="readingMode">
     <!-- No campaign selected (first arrival, or after deselecting) — the
          tool's own name/description instead of an all-dash field grid,
          same h3-category + li-row shell as the campaign detail below. -->
@@ -118,25 +118,11 @@ const display = computed(() => {
       </li>
     </ul>
     </template>
-  </aside>
+  </InfoPanel>
 </template>
 
 <style scoped>
-/* Same fixed slot + scroll behavior as KeywordsPanel.vue/TeamPanel.vue. */
-.campaign-panel {
-  position: fixed;
-  z-index: 1;
-  left: 0;
-  top: 8.5vh;
-  bottom: 0;
-  width: 50vw;
-  overflow-y: auto;
-  transition: width 0.5s ease;
-}
-
-.campaign-panel.reading-mode {
-  width: 25vw;
-}
+/* Shell lives in InfoPanel.vue now — see KeywordsPanel.vue's own note. */
 
 /* Same h3 treatment as KeywordsPanel.vue, recolored to FC7C6A (this
    tool's own accent — see the top-of-file comment on why). */
@@ -146,15 +132,15 @@ const display = computed(() => {
   height: 30px;
   width: 100%;
   padding-left: 10px;
-  background: #fc7c6a;
-  color: #fff;
-  font-family: 'Martian Mono', monospace;
+  background: var(--tool-campaigns-accent);
+  color: var(--color-surface);
+  font-family: var(--font-mono);
   font-weight: 500;
   font-size: 12pt;
   text-transform: uppercase;
   display: flex;
   align-items: center;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .campaign-panel ul {
@@ -173,13 +159,13 @@ const display = computed(() => {
   min-height: 26px;
   width: 100%;
   padding: 4px 10px;
-  background: #fff;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11pt;
-  color: #3b382f;
+  color: var(--color-ink);
   line-height: 1.3;
   transition: background-color 0.15s ease;
 }
@@ -194,8 +180,8 @@ const display = computed(() => {
    silently and these rows rendered in the generic li style instead. */
 .campaign-panel li.campaign-panel-title-row {
   padding: 16px 10px;
-  color: #000;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-ink);
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: 28pt;
   line-height: 1.25;
@@ -203,7 +189,7 @@ const display = computed(() => {
 
 .campaign-panel li.campaign-panel-analysis-row {
   padding: 14px 10px;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12pt;
   line-height: 1.5;
 }
@@ -217,8 +203,8 @@ const display = computed(() => {
    Garamond serif reserved for an actual campaign's name below. */
 .campaign-panel li.campaign-panel-tool-title-row {
   padding: 16px 10px;
-  color: #000;
-  font-family: 'Martian Mono', monospace;
+  color: var(--color-ink);
+  font-family: var(--font-mono);
   font-weight: 400;
   font-size: 12pt;
   line-height: 1.25;
@@ -230,7 +216,7 @@ const display = computed(() => {
 .campaign-panel li.campaign-panel-description-row {
   padding: 4px 10px;
   align-items: flex-start;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12pt;
   line-height: 1.5;
 }
@@ -240,7 +226,7 @@ const display = computed(() => {
 }
 
 .campaign-panel li a {
-  color: #3b382f;
+  color: var(--color-ink);
   word-break: break-all;
 }
 </style>

@@ -26,9 +26,9 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
     @mouseleave="onLeave"
   >
     <span class="guide-card-number">{{ index + 1 }}</span>
-    <span v-if="item.header_subtitle" class="guide-card-subtitle" :style="{ backgroundColor: badgeColor }">
+    <BadgeChip v-if="item.header_subtitle" class="guide-card-subtitle" :color="badgeColor">
       {{ item.header_subtitle }}
-    </span>
+    </BadgeChip>
     <div class="guide-card-image-wrap">
       <img v-if="item.header_image" :src="item.header_image.url" :alt="item.header_image.alt || item.title">
     </div>
@@ -38,7 +38,7 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 
 <style scoped>
 .guide-card {
-  background: #b8a084;
+  background: var(--color-brand-resources);
   text-decoration: none;
   display: flex;
   flex-direction: column;
@@ -61,8 +61,8 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 }
 
 .guide-card-number {
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-size: 28px;
   line-height: 1;
 }
@@ -97,30 +97,79 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
   display: block;
 }
 
-/* display:inline-block (not the earlier position:absolute) is what makes
-   this genuinely shrink-to-fit around the text — an absolutely positioned
-   block with only `left` set computes its width via shrink-to-fit too,
-   but for wrapping text that algorithm tends to land close to the
-   available width rather than the text's own rendered width, which read
-   as "loose" rather than tight. */
+/* Chip look itself lives in BadgeChip.vue now — only this card's own
+   spacing/alignment stays here. */
 .guide-card-subtitle {
-  display: inline-block;
   margin: 6px 0;
-  padding: 1px;
-  color: #000;
   text-align: center;
-  font-family: 'EB Garamond', Garamond, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 12pt;
 }
 
 .guide-card-title {
   font-size: 24pt;
   margin: 10px 0 0;
   text-align: center;
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-weight: 500;
+}
+
+/* Per the reference (Articles.png): number → title → colored subtitle
+   strip → wide landscape image, all centered, stacked tightly — not the
+   desktop's number/badge/image/title order (`order` below reshuffles
+   that without touching the markup) and not a portrait image either.
+   guide/index.vue's own mobile grid stacks these cards full-width one
+   per row (scrolling down); each card's own height is content-driven
+   here (guide/index.vue sets height:auto), not forced to fill a row. */
+@media (max-width: 768px) {
+  .guide-card {
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 12px 15px;
+  }
+
+  .guide-card-number {
+    order: 1;
+    font-size: 26px;
+  }
+
+  .guide-card-title {
+    order: 2;
+    margin: 4px 0 0;
+    font-size: 28px;
+  }
+
+  /* Full-width strip (within the card's own 12px padding), not the
+     desktop's shrink-to-fit chip — overrides BadgeChip.vue's own
+     display:inline-block/padding so the color fills a fixed-height band
+     instead of hugging the text. */
+  .guide-card-subtitle {
+    order: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 20px;
+    margin: 6px 0 0;
+    padding: 0;
+    font-size: 16px;
+  }
+
+  .guide-card-image-wrap {
+    order: 4;
+    flex: none;
+    width: 100%;
+    height: auto;
+    margin-top: 11px;
+    aspect-ratio: 2.6 / 1;
+  }
+
+  /* Fills the wide landscape box (aspect-ratio set on the wrap, above),
+     not the desktop's own portrait 4/5 crop. */
+  .guide-card-image-wrap img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    aspect-ratio: auto;
+  }
 }
 </style>

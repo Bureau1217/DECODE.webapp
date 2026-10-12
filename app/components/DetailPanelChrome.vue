@@ -106,4 +106,10 @@ defineProps<{
   color: inherit;
   text-decoration: none;
 }
+
+@media (max-width: 768px) {
+  .detail-panel-nav {
+    padding: 8px 14px var(--footer-height);
+  }
+}
 </style>

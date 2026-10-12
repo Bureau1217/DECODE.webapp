@@ -50,14 +50,14 @@ const truncatedTitle = computed(() => {
 .resource-card {
   aspect-ratio: 1;
   box-sizing: border-box;
-  background: #fff;
+  background: var(--color-surface);
   /* Top+left only (not all 4 sides) — an internal grid edge then gets
      exactly one stroke, from whichever card sits below/right of it,
      instead of two adjacent cards each drawing their own line on the same
      edge. The grid's own outer right/bottom border (resources/index.vue)
      closes the box; the outer left stays open on purpose (see that file). */
-  border-top: 1px solid #b8a084;
-  border-left: 1px solid #b8a084;
+  border-top: 1px solid var(--color-brand-resources);
+  border-left: 1px solid var(--color-brand-resources);
   text-decoration: none;
   display: flex;
   flex-direction: column;
@@ -76,7 +76,7 @@ const truncatedTitle = computed(() => {
 
 .resource-card:hover .resource-card-title,
 .resource-card:hover .resource-card-author {
-  color: #775937;
+  color: var(--color-brand-about);
 }
 
 /* flex:1 (not the card centering everything as one block) is what keeps
@@ -96,16 +96,16 @@ const truncatedTitle = computed(() => {
 
 .resource-card-title {
   margin: 0;
-  color: #b8a084;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-brand-resources);
+  font-family: var(--font-serif);
   font-weight: 400;
   font-size: 16pt;
   line-height: 1.25;
 }
 
 .resource-card-author {
-  color: #b8a084;
-  font-family: 'Martian Mono', monospace;
+  color: var(--color-brand-resources);
+  font-family: var(--font-mono);
   font-size: 9pt;
 }
 
@@ -117,9 +117,9 @@ const truncatedTitle = computed(() => {
   margin-top: 40px;
   display: inline-block;
   padding: 2px;
-  background: #b8a084;
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  background: var(--color-brand-resources);
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 10pt;
   text-transform: uppercase;

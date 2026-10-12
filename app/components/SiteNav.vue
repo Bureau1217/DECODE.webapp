@@ -1,13 +1,15 @@
 <script setup lang="ts">
 // Keywords (/keywords) is reachable from articles and the home page's
 // keyword list, but deliberately not linked here — not a top-level nav item.
-// No "Home" item — '/' is reached via the logo/splash, not a nav tab.
-const links = [
-  { to: '/guide', label: 'Investigation Guide' },
-  { to: '/tools', label: 'TOOLS AGAINST DISINFORMATION' },
-  { to: '/resources', label: 'resources' },
-  { to: '/about', label: 'ABOUT' },
-]
+// Links themselves live in navLinks.ts now — MobileMenuOverlay.vue's own
+// section list reuses the exact same array.
+const links = NAV_LINKS
+
+// Below 768px this row becomes a single "MENU" tab + truncated tagline
+// ticker (see .site-nav-mobile-row below) that opens MobileMenuOverlay.vue
+// instead — both rows always render, CSS picks which one shows, so there's
+// no hydration flash switching between them.
+const mobileMenuOpen = useMobileMenuOpen()
 
 const route = useRoute()
 // Matches sub-routes too (e.g. /guide/some-article highlights
@@ -16,15 +18,10 @@ function isActive(to: string) {
   return route.path.startsWith(to)
 }
 
-// The "Campaigns Maps" tool (TemplateCampaignsMap.vue) reskins the whole
-// app shell — nav/index-bar/footer — in its own coral accent (FC7C6A,
-// BADGE_COLORS[0]) instead of the site's usual brown, only while it's open.
-const isCampaignsMapPage = computed(() => route.path === '/tools/campaigns-map')
-// Same reskin, teal instead — Bot / Troll Detector's own accent (a
-// deeper shade than the B4EAE1/BADGE_COLORS[1] used for panel fills, so
-// white nav text stays legible against it, same reasoning as the coral
-// case above).
-const isBotTrollDetectorPage = computed(() => route.path === '/tools/bot-troll-detector')
+// A custom tool page (TemplateCampaignsMap.vue and friends) reskins the
+// whole app shell — nav/index-bar/footer — in its own accent instead of
+// the site's usual brown, only while it's open.
+const { theme, isThemed } = useToolTheme()
 
 // Same folder-tab silhouette as Splash.vue's top tab (diagonal shoulders,
 // small rounded transition into the flat top line) — here closed with a
@@ -42,13 +39,20 @@ const TAB_LEFT_DX_RATIO = 22 / 80
 const TAB_RIGHT_DX_RATIO = 27 / 80
 const TAB_CORNER_R_RATIO = 8 / 80
 
+// Mobile's single "MENU" tab (site-nav-mobile-row below) isn't 1/4 of the
+// row like desktop's 4 tiled tabs — wide enough for the label with the
+// ticker text taking up the rest, not derived from TAB_WIDTH_RATIO.
+const MOBILE_TAB_WIDTH_RATIO = 0.42
+
 const tabWidth = ref(0)
+const mobileTabWidth = ref(0)
 const tabHeight = ref(0)
 const tabTop = ref(0)
 
-const tabPath = computed(() => {
-  const width = tabWidth.value
-  const h = tabHeight.value
+// Same trapezoid silhouette for both the desktop row's 4 tiled tabs and
+// mobile's single MENU tab — only the width differs (tabPath/mobileTabPath
+// below), height/corner geometry is shared.
+function buildTabPath(width: number, h: number) {
   if (!width || !h) return ''
   const leftDx = h * TAB_LEFT_DX_RATIO
   const rightDx = h * TAB_RIGHT_DX_RATIO
@@ -76,10 +80,14 @@ const tabPath = computed(() => {
     `L ${width},${h}`,
     'Z',
   ].join(' ')
-})
+}
+
+const tabPath = computed(() => buildTabPath(tabWidth.value, tabHeight.value))
+const mobileTabPath = computed(() => buildTabPath(mobileTabWidth.value, tabHeight.value))
 
 function measure() {
   tabWidth.value = window.innerWidth * TAB_WIDTH_RATIO
+  mobileTabWidth.value = window.innerWidth * MOBILE_TAB_WIDTH_RATIO
   tabHeight.value = window.innerHeight * TAB_HEIGHT_RATIO
   tabTop.value = window.innerHeight * TAB_TOP_RATIO
 }
@@ -96,13 +104,17 @@ onUnmounted(() => {
 <template>
   <nav
     class="site-nav"
-    :class="{ 'is-campaigns-map': isCampaignsMapPage, 'is-bot-troll': isBotTrollDetectorPage }"
-    :style="{ top: `${tabTop}px`, height: `${tabHeight}px` }"
+    :class="{ 'is-tool-themed': isThemed }"
+    :style="{
+      top: `${tabTop}px`,
+      height: `${tabHeight}px`,
+      '--local-accent': theme?.chromeAccent,
+    }"
   >
     <div
       v-for="link in links"
       :key="link.to"
-      class="nav-tab-wrap"
+      class="nav-tab-wrap nav-tab-wrap--desktop"
       :class="{ active: isActive(link.to) }"
       :style="{ width: `${tabWidth}px` }"
     >
@@ -119,6 +131,34 @@ onUnmounted(() => {
       </svg>
       <NuxtLink :to="link.to" class="nav-tab">{{ link.label }}</NuxtLink>
     </div>
+
+    <!-- Below 768px only (CSS) — ticker + single MENU tab in place of the
+         4 tiled tabs above, which both always render so there's no
+         hydration flash when the breakpoint flips. Scrolling marquee
+         (doubled text + translateX loop), not static truncated text —
+         same technique as Splash.vue's own .splash-tab-ticker-track. -->
+    <div class="site-nav-ticker">
+      <div class="site-nav-ticker-track">
+        <span>{{ SITE_TAGLINE }}</span>
+        <span>{{ SITE_TAGLINE }}</span>
+      </div>
+    </div>
+    <div class="nav-tab-wrap nav-tab-wrap--mobile" :style="{ width: `${mobileTabWidth}px` }">
+      <svg
+        v-if="mobileTabPath"
+        class="nav-tab-shape"
+        :viewBox="`0 0 ${mobileTabWidth} ${tabHeight}`"
+        :width="mobileTabWidth"
+        :height="tabHeight"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path :d="mobileTabPath" stroke-linejoin="round" />
+      </svg>
+      <button type="button" class="nav-tab nav-tab-menu-btn" @click="mobileMenuOpen = !mobileMenuOpen">
+        {{ mobileMenuOpen ? 'Close' : 'Menu' }}
+      </button>
+    </div>
   </nav>
 </template>
 
@@ -134,12 +174,95 @@ onUnmounted(() => {
   display: flex;
   align-items: stretch;
   width: 100%;
+  /* Opaque — without this, the gaps around the tab SVGs' own trapezoid
+     shapes (desktop) and the ticker's own plain rectangle (mobile, no
+     shape at all) are transparent, letting whatever's sliding underneath
+     (app.vue's own .app-content, translateY(-100%) past its own top edge
+     when the mobile INDEX toggle opens) show through during/after that
+     slide — same reasoning as SiteFooter.vue's own opaque background. */
+  background: var(--color-surface);
 }
 
 .nav-tab-wrap {
   position: relative;
   display: block;
   height: 100%;
+}
+
+/* Ticker: scrolling marquee, not static truncated text — same text
+   SiteFooter.vue's own .footer-tagline shows (desktop), constrained to
+   the space left of the mobile MENU tab here instead of centered on the
+   full viewport. Hidden on desktop (.nav-tab-wrap--mobile's own row only
+   shows below 768px, see the media query below) — both rows always
+   render so there's no hydration flash when the breakpoint flips. */
+.site-nav-ticker {
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 12px;
+  color: var(--color-brand);
+}
+
+.site-nav.is-tool-themed .site-nav-ticker {
+  color: var(--local-accent);
+}
+
+.site-nav-ticker-track {
+  display: flex;
+  white-space: nowrap;
+  width: max-content;
+  font-family: var(--font-mono);
+  font-size: 10pt;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  /* Scrolls right to left — translateX(0) to (-50%) moves the (doubled)
+     content leftward, so new text keeps entering from the right. Exactly
+     half the track's width is where the first copy started, so the loop
+     has no visible seam (same technique as Splash.vue's own
+     .splash-tab-ticker-track/.splash-images-track). */
+  animation: site-nav-ticker-scroll 16s linear infinite;
+}
+
+.site-nav-ticker-track span {
+  padding-right: 3rem;
+}
+
+@keyframes site-nav-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.nav-tab-wrap--mobile {
+  display: none;
+}
+
+/* Reset the button's own UA chrome (border/background/padding) — .nav-tab
+   (shared with the desktop NuxtLink tabs) supplies the actual look. */
+.nav-tab-menu-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .nav-tab-wrap--desktop {
+    display: none;
+  }
+
+  .site-nav-ticker {
+    display: flex;
+    align-items: center;
+  }
+
+  .nav-tab-wrap--mobile {
+    display: block;
+  }
 }
 
 .nav-tab-shape {
@@ -152,8 +275,8 @@ onUnmounted(() => {
 /* Default: outlined in the brand brown, not filled — see .active and
    :hover below for the filled state. */
 .nav-tab-shape path {
-  fill: #fff;
-  stroke: #a68764;
+  fill: var(--color-surface);
+  stroke: var(--color-brand);
   stroke-width: 1.5px;
   vector-effect: non-scaling-stroke;
   transition: fill 0.15s ease;
@@ -170,69 +293,51 @@ onUnmounted(() => {
   box-sizing: border-box;
   white-space: nowrap;
   text-decoration: none;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 18px;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #a68764;
+  color: var(--color-brand);
   transition: color 0.15s ease;
 }
 
 /* Hover or current page — same filled treatment either way. */
 .nav-tab-wrap:hover .nav-tab-shape path,
 .nav-tab-wrap.active .nav-tab-shape path {
-  fill: #a68764;
+  fill: var(--color-brand);
 }
 
 .nav-tab-wrap:hover .nav-tab,
 .nav-tab-wrap.active .nav-tab {
-  color: #fff;
+  color: var(--color-surface);
 }
 
-/* Coral instead of brown — only while the Campaigns Maps tool is open
-   (script). */
-.site-nav.is-campaigns-map .nav-tab-shape path {
-  stroke: #fc7c6a;
+/* Whichever tool's own accent (--local-accent/-deep, set inline from
+   useToolTheme()) instead of brown — one generic block instead of one
+   per tool now that the color itself is a custom property. */
+.site-nav.is-tool-themed .nav-tab-shape path {
+  stroke: var(--local-accent);
 }
 
-.site-nav.is-campaigns-map .nav-tab {
-  color: #fc7c6a;
+.site-nav.is-tool-themed .nav-tab {
+  color: var(--local-accent);
 }
 
-.site-nav.is-campaigns-map .nav-tab-wrap:hover .nav-tab-shape path,
-.site-nav.is-campaigns-map .nav-tab-wrap.active .nav-tab-shape path {
-  fill: #fc7c6a;
+.site-nav.is-tool-themed .nav-tab-wrap:hover .nav-tab-shape path,
+.site-nav.is-tool-themed .nav-tab-wrap.active .nav-tab-shape path {
+  fill: var(--local-accent);
 }
 
-/* .nav-tab's own base coral rule above has the same specificity as
-   .nav-tab-wrap.active .nav-tab { color: #fff } (3 class selectors each),
-   so source order alone decided the winner and this one (declared later)
-   was overriding the active tab's text back to coral even though its
-   background is filled solid. One more class here (4 selectors) is what
-   makes this win instead, restoring white text on the filled/active tab
-   while inactive ones stay coral. */
-.site-nav.is-campaigns-map .nav-tab-wrap:hover .nav-tab,
-.site-nav.is-campaigns-map .nav-tab-wrap.active .nav-tab {
-  color: #fff;
-}
-
-/* Teal instead of brown — only while the Bot / Troll Detector tool is
-   open (script). Same specificity reasoning as the coral block above. */
-.site-nav.is-bot-troll .nav-tab-shape path {
-  stroke: #3fa396;
-}
-
-.site-nav.is-bot-troll .nav-tab {
-  color: #3fa396;
-}
-
-.site-nav.is-bot-troll .nav-tab-wrap:hover .nav-tab-shape path,
-.site-nav.is-bot-troll .nav-tab-wrap.active .nav-tab-shape path {
-  fill: #3fa396;
-}
-
-.site-nav.is-bot-troll .nav-tab-wrap:hover .nav-tab,
-.site-nav.is-bot-troll .nav-tab-wrap.active .nav-tab {
-  color: #fff;
+/* .nav-tab's own base rule above has the same specificity as
+   .nav-tab-wrap.active .nav-tab { color: var(--color-surface) } (3 class
+   selectors each), so source order alone decides the winner and this one
+   (declared later) was overriding the active tab's text back to the
+   accent color even though its background is filled solid. One more
+   class here (4 selectors) is what makes this win instead, restoring
+   white text on the filled/active tab while inactive ones stay
+   accent-colored. */
+.site-nav.is-tool-themed .nav-tab-wrap:hover .nav-tab,
+.site-nav.is-tool-themed .nav-tab-wrap.active .nav-tab {
+  color: var(--color-surface);
 }
 </style>

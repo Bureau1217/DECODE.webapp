@@ -201,6 +201,10 @@ onMounted(async () => {
       id: 'countries-fill',
       type: 'fill',
       source: 'countries',
+      // Mapbox's paint object is JS, not CSS — it can't resolve a
+      // var(--token) reference, only a real color value, so this (and
+      // the other paint colors below) stay literal even though the same
+      // values are CSS custom properties everywhere else in this file.
       paint: { 'fill-color': '#ffffff' },
     })
 
@@ -340,12 +344,19 @@ onBeforeUnmount(() => {
     <MapFilters v-model="activeFilter" :filter-options="filterOptions" class="map-filters-overlay" />
     <!-- Back to the tools list — top-right corner, same 14px margin as
          MapFilters' own top-left placement above. Icon only, no label. -->
-    <NuxtLink to="/tools" class="map-exit-overlay" aria-label="Exit tool">
+    <ButtonOutline
+      to="/tools"
+      class="map-exit-overlay"
+      accent="var(--tool-campaigns-accent)"
+      text-color="var(--tool-campaigns-accent-deep)"
+      background="rgba(255, 255, 255, 0.92)"
+      aria-label="Exit tool"
+    >
       <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
         <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
         <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
       </svg>
-    </NuxtLink>
+    </ButtonOutline>
     <div ref="mapContainer" class="disinfo-map" />
   </div>
 </template>
@@ -371,28 +382,49 @@ onBeforeUnmount(() => {
   z-index: 2;
 }
 
+/* Inline band above the map, not a floating top-left overlay — Outil_1.png's
+   own mobile mockup; a 260px-capped floating box would eat most of a
+   phone-width map otherwise. .disinfo-map drops out of the absolute
+   inset:0 stack to take the flex space left under this band; the exit
+   button (below) stays floating — its 28px corner square reads fine
+   overlapping this band's own top-right corner, same "small control
+   overlapping a larger surface" pattern CountryIcon's own card corners
+   use elsewhere (ToolCard.vue). */
+@media (max-width: 768px) {
+  .map-wrapper {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .map-filters-overlay {
+    position: static;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom: 1px solid var(--tool-campaigns-accent);
+  }
+
+  .disinfo-map {
+    position: relative;
+    inset: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
 /* Same rectangle-button look as MapFilters.vue's own tabs (1px coral
    border, square corners, translucent white fill) — top-right corner,
    same 14px margin as that overlay's own top-left placement. */
+/* Border/fill/hover-invert chrome lives in ButtonOutline.vue now — only
+   this icon toggle's own position/sizing stays here. */
 .map-exit-overlay {
   position: absolute;
   top: 14px;
   right: 14px;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 28px;
   height: 28px;
-  box-sizing: border-box;
-  border: 1px solid #fc7c6a;
-  background: rgba(255, 255, 255, 0.92);
-  color: #e2654f;
-}
-
-.map-exit-overlay:hover {
-  background: #fc7c6a;
-  color: #fff;
 }
 
 /* Row, pin then label — label sits to the right of the pin (script's own
@@ -413,7 +445,7 @@ onBeforeUnmount(() => {
   width: 12px;
   height: 12px;
   background: #f4a89c;
-  border: 1px solid #fff;
+  border: 1px solid var(--color-surface);
   border-radius: 0;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
   transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
@@ -454,8 +486,8 @@ onBeforeUnmount(() => {
 }
 
 .map-wrapper :deep(.emitter-label-country) {
-  color: #fff;
-  font-family: 'Martian Mono', monospace;
+  color: var(--color-surface);
+  font-family: var(--font-mono);
   font-weight: 700;
   font-size: 9pt;
   white-space: nowrap;
@@ -465,8 +497,8 @@ onBeforeUnmount(() => {
    campaign's actor shows at once and the map reads as cluttered. */
 .map-wrapper :deep(.emitter-label-actor) {
   display: none;
-  color: #fff;
-  font-family: 'Martian Mono', monospace;
+  color: var(--color-surface);
+  font-family: var(--font-mono);
   font-size: 7pt;
   line-height: 1.3;
   max-width: 150px;
@@ -489,8 +521,8 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   width: 8px;
   height: 8px;
-  background: #fc7c6a;
-  border: 1px solid #fff;
+  background: var(--tool-campaigns-accent);
+  border: 1px solid var(--color-surface);
   border-radius: 0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
@@ -504,13 +536,13 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: flex-start;
   padding: 3px 8px;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .map-wrapper :deep(.receiver-label-country) {
   color: #d9291c;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-weight: 700;
   font-size: 9pt;
   white-space: nowrap;
@@ -518,7 +550,7 @@ onBeforeUnmount(() => {
 
 .map-wrapper :deep(.receiver-label-target) {
   color: #d9291c;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 7pt;
   line-height: 1.3;
   max-width: 150px;

@@ -57,9 +57,9 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
     <div class="tool-card-body">
       <span class="tool-card-eyebrow">Tool {{ index + 1 }}</span>
       <h2 class="tool-card-title">{{ item.title }}</h2>
-      <span v-if="item.subtitle" class="tool-card-subtitle" :style="{ backgroundColor: badgeColor }">
+      <BadgeChip v-if="item.subtitle" :color="badgeColor">
         {{ item.subtitle }}
-      </span>
+      </BadgeChip>
     </div>
     <!-- Over the card's own top-right corner, partly past the card's own
          edge — .tool-card's overflow:hidden crops it there on purpose. -->
@@ -83,7 +83,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
   flex: 1 1 0;
   min-height: 0;
   display: flex;
-  background: #b8a084;
+  background: var(--color-brand-resources);
   text-decoration: none;
   overflow: hidden;
   transition: background-color 0.15s ease;
@@ -105,7 +105,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
   overflow: hidden;
   /* Opaque — this is what actually hides whatever part of
      .tool-card-country-behind sits underneath it. */
-  background: #b8a084;
+  background: var(--color-brand-resources);
   transition: background-color 0.15s ease;
 }
 
@@ -169,30 +169,53 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
 }
 
 .tool-card-eyebrow {
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-size: 12pt;
   text-transform: uppercase;
 }
 
 .tool-card-title {
   margin: 0;
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 24pt;
   text-align: left;
 }
 
-/* Same treatment as the guide card's subtitle chip — tight,
-   shrink-to-fit rectangle, cycling the same 3 colors by index. */
-.tool-card-subtitle {
-  display: inline-block;
-  padding: 1px;
-  color: #000;
-  font-family: 'EB Garamond', Garamond, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 12pt;
+/* Image on top, full width, body below, card itself a fixed ~37vw-wide
+   column — not the desktop row's 40%-image-beside-body split (too narrow
+   a strip at that width to read as a real cover image), and not full
+   viewport width either: TemplateTools.vue's own horizontal swipe row
+   needs roughly 2 cards fully visible plus ~70% of a third at once. */
+@media (max-width: 768px) {
+  .tool-card {
+    flex: 0 0 37vw;
+    flex-direction: column;
+    scroll-snap-align: start;
+  }
+
+  /* Edge to edge, not inset, within the card's own (now narrower) width —
+     same reasoning as the article template's own cover image
+     (TemplateDefault.vue). */
+  .tool-card-image-wrap {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 45%;
+    padding: 0;
+  }
+
+  .tool-card-body {
+    padding: 10px 12px 14px;
+  }
+
+  .tool-card-eyebrow {
+    font-size: 9pt;
+  }
+
+  .tool-card-title {
+    font-size: 15pt;
+  }
 }
 </style>

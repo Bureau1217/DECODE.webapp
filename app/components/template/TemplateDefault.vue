@@ -42,7 +42,7 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 </script>
 
 <template>
-  <DetailPanelChrome background="#b8a084" text-color="#fff" close-to="/guide" :prev-to="prevTo" :next-to="nextTo">
+  <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-surface)" close-to="/guide" :prev-to="prevTo" :next-to="nextTo">
     <article class="article-detail">
       <div v-if="page.header_image" class="article-detail-cover">
         <img :src="page.header_image.url" :alt="page.header_image.alt || page.title">
@@ -50,37 +50,29 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
       <header class="article-detail-header">
         <h1 class="article-detail-title">{{ page.title }}</h1>
-        <span
-          v-if="page.header_subtitle"
-          class="article-detail-subtitle"
-          :style="{ backgroundColor: badgeColor }"
-        >
+        <BadgeChip v-if="page.header_subtitle" class="article-detail-subtitle" :color="badgeColor">
           {{ page.header_subtitle }}
-        </span>
+        </BadgeChip>
       </header>
 
-      <div class="article-detail-divider-band">
-        <div class="article-detail-divider" />
-        <div class="article-detail-divider-row">
-          <div class="article-detail-divider-half" />
-          <div class="article-detail-divider-vertical" />
-          <div class="article-detail-divider-half article-detail-divider-half-right">
-            <template v-if="relatedTool">
-              <span class="article-detail-related-label">Related tool</span>
-              <NuxtLink
-                :to="`/tools/${relatedTool.slug}`"
-                class="article-detail-tool-btn"
-                :style="{ backgroundColor: badgeColor }"
-              >
-                {{ relatedTool.title }}
-              </NuxtLink>
-            </template>
-          </div>
+      <TemplateDividerBand color="var(--color-surface)">
+        <div class="article-detail-divider-half" />
+        <div class="article-detail-divider-vertical" />
+        <div class="article-detail-divider-half article-detail-divider-half-right">
+          <template v-if="relatedTool">
+            <span class="article-detail-related-label">Related tool</span>
+            <NuxtLink
+              :to="`/tools/${relatedTool.slug}`"
+              class="article-detail-tool-btn"
+              :style="{ backgroundColor: badgeColor }"
+            >
+              {{ relatedTool.title }}
+            </NuxtLink>
+          </template>
         </div>
-        <div class="article-detail-divider" />
-      </div>
+      </TemplateDividerBand>
 
-      <div class="article-detail-body">
+      <TemplateDetailBody color="var(--color-surface)">
         <div v-for="(block, index) in textBlocks" :key="index" class="article-detail-block">
           <!-- eslint-disable-next-line vue/no-v-html -->
           <h2 v-if="block.content?.title" class="article-detail-block-title" v-html="block.content.title" />
@@ -91,7 +83,7 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
             v-html="block.content?.text"
           />
         </div>
-      </div>
+      </TemplateDetailBody>
     </article>
   </DetailPanelChrome>
 </template>
@@ -116,42 +108,20 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
 .article-detail-title {
   margin: 20px 0 0;
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 48px;
 }
 
-/* Same chip treatment as the guide card's own subtitle (GuideCard.vue) —
-   tight, shrink-to-fit rectangle, same badgeColor as that card. */
+/* Chip look itself lives in BadgeChip.vue now — only this header's own
+   spacing stays here. */
 .article-detail-subtitle {
-  display: inline-block;
   margin: 10px 0 0;
-  padding: 1px;
-  color: #000;
-  font-family: 'EB Garamond', Garamond, serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: 12pt;
 }
 
-.article-detail-divider-band {
-  margin-top: 40px;
-}
-
-.article-detail-divider {
-  height: 1px;
-  margin: 0 10px;
-  background: #fff;
-}
-
-/* The two dividers above/below this row are what give the "spaced by 10%
-   of viewport height" gap — this row's own height is that gap. */
-.article-detail-divider-row {
-  height: 10vh;
-  display: flex;
-}
-
+/* Divider-band shell (lines/row/spacing) lives in TemplateDividerBand.vue
+   now — only this template's own two-column row content stays here. */
 .article-detail-divider-half {
   flex: 1 1 50%;
   min-width: 0;
@@ -164,7 +134,7 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
 .article-detail-divider-vertical {
   width: 1px;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 /* Left-aligned (not centered, like the generic .article-detail-divider-half)
@@ -175,8 +145,8 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 }
 
 .article-detail-related-label {
-  color: #fff;
-  font-family: 'Martian Mono', monospace;
+  color: var(--color-surface);
+  font-family: var(--font-mono);
   font-size: 10pt;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -187,7 +157,7 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
    badgeColor instead of that button's fixed brown. */
 .article-detail-tool-btn {
   display: inline-block;
-  color: #fff;
+  color: var(--color-surface);
   border: none;
   border-radius: 0;
   padding: 8px 12px;
@@ -198,14 +168,9 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
   cursor: pointer;
 }
 
-.article-detail-body {
-  padding: 40px 10% 0;
-  color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 26px;
-  line-height: 1.4;
-}
-
+/* Body box/font/v-html paragraph-spacing rules live in
+   TemplateDetailBody.vue now — only this template's own per-block spacing
+   and the alinea indent (first block only) stay here. */
 .article-detail-block + .article-detail-block {
   margin-top: 1.5em;
 }
@@ -218,17 +183,60 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
   font-size: 0.7em;
 }
 
-.article-detail-paragraph :deep(p) {
-  margin: 0;
-}
-
-.article-detail-paragraph :deep(p + p) {
-  margin-top: 1em;
-}
-
 /* A plain first-line indent (alinéa), not a drop cap — :first-child
    reaches the actual <p> injected by v-html. */
 .article-detail-alinea :deep(:first-child) {
   text-indent: 2em;
+}
+
+/* Stacked full-width rows (Chapitre.png's own mobile mockup), not the
+   desktop 50/50 side-by-side split — too narrow at phone width for both
+   halves to stay legible next to each other. :deep() reaches
+   TemplateDividerBand.vue's own .divider-band-row (a 10vh fixed-height
+   flex row on desktop) since the stacking need is specific to this
+   template's 2-column content, not every consumer of that shared shell
+   (TemplateRessource.vue's own single centered child stays untouched). */
+@media (max-width: 768px) {
+  /* Edge to edge, not inset — Chapitre.png's own mobile mockup bleeds the
+     cover image to both viewport edges; the desktop 20%-per-side frame
+     reads as a narrow postage-stamp crop at phone width. */
+  .article-detail-cover {
+    padding: 0;
+  }
+
+  /* Left-aligned, not centered — the mockup's own title/badge block
+     starts flush with the body text's own left margin, not centered on
+     the viewport (the divider-band rows below keep their own center/
+     left-start split unchanged, see .article-detail-divider-half's own
+     comment). */
+  .article-detail-header {
+    text-align: left;
+    padding: 0 6%;
+  }
+
+  .article-detail-title {
+    margin-top: 24px;
+    font-size: 36px;
+  }
+
+  :deep(.divider-band-row) {
+    height: auto;
+    flex-direction: column;
+  }
+
+  /* Keeps the base rule's own center alignment (the chapter-info row
+     reads centered, same as desktop) — only .article-detail-divider-half-
+     right's own flex-start override (unchanged, desktop rule above)
+     differs, same as before. */
+  .article-detail-divider-half {
+    flex: none;
+    width: 100%;
+    padding: 14px 16px;
+  }
+
+  .article-detail-divider-vertical {
+    width: 100%;
+    height: 1px;
+  }
 }
 </style>

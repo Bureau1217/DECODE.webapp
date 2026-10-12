@@ -24,7 +24,7 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
 </script>
 
 <template>
-  <DetailPanelChrome background="#fff" text-color="#775937" close-to="/resources" :prev-to="prevTo" :next-to="nextTo">
+  <DetailPanelChrome background="var(--color-surface)" text-color="var(--color-brand-about)" close-to="/resources" :prev-to="prevTo" :next-to="nextTo">
     <article class="resource-detail">
       <header class="resource-detail-header">
         <h1 class="resource-detail-title">{{ page.title }}</h1>
@@ -32,24 +32,22 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
         <span v-if="page.type" class="resource-detail-type">{{ page.type }}</span>
       </header>
 
-      <div class="resource-detail-divider-band">
-        <div class="resource-detail-divider" />
-        <div class="resource-detail-action-row">
-          <a
-            v-if="actionLabel && actionHref"
-            :href="actionHref"
-            target="_blank"
-            rel="noopener"
-            class="resource-detail-action-btn"
-          >
-            {{ actionLabel }}
-          </a>
-        </div>
-        <div class="resource-detail-divider" />
-      </div>
+      <TemplateDividerBand color="var(--color-brand-resources)">
+        <a
+          v-if="actionLabel && actionHref"
+          :href="actionHref"
+          target="_blank"
+          rel="noopener"
+          class="resource-detail-action-btn"
+        >
+          {{ actionLabel }}
+        </a>
+      </TemplateDividerBand>
 
-      <!-- eslint-disable-next-line vue/no-v-html -->
-      <div v-if="page.description" class="resource-detail-description" v-html="page.description" />
+      <TemplateDetailBody v-if="page.description" color="var(--color-brand-about)">
+        <!-- eslint-disable-next-line vue/no-v-html -->
+        <div class="resource-detail-description" v-html="page.description" />
+      </TemplateDetailBody>
     </article>
   </DetailPanelChrome>
 </template>
@@ -62,16 +60,16 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
 
 .resource-detail-title {
   margin: 0;
-  color: #775937;
-  font-family: 'EB Garamond', Garamond, serif;
+  color: var(--color-brand-about);
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 48px;
 }
 
 .resource-detail-author {
   margin: 10px 0 0;
-  color: #775937;
-  font-family: 'Martian Mono', monospace;
+  color: var(--color-brand-about);
+  font-family: var(--font-mono);
   font-size: 12pt;
 }
 
@@ -80,43 +78,29 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
   display: inline-block;
   margin-top: 16px;
   padding: 2px;
-  background: #b8a084;
-  color: #fff;
-  font-family: 'EB Garamond', Garamond, serif;
+  background: var(--color-brand-resources);
+  color: var(--color-surface);
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 10pt;
   text-transform: uppercase;
 }
 
-.resource-detail-divider-band {
-  margin-top: 40px;
-}
-
-/* B8A084, not white — this panel's background is white, so a white
-   divider (the article variant's own color) would be invisible here. */
-.resource-detail-divider {
-  height: 1px;
-  margin: 0 10px;
-  background: #b8a084;
-}
-
-.resource-detail-action-row {
-  height: 10vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Stroke only, white fill — the inverse of the article panel's solid
+/* Divider-band shell lives in TemplateDividerBand.vue now (this one has no
+   two-column content to stretch against, unlike the article variant — so
+   margin:auto self-centers this single button both ways within the band's
+   row, in place of that row's own removed align-items/justify-content).
+   Stroke only, white fill — the inverse of the article panel's solid
    .article-detail-tool-btn, matching this variant's own white/775937
    palette instead of a badge color. */
 .resource-detail-action-btn {
   display: inline-block;
-  background: #fff;
-  color: #775937;
-  border: 1px solid #775937;
+  margin: auto;
+  background: var(--color-surface);
+  color: var(--color-brand-about);
+  border: 1px solid var(--color-brand-about);
   padding: 14px 24px;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11pt;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -124,19 +108,6 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
   cursor: pointer;
 }
 
-.resource-detail-description {
-  padding: 40px 10% 0;
-  color: #775937;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 26px;
-  line-height: 1.4;
-}
-
-.resource-detail-description :deep(p) {
-  margin: 0;
-}
-
-.resource-detail-description :deep(p + p) {
-  margin-top: 1em;
-}
+/* Body box/font/v-html paragraph-spacing rules live in
+   TemplateDetailBody.vue now — nothing left to override locally. */
 </style>

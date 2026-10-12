@@ -54,7 +54,7 @@ onUnmounted(() => {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 1px;
-  background: #fff;
+  background: var(--color-surface);
   /* Fills exactly the space between SiteNav/SiteIndexBar (8.5vh, top) and
      SiteFooter (var(--footer-height), bottom) — both fixed. Leaving the
      footer's own height out (as an earlier version did) let the bottom
@@ -63,5 +63,31 @@ onUnmounted(() => {
      with no way to scroll it into view, unlike the keywords panel beside
      it, which actually can scroll behind the footer by design. */
   height: calc(100vh - 8.5vh - var(--footer-height));
+}
+
+/* Stacked vertically (one full-width card per row, scrolling down), not
+   side by side, and no gap between rows — a continuous editorial index,
+   per the reference (Articles.png), not 4 bordered tiles. Each card's own
+   height is content-driven (GuideCard.vue's own mobile layout: number,
+   title, subtitle strip, a fixed-aspect-ratio image, with explicit
+   spacing/padding at every step) rather than forced to fill a row here. */
+@media (max-width: 768px) {
+  .guide-grid {
+    grid-template-columns: none;
+    grid-template-rows: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    height: auto;
+  }
+
+  .guide-grid :deep(.guide-card) {
+    min-height: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  }
+
+  .guide-grid :deep(.guide-card:last-child) {
+    border-bottom: none;
+  }
 }
 </style>

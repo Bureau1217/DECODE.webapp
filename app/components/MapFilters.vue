@@ -79,7 +79,7 @@ function isTabActive(key: string) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-family: 'Martian Mono', monospace;
+  font-family: var(--font-mono);
 }
 
 .filter-tabs {
@@ -93,10 +93,10 @@ function isTabActive(key: string) {
   appearance: none;
   cursor: pointer;
   padding: 6px 12px;
-  border: 1px solid #fc7c6a;
+  border: 1px solid var(--tool-campaigns-accent);
   border-radius: 0;
   background: rgba(255, 255, 255, 0.92);
-  color: #e2654f;
+  color: var(--tool-campaigns-accent-deep);
   font-family: inherit;
   font-size: 9pt;
   text-transform: uppercase;
@@ -104,8 +104,8 @@ function isTabActive(key: string) {
 }
 
 .filter-tab.active {
-  background: #fc7c6a;
-  color: #fff;
+  background: var(--tool-campaigns-accent);
+  color: var(--color-surface);
 }
 
 .filter-options {
@@ -115,6 +115,12 @@ function isTabActive(key: string) {
   max-width: 260px;
 }
 
+@media (max-width: 768px) {
+  .filter-options {
+    max-width: 100%;
+  }
+}
+
 .filter-option {
   appearance: none;
   cursor: pointer;
@@ -122,15 +128,15 @@ function isTabActive(key: string) {
   border: 1px solid rgba(252, 124, 106, 0.4);
   border-radius: 0;
   background: rgba(255, 255, 255, 0.92);
-  color: #e2654f;
+  color: var(--tool-campaigns-accent-deep);
   font-family: inherit;
   font-size: 8pt;
   text-transform: uppercase;
 }
 
 .filter-option.active {
-  background: #e2654f;
-  color: #fff;
-  border-color: #e2654f;
+  background: var(--tool-campaigns-accent-deep);
+  color: var(--color-surface);
+  border-color: var(--tool-campaigns-accent-deep);
 }
 </style>

@@ -50,8 +50,8 @@ onUnmounted(() => {
   /* Closes the grid's outer box on the sides ResourceCard's own top+left
      borders don't reach (last column/row have no card past them to draw
      those edges). */
-  border-right: 1px solid #b8a084;
-  border-bottom: 1px solid #b8a084;
+  border-right: 1px solid var(--color-brand-resources);
+  border-bottom: 1px solid var(--color-brand-resources);
 }
 
 /* The grid's left edge sits against KeywordsPanel — no stroke there. Only
@@ -59,5 +59,23 @@ onUnmounted(() => {
    other edge is still exactly one line (see ResourceCard's own comment). */
 .resources-grid :deep(.resource-card:nth-child(3n + 1)) {
   border-left: none;
+}
+
+/* 2 columns, not 3 (Articles.png/Ressources.png's own mobile mockups) —
+   the first-column border-removal rule needs a matching nth-child(2n+1)
+   override, or a 3rd/5th/... card (no longer actually first-column at 2
+   columns) would wrongly keep losing its left border. */
+@media (max-width: 768px) {
+  .resources-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .resources-grid :deep(.resource-card:nth-child(3n + 1)) {
+    border-left: 1px solid var(--color-brand-resources);
+  }
+
+  .resources-grid :deep(.resource-card:nth-child(2n + 1)) {
+    border-left: none;
+  }
 }
 </style>
