@@ -86,7 +86,8 @@ body {
      badge), not any one tool's own accent. */
   --color-success: #1e6b31;
 
-  /* Fonts — see the @import below for what each family is used for. */
+  /* Fonts — see the @import at the top of this file for what each family
+     is used for. */
   --font-mono: 'Martian Mono', monospace;
   --font-serif: 'EB Garamond', Garamond, serif;
   --font-display: 'Archivo', sans-serif;
