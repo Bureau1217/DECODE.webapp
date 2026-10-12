@@ -25,10 +25,18 @@ export default defineEventHandler(async (event) => {
   }
 
   const body = await readBody(event)
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+
+  const headers: {
+    "Content-Type": string
+    Accept: string
+    Authorization?: string
+  } = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  }
 
   if (kqlUser && kqlPassword) {
-    headers.Authorization = `Basic ${Buffer.from(`${kqlUser}:${kqlPassword}`).toString('base64')}`
+    headers.Authorization = "Basic " + Buffer.from(`${kqlUser}:${kqlPassword}`).toString("base64")
   }
 
   return await $fetch('/api/query', {
