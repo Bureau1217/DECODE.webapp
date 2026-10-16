@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { decipherIn, scrambleOut } from '~/utils/decipher'
+import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
+
 // Decorative intro screen — fails soft (empty state, no thrown error) if
 // the CMS call doesn't come back, since this isn't core content.
 
@@ -18,7 +21,23 @@ interface SiteInfo {
   informations?: string
 }
 
-defineEmits<{ continue: [] }>()
+const emit = defineEmits<{ continue: [] }>()
+
+// Warm the keywords panel's data while the splash is up — see
+// useKeywordsPanelCategories. Not awaited: the splash doesn't need it.
+useKeywordsPanelCategories().catch(() => {})
+
+// The image band's corner labels are the Concepts keywords (the keywords
+// panel's own "concepts" category, read from that same warmed cache),
+// cycling across the images.
+const keywordCache = useKeywordsPanelCache()
+const language = useLanguage()
+const keywordCategories = computed<CategoryWithTags[] | undefined>(() => keywordCache.value[language.value])
+const conceptLabels = computed(() => keywordCategories.value?.find((c) => c.slug === 'concepts')?.tags.map((t) => t.title) ?? [])
+function imageLabel(index: number, alt?: string) {
+  const concepts = conceptLabels.value
+  return concepts.length ? concepts[index % concepts.length] : alt?.split(' ')[0]
+}
 
 // BADGE_COLORS itself comes from app/utils/badgeColors.ts (Nuxt
 // auto-import, same as badgeColorFor() in GuideCard.vue/ToolCard.vue) —
@@ -461,6 +480,10 @@ const folderTabPath = computed(() => {
 const splashEl = ref<HTMLElement | null>(null)
 const imagesEl = ref<HTMLElement | null>(null)
 const gridStyle = ref<Record<string, string>>({})
+// The same grid in plain numbers (px, relative to .splash) — the exit
+// transition (leave(), below) redraws it as individual SVG lines so each
+// one can retract on its own.
+const grid = ref<{ top: number, left: number, right: number, bottom: number, cols: number, rows: number, cellW: number, cellH: number, boxW: number, boxH: number } | null>(null)
 // The CTA's own center lands exactly on the grid's bottom line, so it
 // needs the same margin the grid uses — kept separate from gridStyle
 // since it's consumed by a different element.
@@ -508,6 +531,7 @@ function computeGrid() {
   }
 
   ctaStyle.value = { top: `${boxH - margin}px` }
+  grid.value = { top: gridTop, left: margin, right: boxW - margin, bottom: boxH - margin, cols, rows, cellW: cellWidth, cellH: cellHeight, boxW, boxH }
 
   // Each corner title is inset *past* the grid's own margin by a further
   // fixed amount (with a little per-corner variation — "laid differently"
@@ -526,7 +550,9 @@ function computeGrid() {
   const insetYBottom = margin + 16 - 14
   const common = { maxWidth: `${cornerMaxWidth}px`, maxHeight: `${cornerMaxHeight}px`, overflow: 'hidden' }
   cornerStyles.value = [
-    { ...common, top: `${insetYTop}px`, left: `${insetX}px` },
+    // Corner 1 sits further in (lower, more to the right) than the
+    // others — tucked right into the corner it read as cramped.
+    { ...common, top: `${insetYTop + 30}px`, left: `${insetX + 40}px` },
     { ...common, top: `${insetYTop + 14}px`, right: `${insetX + 10}px` },
     { ...common, bottom: `${insetYBottom + 6}px`, left: `${insetX + 14}px` },
     { ...common, bottom: `${insetYBottom + 18}px`, right: `${insetX}px` },
@@ -537,12 +563,159 @@ function computeGrid() {
   }
 }
 
+// Exit transition into the home screen (~1.9s, then `continue`; the
+// home side's own draw-in is useIntroTransition + SiteNav/SiteIndexBar/
+// KeywordsPanel). Every text block scrambles its letters while they
+// vanish one by one in place (scrambleOut), their white/colored boxes
+// fading at the very end; images are masked away onto their centre line
+// and the country shapes fade away.
+// The grid goes first: every line,
+// vertical and horizontal, retracts into its own centre at once, slow
+// then fast, fading out before it finishes — gone before the text and
+// images are.
+// (The middle line reappears on the home side — app.vue's
+// .intro-keep-line.)
+// Text is gone by ~1.3s and lines/images by ~1.4s; the rest is a short
+// hold on the emptied screen before the home side starts drawing.
+const OUTRO_MS = 1900
+
+// Arrival (useSplashIntro), desktop only (mobile and reduced motion go
+// straight to 'done'):
+//  1. A white screen; DE.CO.DE grows in black in the middle from nothing,
+//     then the subtitle deciphers in just under it, inverted (white on a
+//     black box). Both held for 2s.
+//  2. The logo scrambles away letter by letter (OUT_MS); once it's gone,
+//     the subtitle glides down to its own spot (MOVE_MS).
+//  3. There its colors snap to their final black-on-white, and the splash
+//     builds itself (BUILD_AT): grid lines grow out of their centres,
+//     images unmask from their centre line, country shapes fade in, the
+//     corner titles/badges, CTA and image labels decipher.
+//  4. The headline arrives last (HEADLINE_AT), deciphering from a couple
+//     of letters per word, its white backing mask re-measured as it grows.
+//  5. The top tab and its baseline trace themselves (TAB_AT), then the
+//     footer slides up into view (FOOTER_AT).
+const splashIntro = useSplashIntro()
+const logoVisible = ref(splashIntro.value === 'logo')
+const subtitleShown = ref(false)
+const subtitleMoving = ref(false)
+const headlineShown = ref(false)
+// How far up the subtitle sits (px) while it's next to the logo.
+const subtitleLift = ref(0)
+function measureSubtitleLift() {
+  const logo = splashEl.value?.querySelector('.splash-logo .decipher-text')?.getBoundingClientRect()
+  const subtitle = splashEl.value?.querySelector('.splash-subtitle')?.getBoundingClientRect()
+  if (logo && subtitle) subtitleLift.value = Math.round(logo.bottom + 10 - subtitle.top)
+}
+const LOGO_START_MS = 300
+const SUBTITLE_AT = 1500
+// Subtitle deciphered by ~2.7s, then both held 2s.
+const OUT_AT = 4700
+const OUT_MS = 900
+const MOVE_AT = OUT_AT + OUT_MS
+const MOVE_MS = 900
+const BUILD_AT = MOVE_AT + MOVE_MS
+const HEADLINE_AT = BUILD_AT + 900
+const TAB_AT = HEADLINE_AT + 1250
+const FOOTER_AT = TAB_AT + 900
+const DONE_AT = FOOTER_AT + 700
+const introTimers: ReturnType<typeof setTimeout>[] = []
+const introClass = computed(() => (['logo', 'build', 'tab'].includes(splashIntro.value) ? `intro-${splashIntro.value}` : null))
+
+function buildIn() {
+  splashIntro.value = 'build'
+  logoVisible.value = false
+  for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.corner-title, .corner-badge, .splash-cta, .image-label') ?? []) {
+    decipherIn(el)
+  }
+}
+
+// The headline's white backing is a CSS mask cut from each line's own
+// measured width, so while its words grow the mask is re-measured on
+// every step to follow them. No opacity fade-in (`reveal: false`): an
+// animated element inside the masked block makes Chrome stop applying
+// the mask.
+function headlineIn() {
+  headlineShown.value = true
+  for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? []) {
+    decipherIn(el, { growMax: 2, reveal: false })
+  }
+  buildSentenceMasks()
+  const follow = setInterval(buildSentenceMasks, 50)
+  introTimers.push(setTimeout(() => {
+    clearInterval(follow)
+    buildSentenceMasks()
+  }, 1400))
+}
+
+function playIntro() {
+  if (splashIntro.value !== 'logo') return
+  if (window.innerWidth <= 768 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    logoVisible.value = false
+    splashIntro.value = 'done'
+    return
+  }
+  const at = (ms: number, fn: () => void) => introTimers.push(setTimeout(fn, ms))
+  at(SUBTITLE_AT, () => {
+    measureSubtitleLift()
+    subtitleShown.value = true
+    const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
+    if (box) decipherIn(box)
+  })
+  at(OUT_AT, () => {
+    const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo .decipher-text')
+    if (logo) scrambleOut(logo, OUT_MS)
+  })
+  at(MOVE_AT, () => { subtitleMoving.value = true })
+  at(BUILD_AT, buildIn)
+  at(HEADLINE_AT, headlineIn)
+  at(TAB_AT, () => { splashIntro.value = 'tab' })
+  at(FOOTER_AT, () => { splashIntro.value = 'footer' })
+  at(DONE_AT, () => { splashIntro.value = 'done' })
+}
+
+function countryStyle(icon: CountryIcon) {
+  return {
+    top: icon.top,
+    left: icon.left,
+    width: `${icon.width}px`,
+    transform: `translate(-50%, -50%) rotate(${icon.rotate ?? 0}deg) scale(${icon.scale ?? 1})`,
+  }
+}
+
+const TEXT_OUT_MS = 1300
+const leaving = ref(false)
+
+const gridVerticals = computed(() => {
+  const g = grid.value
+  if (!g) return []
+  return Array.from({ length: g.cols + 1 }, (_, k) => g.left + k * g.cellW)
+})
+const gridHorizontals = computed(() => {
+  const g = grid.value
+  if (!g) return []
+  return Array.from({ length: g.rows + 1 }, (_, k) => g.top + k * g.cellH)
+})
+function leave() {
+  if (leaving.value) return
+  const g = grid.value
+  if (!g || !splashEl.value || window.innerWidth <= 768 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    emit('continue')
+    return
+  }
+  leaving.value = true
+  for (const el of splashEl.value.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box, .corner-title, .corner-badge, .splash-cta, .splash-tab-ticker-track, .image-label')) {
+    scrambleOut(el, TEXT_OUT_MS)
+  }
+  setTimeout(() => emit('continue'), OUTRO_MS)
+}
+
 function handleResize() {
   computeGrid()
   buildSentenceMasks()
 }
 
 onMounted(() => {
+  playIntro()
   computeGrid()
   buildSentenceMasks()
   window.addEventListener('resize', handleResize)
@@ -553,12 +726,29 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  introTimers.forEach(clearTimeout)
+  if (splashIntro.value !== 'done') splashIntro.value = 'done'
   window.removeEventListener('resize', handleResize)
 })
 </script>
 
 <template>
-  <section ref="splashEl" class="splash">
+  <section
+    ref="splashEl"
+    class="splash"
+    :class="[{
+      'is-leaving': leaving,
+      'intro-subtitle-shown': subtitleShown,
+      'intro-subtitle-moving': subtitleMoving,
+      'intro-headline-shown': headlineShown,
+      'intro-logo-up': logoVisible,
+    }, introClass]"
+    :style="{ '--subtitle-lift': `${subtitleLift}px` }"
+  >
+    <!-- Arrival: white screen, DE.CO.DE growing in from nothing. -->
+    <div v-if="logoVisible" class="splash-logo" aria-hidden="true">
+      <DecipherText text="DE.CO.DE" grow :grow-max="2" :delay="LOGO_START_MS" />
+    </div>
     <!-- Folder-tab silhouette, above the grid: 1/4 viewport width, 3.5%
          viewport height, 1.5% top margin. The path (folderTabPath) draws
          the tab AND the baseline rule past it as one continuous stroke,
@@ -577,8 +767,9 @@ onUnmounted(() => {
     >
       <path
         :d="folderTabPath"
+        pathLength="1"
         fill="var(--color-surface)"
-        stroke="#000"
+        stroke="var(--color-ink)"
         stroke-width="1"
         stroke-linejoin="round"
         vector-effect="non-scaling-stroke"
@@ -615,6 +806,35 @@ onUnmounted(() => {
     </div>
 
     <div class="splash-grid" :style="gridStyle" aria-hidden="true" />
+    <!-- The grid as separate lines, each moving on its own: growing out of
+         their centres on arrival (is-building), retracting on exit. -->
+    <svg
+      v-if="(leaving || splashIntro === 'build') && grid"
+      class="splash-grid-lines"
+      :class="{ 'is-building': !leaving }"
+      :width="grid.boxW"
+      :height="grid.boxH"
+      aria-hidden="true"
+    >
+      <line
+        v-for="(x, k) in gridVerticals"
+        :key="`v${k}`"
+        class="splash-grid-v"
+        :x1="x + 0.5"
+        :x2="x + 0.5"
+        :y1="grid.top"
+        :y2="grid.bottom + 1"
+      />
+      <line
+        v-for="(y, k) in gridHorizontals"
+        :key="`h${k}`"
+        class="splash-grid-h"
+        :x1="grid.left"
+        :x2="grid.right + 1"
+        :y1="y + 0.5"
+        :y2="y + 0.5"
+      />
+    </svg>
 
     <div
       v-for="(article, index) in (articleTitles ?? []).slice(0, 4)"
@@ -641,12 +861,7 @@ onUnmounted(() => {
         :key="icon.src"
         :src="icon.src"
         class="splash-country no-duotone"
-        :style="{
-          top: icon.top,
-          left: icon.left,
-          width: `${icon.width}px`,
-          transform: `translate(-50%, -50%) rotate(${icon.rotate ?? 0}deg) scale(${icon.scale ?? 1})`,
-        }"
+        :style="countryStyle(icon)"
       >
     </div>
 
@@ -656,8 +871,8 @@ onUnmounted(() => {
     <div v-if="images?.length" ref="imagesEl" class="splash-images" aria-hidden="true">
       <div class="splash-images-track">
         <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper">
-          <span v-if="image.alt" class="image-label text-h4" :style="{ backgroundColor: imageBadgeColor(index) }">
-            {{ image.alt.split(' ')[0] }}
+          <span v-if="imageLabel(index, image.alt)" class="image-label text-h4" :style="{ backgroundColor: imageBadgeColor(index) }">
+            {{ imageLabel(index, image.alt) }}
           </span>
           <img
             :src="image.url"
@@ -693,12 +908,15 @@ onUnmounted(() => {
             <span class="sentence-text" :ref="(el) => setSentenceRef(el as Element | null, index)">{{ item.sentence }}</span>
           </div>
         </div>
+        <!-- Literal #fff/#000, never theme tokens: a mask reads luminance
+             (white = shown, black = hidden), not a color — a token that
+             turns near-black in dark mode hid the whole headline. -->
         <svg class="sentence-mask-defs" aria-hidden="true">
           <mask id="splash-headline-mask" maskUnits="userSpaceOnUse" x="-500" y="-500" width="3000" height="1500">
             <rect
               v-for="(rect, ri) in paragraphMask.base"
               :key="`b${ri}`"
-              fill="var(--color-surface)"
+              fill="#fff"
               :x="rect.left"
               :y="rect.top"
               :width="rect.width"
@@ -729,7 +947,7 @@ onUnmounted(() => {
     <!-- Its own element (not inside .splash-info, which is centered on the
          full viewport) so its vertical position can be pinned to the
          grid's bottom line instead. -->
-    <button type="button" class="splash-cta" :style="ctaStyle" @click="$emit('continue')">
+    <button type="button" class="splash-cta btn-fill" :style="ctaStyle" @click="leave">
       Enter the investigation guide
     </button>
 
@@ -747,7 +965,7 @@ onUnmounted(() => {
     <div class="splash-mobile-hero">
       <span class="splash-mobile-brand">DE.CO.DE</span>
       <p v-if="info?.header_subtitle" class="splash-mobile-subtitle">{{ info.header_subtitle }}</p>
-      <button type="button" class="splash-mobile-cta" @click="$emit('continue')">
+      <button type="button" class="splash-mobile-cta btn-fill" @click="leave">
         Enter the investigation guide
       </button>
     </div>
@@ -841,10 +1059,247 @@ onUnmounted(() => {
   position: absolute;
   z-index: 0;
   background-image:
-    linear-gradient(to right, #000 1px, transparent 1px),
-    linear-gradient(to bottom, #000 1px, transparent 1px);
-  border-right: 1px solid #000;
-  border-bottom: 1px solid #000;
+    linear-gradient(to right, var(--color-ink) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-ink) 1px, transparent 1px);
+  border-right: 1px solid var(--color-ink);
+  border-bottom: 1px solid var(--color-ink);
+}
+
+/* Exit transition (leave()) — the background grid hands over to the
+   per-line SVG copy, every line retracting into its own centre at the
+   same moment, slow then fast, and fading out over the second half so
+   it's gone before the trim completes (and well before the text and
+   images, ~1.1-1.3s). */
+.splash.is-leaving .splash-grid {
+  background-image: none;
+  border-color: transparent;
+}
+
+.splash-grid-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.splash-grid-lines line {
+  stroke: var(--color-ink);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.splash-grid-v {
+  animation: splash-retract-v 0.7s cubic-bezier(0.7, 0, 0.9, 0.4) both;
+}
+
+.splash-grid-h {
+  animation: splash-retract-h 0.7s cubic-bezier(0.7, 0, 0.9, 0.4) both;
+}
+
+@keyframes splash-retract-v {
+  50% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+}
+
+@keyframes splash-retract-h {
+  50% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+/* Text blocks don't move: their letters vanish (scrambleOut), and only
+   their own boxes (headline/subtitle white backing, CTA fill, badges)
+   fade once the letters are nearly all gone. Each image is masked away
+   by a clip closing in from its top and bottom onto its own centre line
+   (the picture itself never scales or deforms), slow then fast. Country
+   shapes simply fade away. */
+.splash-info,
+.splash-corner,
+.splash-cta,
+.splash-tab-ticker {
+  transition: opacity 0.35s ease 1.15s;
+}
+
+.splash-image-wrapper {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
+.splash.is-leaving .splash-image-wrapper {
+  clip-path: inset(50% 0 50% 0);
+}
+
+.splash.is-leaving .splash-info,
+.splash.is-leaving .splash-corner,
+.splash.is-leaving .splash-cta,
+.splash.is-leaving .splash-tab-ticker {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-countries {
+  transition: opacity 0.8s ease;
+}
+
+.splash.is-leaving .splash-countries {
+  opacity: 0;
+}
+
+/* Arrival (script, playIntro). The logo screen covers everything, in
+   the display face, the word growing in the middle. */
+.splash-logo {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(20px, 3.6vw, 64px);
+  letter-spacing: -0.01em;
+}
+
+
+/* Until 'build', nothing behind the logo is drawn yet. */
+.splash.intro-logo .splash-grid,
+.splash.intro-build .splash-grid {
+  background-image: none;
+  border-color: transparent;
+}
+
+.splash-grid-lines.is-building line {
+  animation: splash-grow-in 0.9s cubic-bezier(0.2, 0.6, 0.3, 1) both;
+}
+
+@keyframes splash-grow-in {
+  from {
+    transform: scale(0);
+  }
+}
+
+.splash.intro-logo .splash-image-wrapper {
+  clip-path: inset(50% 0 50% 0);
+  transition: none;
+}
+
+.splash.intro-build .splash-image-wrapper {
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s;
+}
+
+.splash.intro-logo .splash-countries,
+.splash.intro-logo .splash-corner,
+.splash.intro-logo .splash-cta {
+  opacity: 0;
+  transition: none;
+}
+
+.splash.intro-build .splash-corner,
+.splash.intro-build .splash-cta {
+  transition: opacity 0.4s ease;
+}
+
+/* The headline arrives last (headlineIn), at once, its letters then
+   deciphering: no fade — a half-transparent backing let the grid and
+   photos show through it — and no clip either, which breaks the SVG mask
+   that cuts its white backing to the text's shape. */
+.splash.intro-logo .splash-sentences,
+.splash.intro-build:not(.intro-headline-shown) .splash-sentences {
+  visibility: hidden;
+}
+
+/* On the logo screen the subtitle is inverted, white on a black box;
+   arrived in its spot, it snaps (no transition) to its own black on
+   white as the build starts. */
+.splash.intro-logo .splash-subtitle-box {
+  background-color: var(--color-ink);
+  color: var(--color-surface);
+}
+
+/* The subtitle shows above the logo screen for as long as that screen
+   exists (not just the logo phase — it lingers while fading): its whole
+   block (.splash-info, its own stacking context) is lifted over it.
+   It's transparent, and the headline inside is still hidden until the
+   build starts. The subtitle stays hidden until its own moment. */
+.splash.intro-logo-up .splash-info {
+  z-index: 11;
+}
+
+/* Just under the logo first, then — once the logo has scrambled away —
+   down to its own spot (MOVE_MS). */
+.splash.intro-logo .splash-subtitle {
+  transform: translateY(var(--subtitle-lift));
+}
+
+.splash.intro-logo.intro-subtitle-moving .splash-subtitle {
+  transform: translateY(0);
+  transition: transform 0.9s cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+.splash.intro-logo:not(.intro-subtitle-shown) .splash-subtitle {
+  visibility: hidden;
+}
+
+/* The top tab and its baseline trace themselves last (pathLength=1),
+   their white fill settling in as the stroke closes; the ticker after. */
+.splash.intro-logo .splash-tab path,
+.splash.intro-build .splash-tab path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  fill-opacity: 0;
+}
+
+.splash.intro-tab .splash-tab path {
+  stroke-dasharray: 1;
+  animation: splash-tab-draw 0.9s cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+@keyframes splash-tab-draw {
+  from {
+    stroke-dashoffset: 1;
+    fill-opacity: 0;
+  }
+
+  70% {
+    fill-opacity: 0;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+    fill-opacity: 1;
+  }
+}
+
+.splash.intro-logo .splash-tab-ticker,
+.splash.intro-build .splash-tab-ticker {
+  opacity: 0;
+}
+
+.splash.intro-tab .splash-tab-ticker {
+  transition: opacity 0.4s ease 0.7s;
 }
 
 .splash-info {
@@ -888,9 +1343,7 @@ onUnmounted(() => {
      centers this button's own box exactly on that line. */
   transform: translate(-50%, -50%);
   z-index: 2;
-  background-color: var(--color-brand);
-  color: var(--color-surface);
-  border: none;
+  /* Fill/hover colors: .btn-fill (main.css). */
   border-radius: 0;
   padding: 18px;
   font-family: Arial, Helvetica, sans-serif;
@@ -1170,11 +1623,8 @@ onUnmounted(() => {
 
   .splash-mobile-cta {
     appearance: none;
-    border: none;
     border-radius: 0;
     padding: 14px 24px;
-    background: var(--color-brand);
-    color: var(--color-surface);
     font-family: Arial, Helvetica, sans-serif;
     font-size: 11pt;
     text-transform: uppercase;

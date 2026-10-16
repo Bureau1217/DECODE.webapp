@@ -342,21 +342,6 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-wrapper">
     <MapFilters v-model="activeFilter" :filter-options="filterOptions" class="map-filters-overlay" />
-    <!-- Back to the tools list — top-right corner, same 14px margin as
-         MapFilters' own top-left placement above. Icon only, no label. -->
-    <ButtonOutline
-      to="/tools"
-      class="map-exit-overlay"
-      accent="var(--tool-campaigns-accent)"
-      text-color="var(--tool-campaigns-accent-deep)"
-      background="rgba(255, 255, 255, 0.92)"
-      aria-label="Exit tool"
-    >
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-        <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
-        <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" />
-      </svg>
-    </ButtonOutline>
     <div ref="mapContainer" class="disinfo-map" />
   </div>
 </template>
@@ -386,10 +371,8 @@ onBeforeUnmount(() => {
    own mobile mockup; a 260px-capped floating box would eat most of a
    phone-width map otherwise. .disinfo-map drops out of the absolute
    inset:0 stack to take the flex space left under this band; the exit
-   button (below) stays floating — its 28px corner square reads fine
-   overlapping this band's own top-right corner, same "small control
-   overlapping a larger surface" pattern CountryIcon's own card corners
-   use elsewhere (ToolCard.vue). */
+   button (TemplateToolPageLayout.vue) stays floating — its 28px corner
+   square reads fine overlapping this band's own top-right corner. */
 @media (max-width: 768px) {
   .map-wrapper {
     display: flex;
@@ -411,20 +394,6 @@ onBeforeUnmount(() => {
     flex: 1 1 auto;
     min-height: 0;
   }
-}
-
-/* Same rectangle-button look as MapFilters.vue's own tabs (1px coral
-   border, square corners, translucent white fill) — top-right corner,
-   same 14px margin as that overlay's own top-left placement. */
-/* Border/fill/hover-invert chrome lives in ButtonOutline.vue now — only
-   this icon toggle's own position/sizing stays here. */
-.map-exit-overlay {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 2;
-  width: 28px;
-  height: 28px;
 }
 
 /* Row, pin then label — label sits to the right of the pin (script's own
@@ -486,7 +455,7 @@ onBeforeUnmount(() => {
 }
 
 .map-wrapper :deep(.emitter-label-country) {
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 9pt;
@@ -497,7 +466,7 @@ onBeforeUnmount(() => {
    campaign's actor shows at once and the map reads as cluttered. */
 .map-wrapper :deep(.emitter-label-actor) {
   display: none;
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-size: 7pt;
   line-height: 1.3;

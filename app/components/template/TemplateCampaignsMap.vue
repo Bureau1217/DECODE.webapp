@@ -32,7 +32,11 @@ const readingMode = useReadingMode()
 </script>
 
 <template>
-  <TemplateToolPageLayout :reading-mode="readingMode" :scrollable="false">
+  <TemplateToolPageLayout
+    :reading-mode="readingMode"
+    :scrollable="false"
+    :exit="{ accent: 'var(--tool-campaigns-accent)', textColor: 'var(--tool-campaigns-accent-deep)' }"
+  >
     <template #panel>
       <CampaignInfoPanel :campaign="selectedCampaign" :tool="page" />
     </template>

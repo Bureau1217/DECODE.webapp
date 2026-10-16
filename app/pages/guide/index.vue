@@ -54,7 +54,7 @@ onUnmounted(() => {
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
   gap: 1px;
-  background: var(--color-surface);
+  background: var(--color-grid-line);
   /* Fills exactly the space between SiteNav/SiteIndexBar (8.5vh, top) and
      SiteFooter (var(--footer-height), bottom) — both fixed. Leaving the
      footer's own height out (as an earlier version did) let the bottom

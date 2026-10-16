@@ -105,7 +105,7 @@ function isTabActive(key: string) {
 
 .filter-tab.active {
   background: var(--tool-campaigns-accent);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
 }
 
 .filter-options {
@@ -136,7 +136,7 @@ function isTabActive(key: string) {
 
 .filter-option.active {
   background: var(--tool-campaigns-accent-deep);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   border-color: var(--tool-campaigns-accent-deep);
 }
 </style>

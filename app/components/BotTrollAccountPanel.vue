@@ -11,27 +11,17 @@ import { VERDICT_OPTIONS, type Verdict, type Account } from '~/types/botTroll'
 
 const account = defineModel<Account | null>('account', { default: null })
 
-const { findByHandle } = useBotTrollAccounts()
+// Prev/next arrows step through the demo dataset (wrapping at either
+// end) — browsing, not typing a handle that has to already exist in it.
+const { accounts } = useBotTrollAccounts()
+// By handle, not indexOf — the model value is a reactive proxy of the
+// dataset object, never identical to it.
+const accountIndex = computed(() => accounts.findIndex((a) => a.handle === account.value?.handle))
 
-const searchOpen = ref(false)
-const searchInput = ref('')
-const searchError = ref(false)
-
-function toggleSearch() {
-  searchOpen.value = !searchOpen.value
-  searchError.value = false
-  if (searchOpen.value) searchInput.value = account.value?.handle ?? ''
-}
-
-function submitSearch() {
-  const found = findByHandle(searchInput.value)
-  if (!found) {
-    searchError.value = true
-    return
-  }
-  account.value = found
-  searchOpen.value = false
-  searchError.value = false
+function stepAccount(delta: number) {
+  if (!accounts.length) return
+  const next = (accountIndex.value + delta + accounts.length) % accounts.length
+  account.value = accounts[next] ?? null
   resetVerdict()
 }
 
@@ -113,24 +103,30 @@ function placeholderGradient(seed: string) {
 
       <div class="bt-handle-row">
         <h1 class="bt-handle">{{ account.handle }}</h1>
-        <ButtonOutline
-          class="bt-search-toggle"
-          accent="var(--tool-bottroll-accent-deep)"
-          aria-label="Search another account"
-          @click="toggleSearch"
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2" />
-            <line x1="20" y1="20" x2="15.2" y2="15.2" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
-          </svg>
-        </ButtonOutline>
+        <div class="bt-nav">
+          <ButtonOutline
+            class="bt-nav-arrow"
+            accent="var(--tool-bottroll-accent-deep)"
+            aria-label="Previous account"
+            @click="stepAccount(-1)"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <polyline points="15,4 7,12 15,20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+            </svg>
+          </ButtonOutline>
+          <span class="bt-nav-count">{{ accountIndex + 1 }}/{{ accounts.length }}</span>
+          <ButtonOutline
+            class="bt-nav-arrow"
+            accent="var(--tool-bottroll-accent-deep)"
+            aria-label="Next account"
+            @click="stepAccount(1)"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <polyline points="9,4 17,12 9,20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
+            </svg>
+          </ButtonOutline>
+        </div>
       </div>
-
-      <form v-if="searchOpen" class="bt-search-form" @submit.prevent="submitSearch">
-        <input v-model="searchInput" type="text" placeholder="@handle" class="bt-search-input">
-        <button type="submit" class="bt-search-submit">Go</button>
-      </form>
-      <p v-if="searchError" class="bt-search-error">No demo account matches that handle.</p>
 
       <div class="bt-stats">
         <div class="bt-stat">
@@ -225,7 +221,9 @@ function placeholderGradient(seed: string) {
 <style scoped>
 .bt-account {
   box-sizing: border-box;
-  padding: 24px 32px 48px;
+  /* 56px top, not 24px — clears TemplateToolPageLayout.vue's own exit
+     cross (14px inset + 28px tall) so "Analysis" never sits under it. */
+  padding: 56px 32px 48px;
   font-family: var(--font-mono);
   color: var(--color-ink);
 }
@@ -257,49 +255,34 @@ function placeholderGradient(seed: string) {
 }
 
 /* Border/fill/hover-invert chrome lives in ButtonOutline.vue now — only
-   this icon toggle's own sizing stays here. */
-.bt-search-toggle {
+   the arrows' own sizing stays here. */
+.bt-nav {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bt-nav-arrow {
   width: 36px;
   height: 36px;
 }
 
-.bt-search-form {
-  display: flex;
-  gap: 8px;
-  margin: -12px 0 20px;
-}
-
-.bt-search-input {
-  flex: 1;
-  font-family: var(--font-mono);
-  font-size: 10pt;
-  padding: 8px 10px;
-  border: 1px solid var(--tool-bottroll-accent-deep);
-}
-
-.bt-search-submit {
-  font-family: var(--font-mono);
-  font-size: 10pt;
-  text-transform: uppercase;
-  padding: 8px 16px;
-  border: 1px solid var(--tool-bottroll-accent-deep);
-  background: var(--tool-bottroll-accent);
-  color: var(--color-ink);
-  cursor: pointer;
-}
-
-.bt-search-error {
-  margin: -12px 0 20px;
+/* tabular-nums keeps the arrows from shifting as the count changes width
+   (9/106 -> 10/106). */
+.bt-nav-count {
+  min-width: 5.5em;
+  text-align: center;
   font-size: 9pt;
-  color: #9c2c30;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-soft);
 }
 
 .bt-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1px;
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--color-border);
   border: 1px solid var(--color-border);
   margin-bottom: 28px;
 }
@@ -409,7 +392,7 @@ function placeholderGradient(seed: string) {
 
 .bt-verdict-option--active {
   background: var(--color-ink);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
 }
 
 .bt-note {
@@ -433,6 +416,8 @@ function placeholderGradient(seed: string) {
   font-size: 10pt;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-ink);
   resize: vertical;
 }
 
@@ -459,14 +444,14 @@ function placeholderGradient(seed: string) {
 }
 
 .bt-save-status--error {
-  color: #9c2c30;
+  color: var(--color-error);
 }
 
 /* 2 columns, not 3 — Outil_2-1.png's own mobile mockup; 3 stat
    tiles/verdict buttons cram too tight at phone width. */
 @media (max-width: 768px) {
   .bt-account {
-    padding: 20px 16px 40px;
+    padding: 52px 16px 40px;
   }
 
   .bt-stats,

@@ -14,7 +14,10 @@ const props = defineProps<{
 }>()
 
 const badgeColor = computed(() => badgeColorFor(props.index))
-const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
+
+// Opening the article (and closing back into this card): see
+// useSharedTransition.
+const { style: sharedPart, open } = useCardTransition(() => props.item.id, () => `/guide/${props.item.id}`)
 </script>
 
 <template>
@@ -22,23 +25,25 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
     :to="`/guide/${item.id}`"
     class="guide-card"
     :style="{ '--card-accent': badgeColor }"
+    @click.capture="open"
     @mouseenter="onHover"
     @mouseleave="onLeave"
   >
-    <span class="guide-card-number">{{ index + 1 }}</span>
-    <BadgeChip v-if="item.header_subtitle" class="guide-card-subtitle" :color="badgeColor">
+    <div class="guide-card-image-wrap">
+      <img v-if="item.header_image" :src="item.header_image.url" :alt="item.header_image.alt || item.title" :style="sharedPart('image')">
+    </div>
+    <h2 class="guide-card-title" :style="sharedPart('title')">{{ item.title }}</h2>
+    <!-- Under the title, same order as on the opened article
+         (TemplateDefault.vue), so the opening morph never crosses them. -->
+    <BadgeChip v-if="item.header_subtitle" class="guide-card-subtitle" :color="badgeColor" :style="sharedPart('subtitle')">
       {{ item.header_subtitle }}
     </BadgeChip>
-    <div class="guide-card-image-wrap">
-      <img v-if="item.header_image" :src="item.header_image.url" :alt="item.header_image.alt || item.title">
-    </div>
-    <h2 class="guide-card-title">{{ item.title }}</h2>
   </NuxtLink>
 </template>
 
 <style scoped>
 .guide-card {
-  background: var(--color-brand-resources);
+  background: var(--color-card);
   text-decoration: none;
   display: flex;
   flex-direction: column;
@@ -46,10 +51,11 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
      image (see below) horizontally, without needing their own margin:auto. */
   align-items: center;
   box-sizing: border-box;
-  /* 10% frames the image on its 3 free sides; the 4th (bottom) is
-     exactly 10px so the title — the flex column's last item — lands
-     exactly 10px off the card's own bottom edge, not a percentage of it. */
-  padding: 5% 5% 5px;
+  /* One margin everywhere — 5.5% of the card's width (padding % resolves
+     against the grid cell, i.e. the card's own width): top, both sides,
+     under the subtitle, and between image and title (see
+     .guide-card-title). The image takes whatever height is left. */
+  padding: 5.5%;
   overflow: hidden;
   transition: background-color 0.15s ease;
 }
@@ -58,13 +64,6 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
    from badgeColor above) — not a fixed hover tint shared by every card. */
 .guide-card:hover {
   background: var(--card-accent);
-}
-
-.guide-card-number {
-  color: var(--color-surface);
-  font-family: var(--font-serif);
-  font-size: 28px;
-  line-height: 1;
 }
 
 .guide-card-image-wrap {
@@ -77,22 +76,11 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
   justify-content: center;
 }
 
-/* aspect-ratio (not the wrapper's own box) is what guarantees the
-   "vertical" portrait look regardless of the quadrant's own raw
-   proportions — max-width/height:100% then fits it to whichever axis
-   the flex-available space constrains first. */
-/* height:100% (not max-height) is what reliably fills the flex-sized
-   wrapper — max-height left the image sizing itself off its own intrinsic
-   dimensions first in some cases, growing taller than the card actually
-   had room for and pushing the title below the card's own visible/clipped
-   bounds. width:auto + aspect-ratio derives the portrait width from that
-   resolved height; max-width is just a safety cap for an unusually
-   short/wide card. */
+/* Fills the whole space the card's margins leave (cropped, not
+   stretched) — its ratio follows the card rather than being fixed. */
 .guide-card-image-wrap img {
   height: 100%;
-  width: 80%;
-  max-width: 100%;
-  aspect-ratio: 4 / 5;
+  width: 100%;
   object-fit: cover;
   display: block;
 }
@@ -100,15 +88,19 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 /* Chip look itself lives in BadgeChip.vue now — only this card's own
    spacing/alignment stays here. */
 .guide-card-subtitle {
-  margin: 6px 0;
+  margin: 6px 0 0;
   text-align: center;
 }
 
 .guide-card-title {
   font-size: 24pt;
-  margin: 10px 0 0;
+  /* Same 5.5%-of-card gap as the card's own padding: a child's margin %
+     resolves against the card's content box (89% of the card), hence
+     5.5 / 0.89. */
+  margin: 6.18% 0 0;
+  line-height: 1.1;
   text-align: center;
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-serif);
   font-weight: 500;
 }
@@ -125,11 +117,6 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
     flex-direction: column;
     align-items: center;
     padding: 20px 12px 15px;
-  }
-
-  .guide-card-number {
-    order: 1;
-    font-size: 26px;
   }
 
   .guide-card-title {

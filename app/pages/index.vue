@@ -1,17 +1,15 @@
 <script setup lang="ts">
-// Splash shows once per browser, then '/' always renders Home. The
-// seen/not-seen check is client-only (localStorage) — SSR can't know it,
-// so this whole toggle renders client-side only (<ClientOnly>) rather than
-// risk a server/client mismatch flash.
-const INTRO_SEEN_KEY = 'decode-intro-seen'
+// Splash shows on every full page load of '/' (a reload, a typed URL),
+// but not again when navigating back to Home within the same visit:
+// `splashDismissed` is in-memory app state, so only a reload resets it.
+const splashDismissed = useState('splash-dismissed', () => false)
 
 // Shared with app.vue, which hides the site nav while this is true.
 const showSplash = useSplashVisible()
-showSplash.value = true
-
-onMounted(() => {
-  showSplash.value = localStorage.getItem(INTRO_SEEN_KEY) !== '1'
-})
+showSplash.value = !splashDismissed.value
+// No splash this time: nothing to build, footer stays in place.
+const splashIntro = useSplashIntro()
+if (!showSplash.value) splashIntro.value = 'done'
 
 onUnmounted(() => {
   // Leaving '/' entirely (e.g. typing another URL) shouldn't leave the nav
@@ -19,9 +17,16 @@ onUnmounted(() => {
   showSplash.value = false
 })
 
+// Set before the splash goes, so SiteNav/SiteIndexBar/KeywordsPanel
+// already see it when they mount, and play their draw-in once.
+const introTransition = useIntroTransition()
+const INTRO_MS = 2800
+
 function dismissSplash() {
-  localStorage.setItem(INTRO_SEEN_KEY, '1')
+  splashDismissed.value = true
+  introTransition.value = true
   showSplash.value = false
+  setTimeout(() => { introTransition.value = false }, INTRO_MS)
 }
 </script>
 

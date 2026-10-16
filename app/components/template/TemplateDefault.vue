@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { decipherHtml } from '~/utils/decipher'
 interface ToolRef {
   title: string
   slug: string
@@ -39,32 +40,42 @@ const textBlocks = computed(() => (props.page.content ?? []).filter((b) => b.typ
 // Only one related-tool button, not one per relation — an article's Tools
 // field (default.yml) can hold several, but only the first is shown here.
 const relatedTool = computed(() => props.page.tools?.[0] ?? null)
+
+// Opened from / closed back into its guide card: see useSharedTransition.
+const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeArticle, style: sharedPart } = useDetailTransition(
+  () => props.page.id,
+  '/guide',
+  '.article-detail-block-title, .article-detail-paragraph',
+)
 </script>
 
 <template>
-  <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-surface)" close-to="/guide" :prev-to="prevTo" :next-to="nextTo">
-    <article class="article-detail">
+  <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-on-fill)" close-to="/guide" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="closeArticle">
+    <article ref="articleEl" class="article-detail" :class="`detail-lines-${drawState}`">
       <div v-if="page.header_image" class="article-detail-cover">
-        <img :src="page.header_image.url" :alt="page.header_image.alt || page.title">
+        <img :src="page.header_image.url" :alt="page.header_image.alt || page.title" :style="sharedPart('image')">
       </div>
 
       <header class="article-detail-header">
-        <h1 class="article-detail-title">{{ page.title }}</h1>
-        <BadgeChip v-if="page.header_subtitle" class="article-detail-subtitle" :color="badgeColor">
+        <h1 class="article-detail-title" :style="sharedPart('title')">
+          <template v-if="openedFromCard">{{ page.title }}</template>
+          <DecipherText v-else :text="page.title" />
+        </h1>
+        <BadgeChip v-if="page.header_subtitle" class="article-detail-subtitle" :color="badgeColor" :style="sharedPart('subtitle')">
           {{ page.header_subtitle }}
         </BadgeChip>
       </header>
 
-      <TemplateDividerBand color="var(--color-surface)">
+      <TemplateDividerBand color="var(--color-on-fill)">
         <div class="article-detail-divider-half" />
-        <div class="article-detail-divider-vertical" />
-        <div class="article-detail-divider-half article-detail-divider-half-right">
+        <div class="article-detail-divider-vertical detail-draw-vertical" />
+        <div class="article-detail-divider-half article-detail-divider-half-right detail-draw-fade">
           <template v-if="relatedTool">
             <span class="article-detail-related-label">Related tool</span>
             <NuxtLink
               :to="`/tools/${relatedTool.slug}`"
-              class="article-detail-tool-btn"
-              :style="{ backgroundColor: badgeColor }"
+              class="article-detail-tool-btn btn-fill"
+              :style="{ '--btn-fill': badgeColor }"
             >
               {{ relatedTool.title }}
             </NuxtLink>
@@ -72,15 +83,15 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
         </div>
       </TemplateDividerBand>
 
-      <TemplateDetailBody color="var(--color-surface)">
+      <TemplateDetailBody color="var(--color-on-fill)">
         <div v-for="(block, index) in textBlocks" :key="index" class="article-detail-block">
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <h2 v-if="block.content?.title" class="article-detail-block-title" v-html="block.content.title" />
+          <h2 v-if="block.content?.title" class="article-detail-block-title" v-decipher="bodyDecipher" v-html="decipherHtml(block.content.title)" />
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div
             class="article-detail-paragraph"
             :class="{ 'article-detail-alinea': index === 0 }"
-            v-html="block.content?.text"
+            v-decipher="bodyDecipher" v-html="decipherHtml(block.content?.text)"
           />
         </div>
       </TemplateDetailBody>
@@ -107,8 +118,11 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 }
 
 .article-detail-title {
-  margin: 20px 0 0;
-  color: var(--color-surface);
+  /* Shrink-wrapped to its text (not the full row), so its box matches the
+     guide card title's shape for the opening morph (useArticleOpening). */
+  width: fit-content;
+  margin: 20px auto 0;
+  color: var(--color-on-fill);
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 48px;
@@ -145,7 +159,7 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 }
 
 .article-detail-related-label {
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-size: 10pt;
   text-transform: uppercase;
@@ -154,11 +168,10 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
 /* Same look as Splash.vue's own .splash-cta (its one CTA button) — square
    corners, flat padding, uppercase — just recolored per-article via
-   badgeColor instead of that button's fixed brown. */
+   badgeColor instead of that button's fixed brown. Fill/hover colors:
+   .btn-fill (main.css). */
 .article-detail-tool-btn {
   display: inline-block;
-  color: var(--color-surface);
-  border: none;
   border-radius: 0;
   padding: 8px 12px;
   font-family: Arial, Helvetica, sans-serif;
@@ -215,8 +228,26 @@ const relatedTool = computed(() => props.page.tools?.[0] ?? null)
   }
 
   .article-detail-title {
+    margin-left: 0;
     margin-top: 24px;
     font-size: 36px;
+  }
+
+  /* Full-width strip, same (0) padding as the cover image above it — not
+     the desktop's shrink-to-fit chip. Negative side margins equal to
+     .article-detail-header's own 6% padding pull it back out to the
+     header's full-bleed parent width; width stays auto so it fills
+     exactly that reclaimed space rather than needing a calc(). Overrides
+     BadgeChip.vue's own display:inline-block/padding, same treatment as
+     GuideCard.vue's own mobile subtitle. */
+  .article-detail-subtitle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: 22px;
+    margin: 10px -6% 0;
+    padding: 0;
   }
 
   :deep(.divider-band-row) {

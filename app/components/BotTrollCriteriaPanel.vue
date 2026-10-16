@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stackDelay } from '~/utils/stackDelay'
 // Left panel for the Bot / Troll Detector tool (TemplateBotTrollDetector.vue)
 // — the criteria list editors manage in the CMS (tools/bot-troll-detector's
 // own "Critères" children, site/blueprints/pages/criterion.yml), grouped
@@ -10,6 +11,9 @@ import type { Criterion } from '~/types/botTroll'
 
 const props = defineProps<{
   criteria: Criterion[]
+  // Entrance state (TemplateToolPageLayout.vue): each category band
+  // keeps a single "-" row; switching off stacks its criteria in.
+  empty?: boolean
 }>()
 
 // Same reading-mode shrink as CampaignInfoPanel.vue/KeywordsPanel.vue
@@ -35,33 +39,44 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 
 <template>
   <InfoPanel class="bt-panel" :reading-mode="readingMode">
-    <h2 class="bt-panel-title">Bot / Troll Detector</h2>
 
     <template v-for="category in categories" :key="category.name">
       <h3 class="bt-category">{{ category.name }}</h3>
       <ul>
-        <li
-          v-for="criterion in category.items"
-          :key="criterion.slug"
-          class="bt-criterion"
-          tabindex="0"
-          @mouseenter="showTooltip(criterion, $event)"
-          @mouseleave="hideTooltip"
-          @focus="showTooltip(criterion, $event)"
-          @blur="hideTooltip"
-          @click="tapTooltip(criterion, $event)"
-        >
-          {{ criterion.interface_label }}
-        </li>
+        <!-- Entrance state: one "-" row per category. -->
+        <li v-if="empty" class="bt-criterion">-</li>
+        <!-- After Start the category's criteria stack up under its first
+             one (which takes the "-" row's place), each label fading in. -->
+        <template v-else>
+          <li
+            v-for="(criterion, i) in category.items"
+            :key="criterion.slug"
+            class="bt-criterion"
+            :class="{ 'tool-stack-in': i > 0 }"
+            :style="{ '--stack-delay': `${stackDelay(i)}s` }"
+            tabindex="0"
+            @mouseenter="showTooltip(criterion, $event)"
+            @mouseleave="hideTooltip"
+            @focus="showTooltip(criterion, $event)"
+            @blur="hideTooltip"
+            @click="tapTooltip(criterion, $event)"
+          >
+            <span class="tool-fill-in" :style="{ '--fill-delay': `${stackDelay(i) + 0.1}s` }">{{ criterion.interface_label }}</span>
+          </li>
+        </template>
       </ul>
     </template>
 
-    <HoverTooltip v-if="hovered" class="bt-tooltip" :pos="tooltipPos" accent="var(--tool-bottroll-accent-deep)">
-      <strong class="bt-tooltip-title">{{ hovered.interface_label }}</strong>
-      <p v-if="hovered.why_it_matters">{{ hovered.why_it_matters }}</p>
-      <p v-if="hovered.observable_signal" class="bt-tooltip-signal">
-        Signal observed — {{ hovered.observable_signal }}
-      </p>
+    <!-- Classed wrapper inside the slot, not a class on HoverTooltip
+         itself — its root is a <Teleport>, which drops a passed class. -->
+    <HoverTooltip v-if="hovered" :pos="tooltipPos" accent="var(--tool-bottroll-accent-deep)">
+      <div class="bt-tooltip">
+        <strong class="bt-tooltip-title">{{ hovered.interface_label }}</strong>
+        <p v-if="hovered.why_it_matters">{{ hovered.why_it_matters }}</p>
+        <p v-if="hovered.observable_signal" class="bt-tooltip-signal">
+          Signal observed — {{ hovered.observable_signal }}
+        </p>
+      </div>
     </HoverTooltip>
   </InfoPanel>
 </template>
@@ -69,26 +84,13 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 <style scoped>
 /* Shell lives in InfoPanel.vue now — see KeywordsPanel.vue's own note. */
 
-.bt-panel-title {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 14px 10px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 14pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-ink);
-  border-bottom: 1px solid var(--color-border);
-}
-
 .bt-category {
   box-sizing: border-box;
   margin: 0;
   height: 28px;
   width: 100%;
   padding-left: 10px;
-  background: #cdeeea;
+  background: var(--tool-bottroll-band);
   color: var(--color-ink);
   font-family: var(--font-mono);
   font-weight: 700;
@@ -131,25 +133,28 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 }
 
 /* Box/position/teleport chrome lives in HoverTooltip.vue now — only this
-   tool's own tooltip typography stays here. */
+   tool's own tooltip typography stays here. Same type as the keyword
+   definition popup on articles (KeywordsPanel.vue: Arial, 12pt bold
+   title, 12pt/1.4 body) and SourceDatabasePanel.vue's own, in this tool's
+   text-safe teal (--tool-bottroll-signal, 4.9:1 on white). */
+.bt-tooltip {
+  color: var(--tool-bottroll-signal);
+  font-family: Arial, Helvetica, sans-serif;
+}
 
 .bt-tooltip-title {
   display: block;
-  margin-bottom: 8px;
-  font-family: var(--font-mono);
-  font-size: 11pt;
+  margin-bottom: 4px;
+  font-size: 12pt;
   font-weight: 700;
-  color: var(--color-ink);
   text-transform: none;
   white-space: normal;
 }
 
 .bt-tooltip p {
   margin: 0 0 8px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10pt;
-  line-height: 1.5;
-  color: var(--color-text-soft);
+  font-size: 12pt;
+  line-height: 1.4;
   white-space: normal;
 }
 
@@ -158,6 +163,6 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 }
 
 .bt-tooltip-signal {
-  color: var(--tool-bottroll-signal);
+  font-style: italic;
 }
 </style>

@@ -33,13 +33,28 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  background: var(--color-surface);
+  background: var(--color-grid-line);
   height: calc(100vh - 8.5vh - var(--footer-height));
 }
 
-/* No mobile override — this already stacks the 3 tools vertically (one
-   row per tool, sharing the available height equally), and each row's
-   own image-left/text-right layout (ToolCard.vue, also unmodified for
-   mobile) already reads as a short, wide "horizontal" shape rather than
-   a tall one. */
+/* Content-driven height, not a fixed viewport-height box — same
+   treatment as guide/index.vue's own mobile grid: a continuous stack of
+   full-width cards (ToolCard.vue's own mobile layout, matching
+   GuideCard.vue's), divided by thin lines instead of the desktop's 1px
+   background-reveal gap. */
+@media (max-width: 768px) {
+  .tools-list {
+    gap: 0;
+    height: auto;
+  }
+
+  .tools-list :deep(.tool-card) {
+    min-height: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  }
+
+  .tools-list :deep(.tool-card:last-child) {
+    border-bottom: none;
+  }
+}
 </style>

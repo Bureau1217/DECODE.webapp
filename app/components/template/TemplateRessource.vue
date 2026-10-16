@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { decipherHtml } from '~/utils/decipher'
 const props = defineProps<{
   page: {
     title: string
     slug: string
+    id: string
     subtitle?: string
     authors?: string
     source?: string
@@ -21,15 +23,29 @@ const props = defineProps<{
 // rendering both, just now exclusive since only one button is wanted.
 const actionLabel = computed(() => (props.page.file ? 'Download PDF' : props.page.source ? 'Read article' : null))
 const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? null)
+
+// Opened from / closed back into its resource card: see
+// useSharedTransition.
+const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart } = useDetailTransition(
+  () => props.page.id,
+  '/resources',
+  '.resource-detail-description',
+)
 </script>
 
 <template>
-  <DetailPanelChrome background="var(--color-surface)" text-color="var(--color-brand-about)" close-to="/resources" :prev-to="prevTo" :next-to="nextTo">
-    <article class="resource-detail">
+  <DetailPanelChrome background="var(--color-surface)" text-color="var(--color-brand-about)" close-to="/resources" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="close">
+    <article ref="root" class="resource-detail" :class="`detail-lines-${drawState}`">
       <header class="resource-detail-header">
-        <h1 class="resource-detail-title">{{ page.title }}</h1>
-        <p v-if="page.authors" class="resource-detail-author">{{ page.authors }}</p>
-        <span v-if="page.type" class="resource-detail-type">{{ page.type }}</span>
+        <div class="resource-detail-header-spacer" />
+        <h1 class="resource-detail-title" :style="sharedPart('title')">
+          <template v-if="openedFromCard">{{ page.title }}</template>
+          <DecipherText v-else :text="page.title" />
+        </h1>
+        <div class="resource-detail-meta">
+          <p v-if="page.authors" class="resource-detail-author" :style="sharedPart('authors')">{{ page.authors }}</p>
+          <span v-if="page.type" class="resource-detail-type" :style="sharedPart('type')">{{ page.type }}</span>
+        </div>
       </header>
 
       <TemplateDividerBand color="var(--color-brand-resources)">
@@ -38,7 +54,7 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
           :href="actionHref"
           target="_blank"
           rel="noopener"
-          class="resource-detail-action-btn"
+          class="resource-detail-action-btn detail-draw-fade"
         >
           {{ actionLabel }}
         </a>
@@ -46,7 +62,7 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
 
       <TemplateDetailBody v-if="page.description" color="var(--color-brand-about)">
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div class="resource-detail-description" v-html="page.description" />
+        <div class="resource-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(page.description)" />
       </TemplateDetailBody>
     </article>
   </DetailPanelChrome>
@@ -54,16 +70,40 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
 
 <style scoped>
 .resource-detail-header {
+  /* Fixed-height box, title alone centered both ways in it: two equal 1fr
+     rows sandwich the title's own auto row, so the title's center is
+     always the box's center — one line or three, with or without authors
+     (which hang below it, in the bottom 1fr, without nudging it). The
+     divider band below never moves either. Was padding-top + natural
+     height, which shifted everything by however many lines wrapped. */
+  height: 32vh;
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
+  padding: 0 8%;
   text-align: center;
-  padding-top: 5%;
 }
 
+.resource-detail-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Capped at 3 lines so an unusually long title can't outgrow the fixed
+   header box above (and push the type chip out of it). */
 .resource-detail-title {
   margin: 0;
   color: var(--color-brand-about);
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 48px;
+  line-height: 1.1;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 
 .resource-detail-author {
@@ -79,7 +119,7 @@ const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? n
   margin-top: 16px;
   padding: 2px;
   background: var(--color-brand-resources);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 10pt;

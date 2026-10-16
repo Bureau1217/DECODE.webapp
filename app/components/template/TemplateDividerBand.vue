@@ -40,4 +40,13 @@ defineProps<{
   height: 10vh;
   display: flex;
 }
+
+/* Edge to edge, not inset 10px each side — Chapitre.png's own mobile
+   mockup draws these rules spanning the full card width, same reasoning
+   as the article template's own cover image. */
+@media (max-width: 768px) {
+  .divider-band-line {
+    margin: 0;
+  }
+}
 </style>

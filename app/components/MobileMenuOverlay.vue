@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { toolColorFor } from '~/utils/badgeColors'
 import type { ComputedRef } from 'vue'
 
 interface MenuSubItem {
@@ -68,7 +69,7 @@ function close() {
           <li v-for="(item, index) in SECTION_ITEMS[link.to]!.items.value" :key="item.id">
             <NuxtLink :to="SECTION_ITEMS[link.to]!.hrefFor(item)" class="mobile-menu-item" @click="close">
               <span class="mobile-menu-item-number">{{ index + 1 }}</span>
-              <span class="mobile-menu-item-title" :style="{ backgroundColor: badgeColorFor(index) }">
+              <span class="mobile-menu-item-title" :style="{ backgroundColor: link.to === '/tools' ? toolColorFor(index) : badgeColorFor(index) }">
                 {{ item.title }}
               </span>
             </NuxtLink>
@@ -88,7 +89,7 @@ function close() {
   right: 0;
   bottom: var(--footer-height);
   overflow-y: auto;
-  background: var(--color-brand);
+  background: var(--color-chrome);
   box-sizing: border-box;
 }
 
@@ -104,8 +105,8 @@ function close() {
   height: 44px;
   appearance: none;
   border: none;
-  background: var(--color-brand);
-  color: var(--color-surface);
+  background: var(--color-chrome);
+  color: var(--color-on-fill);
   cursor: pointer;
 }
 
@@ -117,8 +118,8 @@ function close() {
   display: block;
   box-sizing: border-box;
   padding: 14px 16px;
-  background: var(--color-brand);
-  color: var(--color-surface);
+  background: var(--color-chrome);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-weight: 500;
   font-size: 13pt;

@@ -26,13 +26,20 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event)
 
+  // Kirby's own per-request language switch (DECODE.cms has en + fr).
+  // Allow-listed rather than passed through — anything else falls back
+  // to English, the CMS's default language.
+  const language = getHeader(event, 'x-language') === 'fr' ? 'fr' : 'en'
+
   const headers: {
     "Content-Type": string
     Accept: string
+    "X-Language": string
     Authorization?: string
   } = {
     "Content-Type": "application/json",
     Accept: "application/json",
+    "X-Language": language,
   }
 
   if (kqlUser && kqlPassword) {

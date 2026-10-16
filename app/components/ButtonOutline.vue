@@ -72,7 +72,7 @@ withDefaults(defineProps<{
 .button-outline:hover:not(:disabled),
 .button-outline:focus-visible:not(:disabled) {
   background: var(--btn-accent);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
 }
 
 .button-outline:disabled {

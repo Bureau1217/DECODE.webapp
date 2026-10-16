@@ -16,7 +16,11 @@ export interface KqlBody {
 }
 
 async function postKql<T>(body: KqlBody): Promise<T> {
-  return await $fetch<T>('/api/kql', { method: 'POST', body })
+  // Read before the await — the proxy can't see the cookie itself during
+  // SSR (a server-side $fetch to /api/kql doesn't forward the visitor's
+  // own cookies), so the language travels as an explicit header.
+  const language = useLanguage().value
+  return await $fetch<T>('/api/kql', { method: 'POST', body, headers: { 'x-language': language } })
 }
 
 /**

@@ -12,6 +12,9 @@ import type { Criterion, Account } from '~/types/botTroll'
 
 const props = defineProps<{
   page: {
+    title: string
+    description?: string
+    credits?: string
     criteria: Criterion[]
   }
 }>()
@@ -28,9 +31,21 @@ const readingMode = useReadingMode()
 </script>
 
 <template>
-  <TemplateToolPageLayout :reading-mode="readingMode">
-    <template #panel>
-      <BotTrollCriteriaPanel :criteria="props.page.criteria" />
+  <TemplateToolPageLayout
+    :reading-mode="readingMode"
+    :exit="{ accent: 'var(--tool-bottroll-accent-deep)' }"
+    :intro="{
+      title: props.page.title,
+      description: props.page.description,
+      credits: props.page.credits,
+      band: 'var(--tool-bottroll-band)',
+      bandText: 'var(--color-ink)',
+      start: 'var(--tool-bottroll-start)',
+      cover: 'var(--tool-bottroll-cover)',
+    }"
+  >
+    <template #panel="{ empty }">
+      <BotTrollCriteriaPanel :criteria="props.page.criteria" :empty="empty" />
     </template>
     <template #content>
       <BotTrollAccountPanel v-model:account="selectedAccount" />

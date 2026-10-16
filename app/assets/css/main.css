@@ -51,13 +51,39 @@ body {
   --color-surface: #fff;
   --color-border: rgba(0, 0, 0, 0.1);
   --color-border-strong: rgba(0, 0, 0, 0.3);
+  /* Text/strokes ON a colored fill (brown nav, keyword bands, the guide
+     card's brown panel…) — white in both themes' spirit, but its own
+     token: --color-surface flips to near-black in dark mode, which would
+     turn every such label dark-on-brown. */
+  --color-on-fill: #fff;
+  /* Text on the pastel badge colors (BADGE_COLORS, the tool accents) —
+     stays dark in both themes, since the pastels themselves don't change. */
+  --color-on-pastel: #1a1a1a;
+  /* Row hover/related tint (KeywordsPanel, ResourceCard, TeamPanel) —
+     B8A084 at 40%. */
+  --color-hover-tint: rgba(184, 160, 132, 0.4);
+  --color-footer-border: rgba(210, 210, 210, 0.55);
+  --color-error: #9c2c30;
 
   /* Brand — the site's default brown, plus the two page-specific accents
      (about/resources) that replace it on those routes (SiteNav.vue and
      friends' own per-page theming). */
   --color-brand: #a68764;
   --color-brand-about: #775937;
+  /* Text on a solid --color-brand-about fill (About's active tab) —
+     white on the dark light-mode brown, near-black on dark mode's pale
+     tan (#d8bc98, where white is under 2:1). */
+  --color-on-brand-about: var(--color-on-fill);
   --color-brand-resources: #b8a084;
+  /* Fill of the site chrome itself (SiteNav's active tab, SiteIndexBar,
+     the mobile menu, the default .btn-fill) — the brand brown in light
+     mode, a much darker brown in dark mode (OVERALL WEBSITE.png). */
+  --color-chrome: var(--color-brand);
+  /* Guide/tool card fill and the 1px grid gap showing between cards —
+     brown cards on white lines in light mode, near-black cards on light
+     lines in dark mode (OVERALL WEBSITE.png). */
+  --color-card: var(--color-brand-resources);
+  --color-grid-line: var(--color-surface);
 
   /* Tool accents — one pair per custom tool page (Campaigns Maps/Bot
      Troll Detector/Source Reliability), each cycling the next color in
@@ -77,8 +103,35 @@ body {
      across that tool's own panel + content components, so promoted here
      rather than left as a repeated literal. */
   --tool-bottroll-tint: #e8f8f5;
-  --tool-bottroll-signal: #2e8577;
+  /* Bot/Troll's text-on-white teal — 4.9:1 on #fff (WCAG AA body text);
+     -accent-deep (#3fa396) is only 3:1, fine for borders, not for text. */
+  --tool-bottroll-signal: #2a7d70;
   --tool-sourcerel-tint: #e4d4f2;
+  /* Row hover in SourceDatabasePanel / category band in
+     BotTrollCriteriaPanel. */
+  --tool-sourcerel-hover: #f3eaf9;
+  --tool-bottroll-band: #cdeeea;
+
+  /* Each tool page's own reskin of the site chrome (useToolTheme.ts):
+     `-chrome` fills SiteNav's active tab / SiteIndexBar / the Start
+     button, `-text` colors chrome text and strokes. One color in light
+     mode; split in dark mode, where a fill dark enough for cream text and
+     a text shade light enough for the near-black page aren't the same. */
+  --tool-campaigns-chrome: var(--tool-campaigns-accent);
+  --tool-campaigns-text: var(--tool-campaigns-accent);
+  --tool-bottroll-chrome: var(--tool-bottroll-accent-deep);
+  --tool-bottroll-text: var(--tool-bottroll-accent-deep);
+  /* Its entrance-screen Start button: white text needs the darker
+     -signal teal here (4.9:1); -accent-deep is only 3:1. */
+  --tool-bottroll-start: var(--tool-bottroll-signal);
+  --tool-sourcerel-chrome: var(--tool-sourcerel-accent-deep);
+  /* Entrance screen fill (ToolCover.vue) per tool, and the type on it —
+     the pale accent itself in light mode, so the type goes dark (white
+     on #cdb4ea/#b4eae1 is under 2:1). */
+  --tool-sourcerel-cover: var(--tool-sourcerel-accent);
+  --tool-bottroll-cover: var(--tool-bottroll-accent);
+  --tool-cover-text: var(--color-on-pastel);
+  --tool-sourcerel-text: var(--tool-sourcerel-accent-deep);
 
   /* Status text — "it saved"/"this source is well-rated" message color,
      reused across otherwise-unrelated components (BotTrollAccountPanel's
@@ -93,8 +146,62 @@ body {
   --font-display: 'Archivo', sans-serif;
 }
 
+/*
+ * Dark mode — SiteFooter's DARK MODE toggle sets <html data-theme="dark">
+ * (useColorMode.ts, app.vue). Every color above that has to change is
+ * redefined here and nowhere else; components only ever reference the
+ * tokens. Palette sampled from the DARK MODE mockups (OVERALL WEBSITE,
+ * TOOL1-3.png): warm near-black page, cream text, darker-brown chrome,
+ * tan keyword bands, and each tool's accent shifted to a muted fill +
+ * a light text shade (the light-mode "-deep" shades are too dark to read
+ * on near-black).
+ */
+:root[data-theme='dark'] {
+  --color-ink: #ece6dc;
+  --color-text-soft: #a8a196;
+  --color-surface: #181615;
+  --color-border: rgba(236, 230, 220, 0.12);
+  --color-border-strong: rgba(236, 230, 220, 0.3);
+  --color-on-fill: #f4efe7;
+  --color-hover-tint: rgba(149, 119, 92, 0.35);
+  --color-footer-border: rgba(236, 230, 220, 0.15);
+  --color-error: #ff8f84;
+
+  --color-brand: #c4a37f;
+  --color-brand-about: #d8bc98;
+  --color-on-brand-about: var(--color-surface);
+  --color-brand-resources: #95775c;
+  --color-chrome: #3c3229;
+  --color-card: var(--color-surface);
+  --color-grid-line: var(--color-border-strong);
+
+  --tool-campaigns-accent: #f27362;
+  --tool-campaigns-accent-deep: #f27362;
+  --tool-bottroll-accent: #4f6863;
+  --tool-bottroll-accent-deep: #6a8882;
+  --tool-bottroll-tint: #1f2a27;
+  --tool-bottroll-signal: #b4ebe0;
+  --tool-bottroll-band: #4f6863;
+  --tool-sourcerel-accent: #5a4e67;
+  --tool-sourcerel-accent-deep: #c59df9;
+  --tool-sourcerel-tint: #3a3345;
+  --tool-sourcerel-hover: #2c2733;
+  --tool-campaigns-chrome: #a3574a;
+  --tool-bottroll-chrome: #4f6863;
+  --tool-bottroll-text: #b4ebe0;
+  --tool-bottroll-start: var(--tool-bottroll-chrome);
+  --tool-sourcerel-chrome: #766592;
+  --tool-cover-text: var(--color-on-fill);
+
+  --color-success: #8fd8a0;
+
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-mono);
+  background: var(--color-surface);
+  color: var(--color-ink);
 }
 
 /* Type scale: H3/H4-equivalent sizes on top of the Martian Mono body font,
@@ -107,6 +214,28 @@ body {
 .text-h4 {
   font-size: var(--text-h4-size);
   text-transform: uppercase;
+}
+
+/*
+ * Filled call-to-action button (Splash.vue's "Enter the investigation
+ * guide", the article's "Related tool", each tool's entrance-screen
+ * "Start"): solid fill at rest, outline on hover — the inverse of
+ * ButtonOutline.vue's own outline-then-fill. Hover text is ink, not the
+ * fill color itself: the pastel tool colors (#b4eae1, #cdb4ea) are
+ * unreadable as text on white. Set --btn-fill per button.
+ */
+.btn-fill {
+  background-color: var(--btn-fill, var(--color-chrome));
+  color: var(--color-on-fill);
+  border: 1px solid var(--btn-fill, var(--color-brand));
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-fill:hover,
+.btn-fill:focus-visible {
+  background-color: var(--color-surface);
+  /* Same color as the button's own stroke. */
+  color: var(--btn-fill, var(--color-brand));
 }
 
 /*
@@ -123,4 +252,229 @@ img {
 img:hover,
 img.no-duotone {
   filter: none;
+}
+
+/* Dark mode's own negative (#duotone-dark, app.vue) — full-range, so
+   images read as bright negatives on the near-black page rather than the
+   light theme's pale silver ones (OVERALL WEBSITE.png). */
+:root[data-theme='dark'] img:not(.no-duotone):not(:hover) {
+  filter: url(#duotone-dark);
+}
+
+/*
+ * Deciphering text (app/utils/decipher.ts): letters reorder in the text's
+ * own full color, after this very quick opacity reveal.
+ */
+.decipher-reveal {
+  animation: decipher-reveal 0.12s ease-out both;
+}
+
+@keyframes decipher-reveal {
+  from {
+    opacity: 0;
+  }
+}
+
+.decipher-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Tool panel entries filling in after Start (SourceDatabasePanel.vue,
+   BotTrollCriteriaPanel.vue): each cell replaces its "-" placeholder by
+   fading up into place, staggered by its own --fill-delay. */
+.tool-fill-in {
+  display: inline-block;
+  animation: tool-fill-in 0.45s ease var(--fill-delay, 0s) both;
+}
+
+@keyframes tool-fill-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5em);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Rows after a band's first one grow open from nothing, staggered by
+   --stack-delay, so each country/category visibly stacks up. Fill mode
+   `backwards` only: once finished, the row's own height rules apply
+   again (no leftover max-height cap on a wrapped label). */
+.tool-stack-in {
+  overflow: hidden;
+  animation: tool-stack-in 0.35s ease var(--stack-delay, 0s) backwards;
+}
+
+@keyframes tool-stack-in {
+  from {
+    max-height: 0;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-bottom-width: 0;
+  }
+
+  to {
+    max-height: 3em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-fill-in,
+  .tool-stack-in {
+    animation: none;
+  }
+}
+
+/* Article opening from its guide card (useArticleOpening): the shared
+   title/image/subtitle morph into place a little slower than the
+   browser's default, and the rest of the page cross-fades with them. */
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: 0.75s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Title and subtitle: only the article's own text, scaled uniformly from
+   the card's size up to its own — no second, stretched copy of the card
+   title cross-fading on top. */
+::view-transition-old(*.article-title),
+::view-transition-old(*.article-subtitle) {
+  display: none;
+}
+
+::view-transition-new(*.article-title),
+::view-transition-new(*.article-subtitle) {
+  animation: none;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Image: both snapshots cropped to the moving box, never stretched. */
+::view-transition-old(*.article-image),
+::view-transition-new(*.article-image) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Closing back to the card (TemplateDefault.vue adds `vt-closing`): the
+   other way round — the article's own big title/subtitle is the snapshot
+   shown, shrinking into the card's box, and the card's is hidden. */
+html.vt-closing::view-transition-old(*.article-title),
+html.vt-closing::view-transition-old(*.article-subtitle) {
+  display: block;
+  animation: none;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+html.vt-closing::view-transition-new(*.article-title),
+html.vt-closing::view-transition-new(*.article-subtitle) {
+  display: none;
+}
+
+/*
+ * Detail page draw-in / retract (useSharedTransition's drawState, as a
+ * `detail-lines-*` class on the page's root): the divider band's two
+ * rules (TemplateDividerBand's .divider-band-line) trace left to right,
+ * a .detail-draw-vertical rule top to bottom just after, then
+ * .detail-draw-fade content fades up. Held undrawn ('pending') while the
+ * header morphs in; 'undraw' plays it all back on closing.
+ */
+.detail-lines-pending .divider-band-line {
+  transform: scaleX(0);
+}
+
+.detail-lines-pending .detail-draw-vertical {
+  transform: scaleY(0);
+}
+
+.detail-lines-pending .detail-draw-fade {
+  opacity: 0;
+}
+
+.detail-lines-draw .divider-band-line {
+  transform-origin: left;
+  animation: detail-rule-draw 0.8s cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+.detail-lines-draw .divider-band-line:last-child {
+  animation-delay: 0.15s;
+}
+
+.detail-lines-draw .detail-draw-vertical {
+  transform-origin: top;
+  animation: detail-rule-draw-v 0.5s cubic-bezier(0.45, 0, 0.25, 1) 0.35s both;
+}
+
+.detail-lines-draw .detail-draw-fade {
+  animation: detail-fade-in 0.4s ease 0.6s both;
+}
+
+.detail-lines-undraw .divider-band-line {
+  transform-origin: left;
+  animation: detail-rule-undraw 0.45s cubic-bezier(0.55, 0, 0.75, 0.2) 0.1s both;
+}
+
+.detail-lines-undraw .divider-band-line:first-child {
+  animation-delay: 0.2s;
+}
+
+.detail-lines-undraw .detail-draw-vertical {
+  transform-origin: top;
+  animation: detail-rule-undraw-v 0.35s cubic-bezier(0.55, 0, 0.75, 0.2) both;
+}
+
+.detail-lines-undraw .detail-draw-fade {
+  animation: detail-fade-out 0.25s ease both;
+}
+
+@keyframes detail-rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes detail-rule-draw-v {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes detail-rule-undraw {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes detail-rule-undraw-v {
+  to {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes detail-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes detail-fade-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }

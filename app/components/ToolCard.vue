@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { KeywordRef } from '~/types/article'
+import { toolColorFor } from '~/utils/badgeColors'
 
 export interface Tool {
   title: string
@@ -20,7 +21,13 @@ const props = defineProps<{
   index: number
 }>()
 
-const badgeColor = computed(() => badgeColorFor(props.index))
+const badgeColor = computed(() => toolColorFor(props.index))
+// Tools 2 and 3 (purple #cdb4ea, teal #b4eae1) are too pale for the
+// white eyebrow/title once the card fills with them on hover — and the
+// subtitle chip, the same color, would vanish into the card. Those two
+// invert on hover instead (.tool-card.is-pale, below); tool 1's coral
+// keeps white text.
+const isPale = computed(() => props.index % BADGE_COLORS.length !== 0)
 const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 
 // Positional, not CMS data — which cards get the small country badge, and
@@ -42,6 +49,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
   <NuxtLink
     :to="`/tools/${item.slug}`"
     class="tool-card"
+    :class="{ 'is-pale': isPale }"
     :style="{ '--card-accent': badgeColor }"
     @mouseenter="onHover"
     @mouseleave="onLeave"
@@ -57,7 +65,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
     <div class="tool-card-body">
       <span class="tool-card-eyebrow">Tool {{ index + 1 }}</span>
       <h2 class="tool-card-title">{{ item.title }}</h2>
-      <BadgeChip v-if="item.subtitle" :color="badgeColor">
+      <BadgeChip v-if="item.subtitle" class="tool-card-subtitle" :color="badgeColor">
         {{ item.subtitle }}
       </BadgeChip>
     </div>
@@ -83,7 +91,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
   flex: 1 1 0;
   min-height: 0;
   display: flex;
-  background: var(--color-brand-resources);
+  background: var(--color-card);
   text-decoration: none;
   overflow: hidden;
   transition: background-color 0.15s ease;
@@ -105,7 +113,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
   overflow: hidden;
   /* Opaque — this is what actually hides whatever part of
      .tool-card-country-behind sits underneath it. */
-  background: var(--color-brand-resources);
+  background: var(--color-card);
   transition: background-color 0.15s ease;
 }
 
@@ -169,7 +177,7 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
 }
 
 .tool-card-eyebrow {
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-serif);
   font-size: 12pt;
   text-transform: uppercase;
@@ -177,45 +185,106 @@ const cornerOffset = computed(() => CORNER_OFFSET_BY_INDEX[props.index])
 
 .tool-card-title {
   margin: 0;
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 24pt;
   text-align: left;
 }
 
-/* Image on top, full width, body below, card itself a fixed ~37vw-wide
-   column — not the desktop row's 40%-image-beside-body split (too narrow
-   a strip at that width to read as a real cover image), and not full
-   viewport width either: TemplateTools.vue's own horizontal swipe row
-   needs roughly 2 cards fully visible plus ~70% of a third at once. */
+/* Pale accents (tools 2/3): dark text on the pale fill, and the subtitle
+   chip flips to dark with the accent as its text — the inverse of its
+   resting pastel-chip-with-ink-text. */
+.tool-card.is-pale:hover .tool-card-eyebrow,
+.tool-card.is-pale:hover .tool-card-title {
+  color: var(--color-on-pastel);
+}
+
+/* !important: BadgeChip sets its own background inline. */
+.tool-card.is-pale:hover .tool-card-subtitle {
+  background-color: var(--color-on-pastel) !important;
+  color: var(--card-accent);
+}
+
+.tool-card-eyebrow,
+.tool-card-title,
+.tool-card-subtitle {
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Same card shape as GuideCard.vue's own mobile layout (per the article
+   reference, Articles.png) — eyebrow, title, full-width colored subtitle
+   strip, then a wide landscape image, all centered, stacked full-width
+   with no gaps (TemplateTools.vue's own mobile container handles that
+   part) — not the desktop's 40%-image-beside-body row. `order` puts
+   .tool-card-body (already eyebrow→title→subtitle in DOM order) before
+   the image without touching the markup itself. */
 @media (max-width: 768px) {
   .tool-card {
-    flex: 0 0 37vw;
+    flex: none;
     flex-direction: column;
-    scroll-snap-align: start;
-  }
-
-  /* Edge to edge, not inset, within the card's own (now narrower) width —
-     same reasoning as the article template's own cover image
-     (TemplateDefault.vue). */
-  .tool-card-image-wrap {
-    flex: 0 0 auto;
-    width: 100%;
-    height: 45%;
-    padding: 0;
+    align-items: center;
+    padding: 20px 12px 15px;
   }
 
   .tool-card-body {
-    padding: 10px 12px 14px;
+    order: 1;
+    flex: none;
+    width: 100%;
+    align-items: center;
+    padding: 0;
+    gap: 0;
   }
 
   .tool-card-eyebrow {
-    font-size: 9pt;
+    font-size: 11pt;
   }
 
   .tool-card-title {
-    font-size: 15pt;
+    margin: 4px 0 0;
+    text-align: center;
+    font-size: 28px;
+  }
+
+  /* Full-width strip (within the card's own 12px padding), not the
+     desktop's shrink-to-fit chip — overrides BadgeChip.vue's own
+     display:inline-block/padding, same treatment as GuideCard.vue's own
+     mobile subtitle. */
+  .tool-card-subtitle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 20px;
+    margin: 6px 0 0;
+    padding: 0;
+    font-size: 16px;
+  }
+
+  .tool-card-image-wrap {
+    order: 2;
+    flex: none;
+    width: 100%;
+    height: auto;
+    margin-top: 11px;
+    aspect-ratio: 2.6 / 1;
+    padding: 0;
+  }
+
+  /* Fills the wide landscape box (aspect-ratio set on the wrap, above). */
+  .tool-card-image-wrap img {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* The corner-badge country icons assume a wide desktop card — scaled
+     down rather than hidden, so the card still reads as "about a place"
+     at this width without the icon swamping it. */
+  .tool-card-country-corner {
+    width: 90px !important;
+    height: 90px !important;
+    top: -30px !important;
+    right: -30px !important;
   }
 }
 </style>

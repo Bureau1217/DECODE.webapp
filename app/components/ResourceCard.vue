@@ -26,23 +26,19 @@ const props = defineProps<{
 
 const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 
-// Longer titles ("Information Disorder: Toward an Interdisciplinary
-// Framework for Research and Policy Making") would otherwise outgrow the
-// card — first 4 words only, same cutoff regardless of the source title's
-// actual length.
-const truncatedTitle = computed(() => {
-  const words = props.item.title.split(' ')
-  return words.length > 4 ? `${words.slice(0, 4).join(' ')}…` : props.item.title
-})
+// Opening the resource (and closing back into this card): see
+// useSharedTransition.
+const { style: sharedPart, open } = useCardTransition(() => props.item.id, () => `/resources/${props.item.id}`)
 </script>
 
 <template>
-  <NuxtLink :to="`/resources/${item.id}`" class="resource-card" @mouseenter="onHover" @mouseleave="onLeave">
-    <div class="resource-card-heading">
-      <h2 class="resource-card-title">{{ truncatedTitle }}</h2>
-      <span v-if="item.authors" class="resource-card-author">{{ item.authors }}</span>
+  <NuxtLink :to="`/resources/${item.id}`" class="resource-card" @mouseenter="onHover" @mouseleave="onLeave" @click.capture="open">
+    <div class="resource-card-spacer" />
+    <h2 class="resource-card-title" :title="item.title" :style="sharedPart('title')">{{ item.title }}</h2>
+    <div class="resource-card-below">
+      <span v-if="item.authors" class="resource-card-author" :style="sharedPart('authors')">{{ item.authors }}</span>
+      <span class="resource-card-type" :style="sharedPart('type')">{{ item.type }}</span>
     </div>
-    <span class="resource-card-type">{{ item.type }}</span>
   </NuxtLink>
 </template>
 
@@ -59,9 +55,13 @@ const truncatedTitle = computed(() => {
   border-top: 1px solid var(--color-brand-resources);
   border-left: 1px solid var(--color-brand-resources);
   text-decoration: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  /* Two equal 1fr rows around the title's own auto row: the title sits
+     exactly on the card's horizontal centre line on every card (so titles
+     line up across a row), whether or not there are authors — those hang
+     below it in the bottom row, with the type badge at its foot. */
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
   text-align: center;
   padding: 10%;
   transition: background-color 0.15s ease;
@@ -71,7 +71,7 @@ const truncatedTitle = computed(() => {
    uses, so hovering a resource card and hovering a keyword row read as the
    same interaction. */
 .resource-card:hover {
-  background-color: rgba(184, 160, 132, 0.4);
+  background-color: var(--color-hover-tint);
 }
 
 .resource-card:hover .resource-card-title,
@@ -79,19 +79,16 @@ const truncatedTitle = computed(() => {
   color: var(--color-brand-about);
 }
 
-/* flex:1 (not the card centering everything as one block) is what keeps
-   .resource-card-type at the same height on every card regardless of how
-   many lines a given title/author wraps to — it takes all the space the
-   type badge below doesn't need, and centers the heading within that,
-   rather than the heading's own height shifting the badge up or down. */
-.resource-card-heading {
-  flex: 1 1 auto;
+/* Authors directly under the title; the type badge pinned to the
+   bottom of the same row, so it sits at the same height on every card. */
+.resource-card-below {
   min-height: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
+  justify-content: space-between;
+  padding-top: 4px;
 }
 
 .resource-card-title {
@@ -101,6 +98,15 @@ const truncatedTitle = computed(() => {
   font-weight: 400;
   font-size: 16pt;
   line-height: 1.25;
+  /* Always one line — cut with an ellipsis right where it would wrap,
+     whatever the card's current width (was a fixed 4-word cutoff, which
+     still wrapped on narrow cards and cut short titles needlessly).
+     max-width + the heading's width:100% give the ellipsis an edge to
+     measure against inside the centered flex column. */
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .resource-card-author {
@@ -114,11 +120,11 @@ const truncatedTitle = computed(() => {
    reasoning as the guide card's subtitle chip. */
 .resource-card-type {
   flex-shrink: 0;
-  margin-top: 40px;
+  margin-top: auto;
   display: inline-block;
   padding: 2px;
   background: var(--color-brand-resources);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-serif);
   font-weight: 500;
   font-size: 10pt;

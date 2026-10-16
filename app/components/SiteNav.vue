@@ -42,7 +42,7 @@ const TAB_CORNER_R_RATIO = 8 / 80
 // Mobile's single "MENU" tab (site-nav-mobile-row below) isn't 1/4 of the
 // row like desktop's 4 tiled tabs — wide enough for the label with the
 // ticker text taking up the rest, not derived from TAB_WIDTH_RATIO.
-const MOBILE_TAB_WIDTH_RATIO = 0.42
+const MOBILE_TAB_WIDTH_RATIO = 0.55
 
 const tabWidth = ref(0)
 const mobileTabWidth = ref(0)
@@ -83,6 +83,26 @@ function buildTabPath(width: number, h: number) {
 }
 
 const tabPath = computed(() => buildTabPath(tabWidth.value, tabHeight.value))
+// Splash -> home draw-in (useIntroTransition): tab 1 is the splash's own
+// tab, already on screen. The whole row — every tab's stroke and label —
+// starts in the splash's ink and warms to brown together (one color at a
+// time on screen, never ink and brown meeting on a shared edge). Nothing
+// is redrawn: the splash's baseline rule, running from tab 1 to the right
+// edge, is exactly where tabs 2-4 sit — their bottom edges ARE that line
+// from the first frame, and each tab rises up out of it (a clip opening
+// upward, staggered left to right), its label growing from a few letters
+// to its full length while deciphering. Tab 1 never had a bottom edge on
+// the splash (the baseline only starts at its right corner), so its own
+// stays hidden until SiteIndexBar, unfolding downward from that line,
+// arrives underneath it.
+const introTransition = useIntroTransition()
+const TAB_RISE_STAGGER_S = 0.15
+function tabRiseDelay(index: number) {
+  return index * TAB_RISE_STAGGER_S
+}
+function labelDelay(index: number) {
+  return index === 0 ? 0 : Math.round((tabRiseDelay(index) + 0.4) * 1000)
+}
 const mobileTabPath = computed(() => buildTabPath(mobileTabWidth.value, tabHeight.value))
 
 function measure() {
@@ -104,19 +124,20 @@ onUnmounted(() => {
 <template>
   <nav
     class="site-nav"
-    :class="{ 'is-tool-themed': isThemed }"
+    :class="{ 'is-tool-themed': isThemed, 'is-intro': introTransition }"
     :style="{
       top: `${tabTop}px`,
       height: `${tabHeight}px`,
       '--local-accent': theme?.chromeAccent,
+      '--local-accent-text': theme?.chromeText,
     }"
   >
     <div
-      v-for="link in links"
+      v-for="(link, index) in links"
       :key="link.to"
       class="nav-tab-wrap nav-tab-wrap--desktop"
       :class="{ active: isActive(link.to) }"
-      :style="{ width: `${tabWidth}px` }"
+      :style="{ width: `${tabWidth}px`, '--tab-rise-delay': `${tabRiseDelay(index)}s` }"
     >
       <svg
         v-if="tabPath"
@@ -129,7 +150,10 @@ onUnmounted(() => {
       >
         <path :d="tabPath" stroke-linejoin="round" />
       </svg>
-      <NuxtLink :to="link.to" class="nav-tab">{{ link.label }}</NuxtLink>
+      <NuxtLink :to="link.to" class="nav-tab">
+        <DecipherText v-if="introTransition" :text="link.label" :delay="labelDelay(index)" grow />
+        <template v-else>{{ link.label }}</template>
+      </NuxtLink>
     </div>
 
     <!-- Below 768px only (CSS) — ticker + single MENU tab in place of the
@@ -205,7 +229,7 @@ onUnmounted(() => {
 }
 
 .site-nav.is-tool-themed .site-nav-ticker {
-  color: var(--local-accent);
+  color: var(--local-accent-text);
 }
 
 .site-nav-ticker-track {
@@ -260,8 +284,16 @@ onUnmounted(() => {
     align-items: center;
   }
 
+  /* flex-shrink:0 — the ticker's own marquee track (width:max-content,
+     the doubled tagline text) gives .site-nav-ticker a very wide content-
+     based flex-basis despite its overflow:hidden clipping, which was
+     dragging this tab's own explicit width (mobileTabWidth, inline style)
+     down well below its intended size under the default flex-shrink:1 —
+     confirmed via getBoundingClientRect(): the inline style read 214.5px
+     but the rendered box measured only ~108px. */
   .nav-tab-wrap--mobile {
     display: block;
+    flex-shrink: 0;
   }
 }
 
@@ -277,7 +309,7 @@ onUnmounted(() => {
 .nav-tab-shape path {
   fill: var(--color-surface);
   stroke: var(--color-brand);
-  stroke-width: 1.5px;
+  stroke-width: 1px;
   vector-effect: non-scaling-stroke;
   transition: fill 0.15s ease;
 }
@@ -302,25 +334,73 @@ onUnmounted(() => {
 }
 
 /* Hover or current page — same filled treatment either way. */
+/* Draw-in (script, tabRiseDelay): see the comment there. Starting with
+   the clip's top at 100% leaves only the outline's bottom edge showing
+   (the -4px outsets keep the stroke itself unshaved) — the baseline. */
+.site-nav.is-intro .nav-tab-wrap--desktop:not(:first-child) {
+  animation: nav-tab-rise 0.9s cubic-bezier(0.3, 0, 0.15, 1) var(--tab-rise-delay) both;
+}
+
+.site-nav.is-intro .nav-tab-wrap--desktop:first-child {
+  animation: nav-tab-first-no-base 0.6s backwards;
+}
+
+@keyframes nav-tab-first-no-base {
+  from,
+  to {
+    clip-path: inset(-4px -4px 1px -4px);
+  }
+}
+
+@keyframes nav-tab-rise {
+  from {
+    clip-path: inset(100% -4px -4px -4px);
+  }
+
+  to {
+    clip-path: inset(-4px -4px -4px -4px);
+  }
+}
+
+.site-nav.is-intro .nav-tab-shape path {
+  animation: nav-tab-warm 1.6s ease-in-out 0.2s both;
+}
+
+.site-nav.is-intro .nav-tab {
+  animation: nav-tab-label-warm 1.6s ease-in-out 0.2s both;
+}
+
+@keyframes nav-tab-label-warm {
+  from {
+    color: var(--color-ink);
+  }
+}
+
+@keyframes nav-tab-warm {
+  from {
+    stroke: var(--color-ink);
+  }
+}
+
 .nav-tab-wrap:hover .nav-tab-shape path,
 .nav-tab-wrap.active .nav-tab-shape path {
-  fill: var(--color-brand);
+  fill: var(--color-chrome);
 }
 
 .nav-tab-wrap:hover .nav-tab,
 .nav-tab-wrap.active .nav-tab {
-  color: var(--color-surface);
+  color: var(--color-on-fill);
 }
 
 /* Whichever tool's own accent (--local-accent/-deep, set inline from
    useToolTheme()) instead of brown — one generic block instead of one
    per tool now that the color itself is a custom property. */
 .site-nav.is-tool-themed .nav-tab-shape path {
-  stroke: var(--local-accent);
+  stroke: var(--local-accent-text);
 }
 
 .site-nav.is-tool-themed .nav-tab {
-  color: var(--local-accent);
+  color: var(--local-accent-text);
 }
 
 .site-nav.is-tool-themed .nav-tab-wrap:hover .nav-tab-shape path,
@@ -338,6 +418,6 @@ onUnmounted(() => {
    accent-colored. */
 .site-nav.is-tool-themed .nav-tab-wrap:hover .nav-tab,
 .site-nav.is-tool-themed .nav-tab-wrap.active .nav-tab {
-  color: var(--color-surface);
+  color: var(--color-on-fill);
 }
 </style>

@@ -31,17 +31,20 @@ const route = useRoute()
 const isResourcesPage = computed(() => route.path === '/resources')
 const isAboutPage = computed(() => route.path === '/about')
 // A custom tool page reskins this bar in its own accent instead of
-// brown — the map itself gets its own exit button (DisinfoMap.vue,
-// top-right corner, same margin as MapFilters.vue) rather than this bar.
+// brown — each tool page gets its own exit button (TemplateToolPageLayout.
+// vue, top-right corner) rather than this bar.
 const { theme, isThemed } = useToolTheme()
 // No tool has a "visual" layout to switch to (unlike guide/resources'
 // card grids) — hide the toggle across /tools and its sub-pages rather
 // than leaving a non-functional button.
 const isToolsSection = computed(() => route.path.startsWith('/tools'))
+// Splash -> home draw-in: as SiteNav's tabs rise out of the splash's
+// baseline, the bar fills in brown from left to right underneath.
+const introTransition = useIntroTransition()
 </script>
 
 <template>
-  <div class="index-bar" :class="{ 'is-tool-themed': isThemed }" :style="{ '--local-accent': theme?.chromeAccent }">
+  <div class="index-bar" :class="{ 'is-tool-themed': isThemed, 'is-intro': introTransition }" :style="{ '--local-accent': theme?.chromeAccent }">
     <div class="index-bar-group">
       <button
         type="button"
@@ -67,7 +70,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
     <!-- Anchored to the bar's own center, then pulled further left of it —
          not simply centered (desktop only — below 768px this becomes the
          index bar's own second half, see the media query below). -->
-    <button type="button" class="index-bar-item index-bar-search">
+    <button type="button" class="index-bar-item index-bar-search" :class="{ 'reading-mode': readingMode }">
       <span class="index-bar-dot" aria-hidden="true" />
       Search
     </button>
@@ -90,10 +93,10 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
        (.is-resources). z-index sits above the plain brown rectangle
        (unpositioned, stacking level 0) but below .site-footer (its own
        z-index). -->
-  <div class="index-bar-divider" aria-hidden="true" />
+  <div class="index-bar-divider" :class="{ 'reading-mode': readingMode }" aria-hidden="true" />
   <div
     class="content-divider"
-    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'reading-mode': readingMode }"
+    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'reading-mode': readingMode}"
     aria-hidden="true"
   />
 </template>
@@ -111,12 +114,26 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   z-index: 2;
   width: 100vw;
   height: 3.5vh;
-  background: var(--color-brand);
+  background: var(--color-chrome);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 12px;
   box-sizing: border-box;
+}
+
+.index-bar.is-intro {
+  animation: index-bar-fill 1s cubic-bezier(0.45, 0, 0.2, 1) 0.4s both;
+}
+
+@keyframes index-bar-fill {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 
 .index-bar.is-tool-themed {
@@ -141,7 +158,7 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   font-size: 12pt;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   cursor: pointer;
 }
 
@@ -151,6 +168,14 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   position: absolute;
   left: 50%;
   transform: translateX(-130%);
+  transition: left 0.5s ease;
+}
+
+/* Reading mode narrows the keywords panel to 25vw — SEARCH and the bar's
+   own divider follow its new edge (also the end of the first nav tab),
+   in step with the panel's own 0.5s width transition. */
+.index-bar-search.reading-mode {
+  left: 25%;
 }
 
 /* Sized off the item's own font (1em = that font-size), so it scales
@@ -163,13 +188,13 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   width: 1em;
   height: 1em;
   border-radius: 50%;
-  border: 1px solid var(--color-surface);
+  border: 1px solid var(--color-on-fill);
   background: transparent;
   transition: background-color 0.15s ease;
 }
 
 .index-bar-item.active .index-bar-dot {
-  background-color: var(--color-surface);
+  background-color: var(--color-on-fill);
 }
 
 /* Above .index-bar (z-index 2) now — visibly crosses over the brown bar
@@ -181,8 +206,9 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   top: 5vh;
   height: 3.5vh;
   left: calc(50% - 0.5px);
+  transition: left 0.5s ease;
   width: 1px;
-  background: var(--color-surface);
+  background: var(--color-on-fill);
   z-index: 3;
 }
 
@@ -199,6 +225,10 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
   background: var(--color-surface);
   z-index: 3;
   transition: left 0.5s ease;
+}
+
+.index-bar-divider.reading-mode {
+  left: calc(25% - 0.5px);
 }
 
 .content-divider.reading-mode {
@@ -221,6 +251,10 @@ const isToolsSection = computed(() => route.path.startsWith('/tools'))
    .content-divider tracks the desktop 50vw/25vw panel boundary, which
    doesn't exist on mobile either. */
 @media (max-width: 768px) {
+  .index-bar-divider.reading-mode {
+    left: calc(50% - 0.5px);
+  }
+
   .index-bar {
     display: grid;
     grid-template-columns: 1fr 1fr;

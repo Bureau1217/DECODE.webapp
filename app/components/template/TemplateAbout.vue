@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { decipherHtml } from '~/utils/decipher'
 interface ContentBlock {
   type: string
   isHidden?: boolean
@@ -49,7 +50,7 @@ const activeIndex = ref(0)
   <DetailPanelChrome background="var(--color-surface)" text-color="var(--color-brand-about)">
     <article class="about-detail">
       <header class="about-detail-header">
-        <h1 class="about-detail-title">{{ siteTitle }}</h1>
+        <h1 class="about-detail-title"><DecipherText :text="siteTitle" /></h1>
         <p v-if="page.header_subtitle" class="about-detail-subtitle">{{ page.header_subtitle }}</p>
       </header>
 
@@ -78,7 +79,7 @@ const activeIndex = ref(0)
             :key="bIndex"
             class="about-detail-paragraph"
             :class="{ 'about-detail-alinea': bIndex === 0 }"
-            v-html="block.content?.text"
+            v-decipher v-html="decipherHtml(block.content?.text)"
           />
         </section>
       </TemplateDetailBody>
@@ -153,7 +154,7 @@ const activeIndex = ref(0)
 
 .about-detail-nav-btn.active {
   background: var(--color-brand-about);
-  color: var(--color-surface);
+  color: var(--color-on-brand-about);
 }
 
 /* Body box/font/v-html paragraph-spacing rules live in

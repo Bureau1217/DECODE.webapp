@@ -46,7 +46,10 @@ onUnmounted(() => {
 <style scoped>
 .resources-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr) — see the mobile override below for why; on desktop
+     too since ResourceCard's titles became single-line (nowrap), which
+     would otherwise widen a column to fit the longest title. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   /* Closes the grid's outer box on the sides ResourceCard's own top+left
      borders don't reach (last column/row have no card past them to draw
      those edges). */
@@ -66,8 +69,13 @@ onUnmounted(() => {
    override, or a 3rd/5th/... card (no longer actually first-column at 2
    columns) would wrongly keep losing its left border. */
 @media (max-width: 768px) {
+  /* minmax(0, 1fr), not a bare 1fr — a grid track's implicit min-width is
+     auto (its content's own min intrinsic width) unless told otherwise,
+     which can force a column wider than an even 50/50 split if any card's
+     own text can't wrap below that width, pushing the 2-card row past the
+     viewport's own edge instead of exactly filling it. */
   .resources-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .resources-grid :deep(.resource-card:nth-child(3n + 1)) {

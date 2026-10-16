@@ -18,7 +18,7 @@ defineProps<{
 .badge-chip {
   display: inline-block;
   padding: 1px;
-  color: var(--color-ink);
+  color: var(--color-on-pastel);
   font-family: var(--font-serif);
   font-style: italic;
   font-weight: 400;

@@ -133,7 +133,7 @@ const display = computed(() => {
   width: 100%;
   padding-left: 10px;
   background: var(--tool-campaigns-accent);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-weight: 500;
   font-size: 12pt;

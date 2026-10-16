@@ -15,15 +15,20 @@
 // before this composable existed — this just gives it one home. Each
 // tool's *own* page content (e.g. DisinfoMap.vue) still reaches both
 // tokens directly where it genuinely needs both shades.
+//
+// `chromeAccent` fills (active nav tab, index bar), `chromeText` colors
+// text/strokes (nav tabs, ticker, footer) — the same color in light mode,
+// split in dark mode (main.css's --tool-*-chrome / --tool-*-text).
 interface ToolTheme {
   path: string
   chromeAccent: string
+  chromeText: string
 }
 
 const TOOL_THEMES: ToolTheme[] = [
-  { path: '/tools/campaigns-map', chromeAccent: 'var(--tool-campaigns-accent)' },
-  { path: '/tools/bot-troll-detector', chromeAccent: 'var(--tool-bottroll-accent-deep)' },
-  { path: '/tools/source-reliability-plugin', chromeAccent: 'var(--tool-sourcerel-accent-deep)' },
+  { path: '/tools/campaigns-map', chromeAccent: 'var(--tool-campaigns-chrome)', chromeText: 'var(--tool-campaigns-text)' },
+  { path: '/tools/bot-troll-detector', chromeAccent: 'var(--tool-bottroll-chrome)', chromeText: 'var(--tool-bottroll-text)' },
+  { path: '/tools/source-reliability-plugin', chromeAccent: 'var(--tool-sourcerel-chrome)', chromeText: 'var(--tool-sourcerel-text)' },
 ]
 
 export function useToolTheme() {

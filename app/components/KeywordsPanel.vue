@@ -8,47 +8,49 @@
 // Home.vue, which used to own it alone, once it became "always visible"
 // rather than home-only. On /about this still shows keywords for now; the
 // content there is expected to switch to the team instead later.
-interface CategoryWithTags {
-  title: string
-  slug: string
-  id: string
-  tags: {
-    title: string
-    slug: string
-    id: string
-    description?: string
-    image?: { url: string, alt?: string }[]
-  }[]
-}
+const categories = await useKeywordsPanelCategories()
 
-const categories = await useKirbyCollection<CategoryWithTags>(
-  'keywords-panel',
-  "site.children.filterBy('intendedTemplate', 'tags')",
-  {
-    title: true,
-    slug: true,
-    id: true,
-    tags: {
-      query: 'page.children',
-      select: {
-        title: true,
-        slug: true,
-        id: true,
-        description: true,
-        // tag.yml's own "Image" field (multiple) — shown below the title
-        // in visual mode (SiteIndexBar's Index/Visual toggle) only.
-        image: {
-          query: 'page.content.image.toFiles',
-          select: { url: true, alt: true },
-        },
-      },
-    },
-  },
-)
+// Warm the team panel's data (see useTeamPanelData) so the switch to it
+// on /about is immediate. Not awaited.
+if (import.meta.client) useTeamPanelData().catch(() => {})
+
+// Panel hand-off with TeamPanel (usePanelMorph): every text's position in
+// reading order — each band title, then its rows.
+const panelMorph = usePanelMorph('keywords')
+const textOrder = computed(() => {
+  const order = new Map<string, number>()
+  for (const category of categories.value ?? []) {
+    order.set(category.id, order.size)
+    for (const tag of category.tags) order.set(tag.id, order.size)
+  }
+  return order
+})
+onBeforeUnmount(() => {
+  panelMorph.save((categories.value ?? []).flatMap((c) => [c.title, ...c.tags.map((t) => t.title)]))
+})
 
 // A hovered row's own definition (tag.yml's "Description" field) pops up
 // over the row's own unused white space, to the right of its title.
 const hoveredTagId = ref<string | null>(null)
+
+// Splash -> home draw-in (useIntroTransition): every row's rule draws
+// itself left to right, top to bottom (rowDelay staggers by position in
+// the whole panel), and each category band appears as an outline first,
+// then fills in with its color. Labels decipher as their own rule
+// reaches them (DecipherText's delay), each word growing from a few
+// letters to its full length (`grow`).
+const introTransition = useIntroTransition()
+const rowIndex = computed(() => {
+  const map = new Map<string, number>()
+  for (const category of categories.value ?? []) for (const tag of category.tags) map.set(tag.id, map.size)
+  return map
+})
+function rowDelaySeconds(tagId: string) {
+  return 0.3 + (rowIndex.value.get(tagId) ?? 0) * 0.03
+}
+function bandDelaySeconds(categoryIndex: number) {
+  return 0.3 + categoryIndex * 0.12
+}
 
 // SiteIndexBar's own "Reading mode" toggle — shrinks this panel from
 // half the viewport to a quarter; app.vue's own .app-content margin-left
@@ -71,19 +73,23 @@ function isRelated(tagId: string) {
 </script>
 
 <template>
-  <InfoPanel class="keywords-panel" :reading-mode="readingMode">
-    <template v-for="category in categories" :key="category.id">
-      <h3>{{ category.title }}</h3>
+  <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition }" :reading-mode="readingMode">
+    <template v-for="(category, ci) in categories" :key="category.id">
+      <h3 :style="{ '--band-delay': `${bandDelaySeconds(ci)}s` }">
+        <DecipherText :text="category.title" :delay="introTransition ? Math.round(bandDelaySeconds(ci) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" />
+      </h3>
       <ul>
         <li
           v-for="tag in category.tags"
           :key="tag.id"
           :class="{ dimmed: isDimmed(tag.id), related: isRelated(tag.id) }"
+          :style="{ '--row-delay': `${rowDelaySeconds(tag.id)}s` }"
           @mouseenter="hoveredTagId = tag.id"
           @mouseleave="hoveredTagId = null"
         >
           <div class="keywords-panel-row">
-            <NuxtLink :to="`/keywords/${category.slug}/${tag.slug}`">{{ tag.title }}</NuxtLink>
+            <!-- Hover only (definition popup below) — not a link. -->
+            <span class="keywords-panel-label"><DecipherText :text="tag.title" :delay="introTransition ? Math.round((rowDelaySeconds(tag.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(tag.id) ?? 0)" /></span>
           </div>
           <div class="keywords-panel-images-outer" :class="{ expanded: displayMode === 'visual' }">
             <div class="keywords-panel-images">
@@ -119,7 +125,7 @@ function isRelated(tagId: string) {
   width: 100%;
   padding-left: 10px;
   background: var(--color-brand-resources);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-weight: 500;
   font-size: 12pt;
@@ -127,6 +133,73 @@ function isRelated(tagId: string) {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border-strong);
+}
+
+/* Draw-in (script, rowDelay): each band's top and bottom rules trace in
+   from the left (::before/::after, standing in for its own border), with
+   the label in the band color; then the band fills and the label turns
+   on-fill. */
+.keywords-panel.is-intro h3 {
+  position: relative;
+  border-bottom-color: transparent;
+  animation: keywords-band-fill 1.4s ease var(--band-delay) both;
+}
+
+.keywords-panel.is-intro h3::before,
+.keywords-panel.is-intro h3::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-brand-resources);
+  transform-origin: left;
+  animation: keywords-rule-draw 0.7s cubic-bezier(0.45, 0, 0.25, 1) var(--band-delay) both;
+}
+
+.keywords-panel.is-intro h3::before {
+  top: 0;
+}
+
+.keywords-panel.is-intro h3::after {
+  bottom: -1px;
+}
+
+@keyframes keywords-band-fill {
+  0%,
+  50% {
+    background-color: transparent;
+    color: var(--color-brand-resources);
+  }
+
+  100% {
+    background-color: var(--color-brand-resources);
+    color: var(--color-on-fill);
+  }
+}
+
+/* Each row's own rule is hidden and redrawn by ::after, growing from the
+   left — same spot as the border it stands in for. */
+.keywords-panel.is-intro li {
+  border-bottom-color: transparent;
+}
+
+.keywords-panel.is-intro li::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--color-border-strong);
+  transform-origin: left;
+  animation: keywords-rule-draw 0.7s cubic-bezier(0.45, 0, 0.25, 1) var(--row-delay) both;
+}
+
+@keyframes keywords-rule-draw {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 .keywords-panel ul {
@@ -266,7 +339,7 @@ function isRelated(tagId: string) {
    direct mouseover on the row itself. */
 .keywords-panel li:hover,
 .keywords-panel li.related {
-  background-color: rgba(184, 160, 132, 0.4);
+  background-color: var(--color-hover-tint);
 }
 
 /* Everything NOT related to whichever card is currently hovered. */
@@ -274,11 +347,25 @@ function isRelated(tagId: string) {
   opacity: 0.2;
 }
 
-/* width:100% (not height:100%) — the link just fills the row
+/* A row's top stroke is really the row above's own border-bottom (see
+   .keywords-panel li) — dimmed along with that row when it isn't
+   related, so a highlighted keyword lost its top edge. Redrawn here at
+   full strength, over that faded line (top:-1px = exactly on it). */
+.keywords-panel li.related::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-border-strong);
+}
+
+/* width:100% (not height:100%) — the label just fills the row
    horizontally now; the row itself (flex + align-items:center, above)
    handles vertical centering, for a wrapped 2-line label as much as a
    plain 1-line one. */
-.keywords-panel li a {
+.keywords-panel-label {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -287,6 +374,6 @@ function isRelated(tagId: string) {
   font-family: var(--font-mono);
   font-size: 11pt;
   color: var(--color-ink);
-  text-decoration: none;
+  cursor: default;
 }
 </style>

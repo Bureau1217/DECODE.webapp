@@ -14,18 +14,32 @@ defineProps<{
   closeTo?: string | null
   prevTo?: string | null
   nextTo?: string | null
+  // Close cross drawn in like a trim path (TemplateDefault.vue's article
+  // arrival): 'pending' keeps it undrawn, 'draw' traces its two strokes,
+  // 'undraw' retracts them (on closing).
+  closeDraw?: 'pending' | 'draw' | 'undraw' | null
+  // Intercepts the close cross (TemplateDefault.vue's closing transition);
+  // it calls preventDefault itself when it takes over the navigation.
+  onClose?: (event: MouseEvent) => void
 }>()
 </script>
 
 <template>
   <div class="detail-panel" :style="{ background, color: textColor }">
-    <NuxtLink v-if="closeTo" :to="closeTo" class="detail-panel-close" aria-label="Close">
+    <NuxtLink
+      v-if="closeTo"
+      :to="closeTo"
+      class="detail-panel-close"
+      :class="closeDraw ? `is-${closeDraw}` : null"
+      aria-label="Close"
+      @click.capture="onClose?.($event)"
+    >
       <!-- A drawn cross (thin stroke, square linecap), not a font glyph —
            the "×" character renders visibly rounded/bold at larger sizes
            in Martian Mono, not the slim square cross asked for. -->
       <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
-        <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" />
-        <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" />
+        <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" pathLength="1" />
+        <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" pathLength="1" />
       </svg>
     </NuxtLink>
     <div class="detail-panel-scroll">
@@ -69,6 +83,56 @@ defineProps<{
   text-decoration: none;
 }
 
+/* closeDraw: each stroke traces from its start, the second just after
+   the first. stroke-linecap square would show a dot at length 0, hence
+   the butt cap while drawing. */
+.detail-panel-close.is-pending line,
+.detail-panel-close.is-draw line,
+.detail-panel-close.is-undraw line {
+  stroke-dasharray: 1;
+  stroke-linecap: butt;
+}
+
+.detail-panel-close.is-pending line {
+  stroke-dashoffset: 1;
+}
+
+.detail-panel-close.is-draw line {
+  animation: detail-close-draw 0.45s cubic-bezier(0.45, 0, 0.25, 1) both;
+}
+
+.detail-panel-close.is-draw line + line {
+  animation-delay: 0.25s;
+}
+
+.detail-panel-close.is-undraw line {
+  animation: detail-close-undraw 0.35s cubic-bezier(0.55, 0, 0.75, 0.2) 0.15s both;
+}
+
+.detail-panel-close.is-undraw line + line {
+  animation-delay: 0s;
+}
+
+@keyframes detail-close-undraw {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes detail-close-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
 .detail-panel-scroll {
   height: 100%;
   overflow-y: auto;
@@ -89,13 +153,15 @@ defineProps<{
   flex-direction: column;
 }
 
-/* bottom is exactly the footer's own height — no extra gap, as close to
-   it as without overlapping. */
+/* The panel already stops at the footer's top edge (its own height
+   excludes it), so the bottom gap here mirrors the close cross's own top
+   gap (8px offset + its 36px box centering a 26px icon) — Previous/Next
+   sit as far from the panel's bottom as the cross does from its top. */
 .detail-panel-nav {
   margin-top: auto;
   display: flex;
   justify-content: space-between;
-  padding: 8px 24px var(--footer-height);
+  padding: 8px 24px 12px;
 }
 
 .detail-panel-nav-btn {
@@ -109,7 +175,7 @@ defineProps<{
 
 @media (max-width: 768px) {
   .detail-panel-nav {
-    padding: 8px 14px var(--footer-height);
+    padding: 8px 14px 12px;
   }
 }
 </style>

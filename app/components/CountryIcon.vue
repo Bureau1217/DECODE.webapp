@@ -25,7 +25,7 @@ const maskImage = computed(() => `url(${COUNTRY_SRC[props.code]})`)
 
 <style scoped>
 .country-icon {
-  background-color: var(--color-surface);
+  background-color: var(--color-on-fill);
   /* alpha, not the default luminance — the source SVGs' dots are a dim
      grey at 0.5 opacity (tuned for sitting on the splash screen), which
      under luminance masking only partially lets the white background

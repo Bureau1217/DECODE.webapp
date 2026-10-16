@@ -5,23 +5,7 @@
 // (DECODE.cms/site/blueprints/blocks/team.yml) instead of the global
 // keyword taxonomy — team name instead of a keyword category, members
 // instead of keywords.
-interface TeamMember {
-  first_name?: string
-  last_name?: string
-}
-
-interface TeamBlock {
-  type: string
-  isHidden?: boolean
-  content?: { title?: string, members?: TeamMember[] }
-}
-
-const { data } = await useAsyncData('about-teams', () =>
-  useKql<{ teams?: TeamBlock[] }>({
-    query: "page('about')",
-    select: { teams: 'page.content.teams.toBlocks.toArray' },
-  }),
-)
+const { data } = await useTeamPanelData()
 
 const teams = computed(() =>
   (data.value?.teams ?? [])
@@ -38,15 +22,28 @@ const teams = computed(() =>
 // sitewide even though this panel has no visual-mode (member photos)
 // equivalent yet.
 const readingMode = useReadingMode()
+
+// Panel hand-off with KeywordsPanel (usePanelMorph): texts in reading
+// order — each team name, then its members.
+const panelMorph = usePanelMorph('team')
+const textOrder = computed(() => {
+  const order: number[][] = []
+  let n = 0
+  for (const team of teams.value) order.push([n++, ...team.members.map(() => n++)])
+  return order
+})
+onBeforeUnmount(() => {
+  panelMorph.save(teams.value.flatMap((t) => [t.title, ...t.members]))
+})
 </script>
 
 <template>
   <InfoPanel class="team-panel" :reading-mode="readingMode">
-    <template v-for="team in teams" :key="team.title">
-      <h3>{{ team.title }}</h3>
+    <template v-for="(team, ti) in teams" :key="team.title">
+      <h3><DecipherText :text="team.title" :from="panelMorph.fromAt(textOrder[ti]![0]!)" /></h3>
       <ul>
-        <li v-for="member in team.members" :key="member">
-          <span class="team-panel-member">{{ member }}</span>
+        <li v-for="(member, mi) in team.members" :key="member">
+          <span class="team-panel-member"><DecipherText :text="member" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
         </li>
       </ul>
     </template>
@@ -63,7 +60,7 @@ const readingMode = useReadingMode()
   width: 100%;
   padding-left: 10px;
   background: var(--color-brand-resources);
-  color: var(--color-surface);
+  color: var(--color-on-fill);
   font-family: var(--font-mono);
   font-weight: 500;
   font-size: 12pt;
@@ -91,7 +88,7 @@ const readingMode = useReadingMode()
 }
 
 .team-panel li:hover {
-  background-color: rgba(184, 160, 132, 0.4);
+  background-color: var(--color-hover-tint);
 }
 
 .team-panel-member {

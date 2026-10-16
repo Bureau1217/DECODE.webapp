@@ -11,6 +11,9 @@ import type { Source } from '~/types/source'
 
 const props = defineProps<{
   page: {
+    title: string
+    description?: string
+    credits?: string
     url?: string
     sources: Source[]
   }
@@ -20,9 +23,21 @@ const readingMode = useReadingMode()
 </script>
 
 <template>
-  <TemplateToolPageLayout :reading-mode="readingMode">
-    <template #panel>
-      <SourceDatabasePanel :sources="props.page.sources" />
+  <TemplateToolPageLayout
+    :reading-mode="readingMode"
+    :exit="{ accent: 'var(--tool-sourcerel-accent-deep)' }"
+    :intro="{
+      title: props.page.title,
+      description: props.page.description,
+      credits: props.page.credits,
+      band: 'var(--tool-sourcerel-accent)',
+      bandText: 'var(--color-ink)',
+      start: 'var(--tool-sourcerel-chrome)',
+      cover: 'var(--tool-sourcerel-cover)',
+    }"
+  >
+    <template #panel="{ empty }">
+      <SourceDatabasePanel :sources="props.page.sources" :empty="empty" />
     </template>
     <template #content>
       <SourcePluginInfoPanel :url="props.page.url" />

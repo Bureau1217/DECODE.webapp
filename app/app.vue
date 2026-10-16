@@ -1,6 +1,12 @@
 <script setup lang="ts">
 const showSplash = useSplashVisible()
 
+// Light/dark theme (SiteFooter's toggle) — on <html> so main.css's
+// `:root[data-theme='dark']` token block applies to the whole page,
+// splash included.
+const colorMode = useColorMode()
+useHead({ htmlAttrs: { 'data-theme': colorMode } })
+
 // Always visible (KeywordsPanel, below) on these — not on /keywords/*
 // itself or individual tool pages, which weren't asked for. Still gated
 // on !showSplash too: '/' matches this list, but shouldn't show the panel
@@ -21,6 +27,11 @@ const showKeywordsPanel = computed(() => {
 // 25vw (that component) and lets .app-content's own margin-left follow it
 // down from 50vw to match, below.
 const readingMode = useReadingMode()
+
+// Splash -> home draw-in (pages/index.vue): the middle line, gone with
+// the rest of the splash grid, draws back in from its centre at the
+// keywords panel's right edge, then fades once the panel is complete.
+const introTransition = useIntroTransition()
 
 // /about shows TeamPanel (the about page's own "Équipes" field) in the
 // same fixed half-viewport slot KeywordsPanel otherwise occupies there —
@@ -74,6 +85,24 @@ watch(
           <feFuncB type="table" tableValues="0.94902 0.63922" />
         </feComponentTransfer>
       </filter>
+      <!-- Dark mode's version (main.css): same grayscale -> negative, but
+           spread over nearly the full range (#e9e9e7 -> #1c1c1c) instead
+           of compressed into a pale band — bright negatives on the
+           near-black page, as in the DARK MODE mockups. -->
+      <filter id="duotone-dark">
+        <feColorMatrix
+          type="matrix"
+          values="0.299 0.587 0.114 0 0
+                  0.299 0.587 0.114 0 0
+                  0.299 0.587 0.114 0 0
+                  0     0     0     1 0"
+        />
+        <feComponentTransfer color-interpolation-filters="sRGB">
+          <feFuncR type="table" tableValues="0.91373 0.10980" />
+          <feFuncG type="table" tableValues="0.91373 0.10980" />
+          <feFuncB type="table" tableValues="0.90588 0.10980" />
+        </feComponentTransfer>
+      </filter>
     </svg>
 
     <template v-if="!showSplash">
@@ -89,6 +118,7 @@ watch(
       <div class="mobile-chrome-backdrop" aria-hidden="true" />
       <SiteNav />
       <SiteIndexBar />
+      <div v-if="introTransition" class="intro-keep-line" aria-hidden="true" />
       <MobileMenuOverlay v-if="mobileMenuOpen" />
     </template>
 
@@ -123,6 +153,35 @@ watch(
 </template>
 
 <style>
+/* The splash grid's middle line coming back (see the script comment):
+   grows from its centre, holds, fades. */
+.intro-keep-line {
+  position: fixed;
+  z-index: 3;
+  left: calc(50vw - 0.5px);
+  top: 8.5vh;
+  bottom: 0;
+  width: 1px;
+  background: var(--color-ink);
+  transform-origin: center;
+  animation:
+    intro-keep-line-in 0.9s cubic-bezier(0.2, 0.6, 0.3, 1) 0.1s both,
+    intro-keep-line-out 0.6s ease 2s both;
+  pointer-events: none;
+}
+
+@keyframes intro-keep-line-in {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes intro-keep-line-out {
+  to {
+    opacity: 0;
+  }
+}
+
 /* html/body need the full viewport height passed down explicitly —
    otherwise a height:100% here has nothing to resolve against, and the
    flex column collapses to its content height instead of the viewport. */
