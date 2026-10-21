@@ -447,16 +447,64 @@ function placeholderGradient(seed: string) {
   color: var(--color-error);
 }
 
-/* 2 columns, not 3 — Outil_2-1.png's own mobile mockup; 3 stat
-   tiles/verdict buttons cram too tight at phone width. */
+/* 2 stat columns, not 3 — Outil_2-1.png's own mobile mockup. Everything
+   here is held to the screen's width (no horizontal scroll): the handle
+   wraps onto its own line above the account arrows, minmax(0, 1fr)
+   tracks and overflow-wrap stop a long value (a handle, a geotag) from
+   widening its column, and the 3 verdicts stack full width. */
 @media (max-width: 768px) {
   .bt-account {
+    width: 100%;
+    max-width: 100vw;
     padding: 52px 16px 40px;
+    overflow-x: hidden;
   }
 
-  .bt-stats,
+  .bt-handle-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bt-handle {
+    min-width: 0;
+    font-size: 20pt;
+    overflow-wrap: anywhere;
+  }
+
+  .bt-nav {
+    justify-content: space-between;
+  }
+
+  .bt-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bt-stat {
+    min-width: 0;
+    padding: 10px;
+    overflow-wrap: anywhere;
+  }
+
+  .bt-post {
+    padding: 12px;
+  }
+
+  .bt-post-thumb {
+    width: 56px;
+    height: 56px;
+  }
+
+  .bt-post-caption,
+  .bt-post-hashtags {
+    overflow-wrap: anywhere;
+  }
+
   .bt-verdict-options {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bt-save-row {
+    flex-wrap: wrap;
   }
 }
 </style>

@@ -79,6 +79,10 @@ body {
      the mobile menu, the default .btn-fill) — the brand brown in light
      mode, a much darker brown in dark mode (OVERALL WEBSITE.png). */
   --color-chrome: var(--color-brand);
+  /* Rules drawn across the chrome (SiteIndexBar's dividers) — white cuts
+     on the brown bar in light mode; in dark mode the same tan as the nav
+     tabs' own outline, so tabs and dividers read as one set of lines. */
+  --color-chrome-divider: var(--color-on-fill);
   /* Guide/tool card fill and the 1px grid gap showing between cards —
      brown cards on white lines in light mode, near-black cards on light
      lines in dark mode (OVERALL WEBSITE.png). */
@@ -172,6 +176,7 @@ body {
   --color-on-brand-about: var(--color-surface);
   --color-brand-resources: #95775c;
   --color-chrome: #3c3229;
+  --color-chrome-divider: var(--color-brand);
   --color-card: var(--color-surface);
   --color-grid-line: var(--color-border-strong);
 

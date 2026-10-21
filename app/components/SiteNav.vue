@@ -35,53 +35,20 @@ const { theme, isThemed } = useToolTheme()
 const TAB_WIDTH_RATIO = 0.25
 const TAB_HEIGHT_RATIO = 0.035
 const TAB_TOP_RATIO = 0.015
-const TAB_LEFT_DX_RATIO = 22 / 80
-const TAB_RIGHT_DX_RATIO = 27 / 80
-const TAB_CORNER_R_RATIO = 8 / 80
 
 // Mobile's single "MENU" tab (site-nav-mobile-row below) isn't 1/4 of the
-// row like desktop's 4 tiled tabs — wide enough for the label with the
-// ticker text taking up the rest, not derived from TAB_WIDTH_RATIO.
-const MOBILE_TAB_WIDTH_RATIO = 0.55
+// row like desktop's 4 tiled tabs — half the row, the ticker text taking
+// up the other half, not derived from TAB_WIDTH_RATIO.
+const MOBILE_TAB_WIDTH_RATIO = 0.5
 
 const tabWidth = ref(0)
 const mobileTabWidth = ref(0)
 const tabHeight = ref(0)
 const tabTop = ref(0)
 
-// Same trapezoid silhouette for both the desktop row's 4 tiled tabs and
-// mobile's single MENU tab — only the width differs (tabPath/mobileTabPath
-// below), height/corner geometry is shared.
-function buildTabPath(width: number, h: number) {
-  if (!width || !h) return ''
-  const leftDx = h * TAB_LEFT_DX_RATIO
-  const rightDx = h * TAB_RIGHT_DX_RATIO
-  const cornerR = h * TAB_CORNER_R_RATIO
-
-  const leftLen = Math.hypot(leftDx, h)
-  const leftUx = leftDx / leftLen
-  const leftUy = h / leftLen
-  const leftBefore = { x: leftDx - cornerR * leftUx, y: cornerR * leftUy }
-  const leftAfter = { x: leftDx + cornerR, y: 0 }
-
-  const rightLen = Math.hypot(rightDx, h)
-  const rightUx = rightDx / rightLen
-  const rightUy = h / rightLen
-  const rightApexX = width - rightDx
-  const rightBefore = { x: rightApexX - cornerR, y: 0 }
-  const rightAfter = { x: rightApexX + cornerR * rightUx, y: cornerR * rightUy }
-
-  return [
-    `M 0,${h}`,
-    `L ${leftBefore.x.toFixed(2)},${leftBefore.y.toFixed(2)}`,
-    `Q ${leftDx.toFixed(2)},0 ${leftAfter.x.toFixed(2)},${leftAfter.y.toFixed(2)}`,
-    `L ${rightBefore.x.toFixed(2)},${rightBefore.y.toFixed(2)}`,
-    `Q ${rightApexX.toFixed(2)},0 ${rightAfter.x.toFixed(2)},${rightAfter.y.toFixed(2)}`,
-    `L ${width},${h}`,
-    'Z',
-  ].join(' ')
-}
-
+// Same trapezoid silhouette (app/utils/tabPath.ts) for both the desktop
+// row's 4 tiled tabs and mobile's single MENU tab — only the width differs
+// (tabPath/mobileTabPath below), height/corner geometry is shared.
 const tabPath = computed(() => buildTabPath(tabWidth.value, tabHeight.value))
 // Splash -> home draw-in (useIntroTransition): tab 1 is the splash's own
 // tab, already on screen. The whole row — every tab's stroke and label —
@@ -167,7 +134,9 @@ onUnmounted(() => {
         <span>{{ SITE_TAGLINE }}</span>
       </div>
     </div>
-    <div class="nav-tab-wrap nav-tab-wrap--mobile" :style="{ width: `${mobileTabWidth}px` }">
+    <!-- .active while the menu is open: filled brown, flowing straight
+         into the menu panel below it (MobileMenuOverlay.vue). -->
+    <div class="nav-tab-wrap nav-tab-wrap--mobile" :class="{ active: mobileMenuOpen }" :style="{ width: `${mobileTabWidth}px` }">
       <svg
         v-if="mobileTabPath"
         class="nav-tab-shape"
@@ -266,11 +235,15 @@ onUnmounted(() => {
 }
 
 /* Reset the button's own UA chrome (border/background/padding) — .nav-tab
-   (shared with the desktop NuxtLink tabs) supplies the actual look. */
+   (shared with the desktop NuxtLink tabs) supplies the actual look.
+   width:100% — a <button> shrink-wraps to its label even as display:flex
+   (unlike the desktop tabs' <a>), which left MENU/CLOSE hugging the tab's
+   left side instead of centered in it. */
 .nav-tab-menu-btn {
   appearance: none;
   border: none;
   background: none;
+  width: 100%;
   cursor: pointer;
 }
 

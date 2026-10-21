@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { decipherIn, scrambleOut } from '~/utils/decipher'
+import { decipherFrom, decipherIn, scrambleOut } from '~/utils/decipher'
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
 
 // Decorative intro screen — fails soft (empty state, no thrown error) if
@@ -49,8 +49,13 @@ function imageLabel(index: number, alt?: string) {
 // one center axis.
 const SENTENCE_OFFSETS = [-70, 0, -90]
 function sentenceOffset(index: number) {
-  return `${SENTENCE_OFFSETS[index % SENTENCE_OFFSETS.length] ?? 0}px`
+  return `${(SENTENCE_OFFSETS[index % SENTENCE_OFFSETS.length] ?? 0) * mobileScale.value}px`
 }
+
+// Below 768px the same desktop composition is drawn smaller (computeGrid
+// sets this): the headline's offsets, the country shapes and the headline
+// mask's bite/extension depths all shrink by it. 1 on desktop.
+const mobileScale = ref(1)
 
 // "Reveal mask" behind the display headline — ONE blocky, orthogonal,
 // irregular white silhouette spanning all three lines together (not a
@@ -64,7 +69,8 @@ function sentenceOffset(index: number) {
 // and end-juts past its left/right edge — that push past that box
 // 10-40px in some places and stay flush in others. No piece ever sits
 // over a letter. Deterministic (seeded) so the pattern doesn't reshuffle
-// on every re-render — only a resize (new measured layout) changes it.
+// on every re-render — only a resize (new measured layout) or a new seed
+// (the headline cycle, nextHeadline) changes it.
 function mulberry32(seed: number) {
   let state = seed | 0
   return function random() {
@@ -131,16 +137,18 @@ interface ParagraphMask {
 // top/bottom where it instead borders the *next* line only ever extends
 // outward (allowBite false, never negative) — a notch there would cut a
 // horizontal slice across the middle of a word.
-function pickLevel(rand: () => number, allowBite: boolean): number {
+// `scale` sizes the px knobs above to the headline's actual font size
+// (they're tuned for the desktop's 120px).
+function pickLevel(rand: () => number, allowBite: boolean, scale: number): number {
   if (allowBite && rand() < BITE_CHANCE) {
-    return -(BITE_MIN + rand() * (BITE_MAX - BITE_MIN))
+    return -(BITE_MIN + rand() * (BITE_MAX - BITE_MIN)) * scale
   }
   if (rand() < FLUSH_CHANCE) return 0
-  return EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)
+  return (EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)) * scale
 }
 
-function buildParagraphMask(lines: LineBox[]): ParagraphMask {
-  const rand = mulberry32(MASK_SEED)
+function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): ParagraphMask {
+  const rand = mulberry32(seed)
   const base: MaskRect[] = []
   const bites: MaskRect[] = []
 
@@ -162,8 +170,8 @@ function buildParagraphMask(lines: LineBox[]): ParagraphMask {
       const segLeft = line.left + i * segWidth
       const w = segWidth + 1
 
-      let topLevel = pickLevel(rand, isFirstLine)
-      let bottomLevel = pickLevel(rand, isLastLine)
+      let topLevel = pickLevel(rand, isFirstLine, scale)
+      let bottomLevel = pickLevel(rand, isLastLine, scale)
       // If both edges of the same segment bite inward, clamp their
       // combined depth to under half the line height — a segment can
       // still lose real height off the top AND the bottom, just never
@@ -192,14 +200,14 @@ function buildParagraphMask(lines: LineBox[]): ParagraphMask {
     // 3-line silhouette read as stepped, so it stays simple: no internal
     // banding.
     {
-      const leftLevel = pickLevel(rand, true)
+      const leftLevel = pickLevel(rand, true, scale)
       if (leftLevel > 0) {
         base.push({ left: line.left - leftLevel, top: line.top, width: leftLevel, height: line.height })
       } else if (leftLevel < 0) {
         bites.push({ left: line.left, top: line.top, width: -leftLevel, height: line.height })
       }
 
-      const rightLevel = pickLevel(rand, true)
+      const rightLevel = pickLevel(rand, true, scale)
       if (rightLevel > 0) {
         base.push({ left: line.left + line.width, top: line.top, width: rightLevel, height: line.height })
       } else if (rightLevel < 0) {
@@ -211,12 +219,39 @@ function buildParagraphMask(lines: LineBox[]): ParagraphMask {
   return { base, bites }
 }
 
+const MASK_PAD = 80
+
+// Dark mode only: a darkened satellite view of Europe under the grid
+// (and under the country shapes). One Mapbox Static Images request (the
+// same public token as the tools' maps), fetched only when dark mode is
+// on, with its logo and attribution left off the image.
+const colorMode = useColorMode()
+const satelliteUrl = computed(() => {
+  if (colorMode.value !== 'dark') return null
+  const token = useRuntimeConfig().public.mapboxToken
+  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/32,51,3.3,180/1280x900@2x?attribution=false&logo=false&access_token=${token}`
+})
+
+// The CMS headline list (site_infos.yml's "sentences"): each row is one
+// three-word headline, one word per line, and the splash cycles through
+// them. Older content had a single headline split one word per row —
+// when every row is a single word, those rows are read as that one
+// headline.
+const headlines = computed(() => {
+  const rows = (info.value?.sentences ?? []).map((row) => (row.sentence ?? '').trim().split(/\s+/).filter(Boolean)).filter((words) => words.length)
+  if (rows.every((words) => words.length === 1)) return rows.length ? [rows.flat()] : []
+  return rows
+})
+const headlineIndex = ref(0)
+const headlineWords = computed(() => headlines.value[headlineIndex.value % Math.max(1, headlines.value.length)] ?? [])
 const sentencesEl = ref<HTMLElement | null>(null)
 const sentenceRefs = ref<(HTMLElement | null)[]>([])
 function setSentenceRef(el: Element | null, index: number) {
   sentenceRefs.value[index] = el as HTMLElement | null
 }
 const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
+// Which silhouette the mask draws — each headline settles on its own.
+const maskSeed = ref(MASK_SEED)
 function buildSentenceMasks() {
   const container = sentencesEl.value
   if (!container) return
@@ -227,7 +262,14 @@ function buildSentenceMasks() {
     return { left: rect.left - containerRect.left, top: rect.top - containerRect.top, width: rect.width, height: rect.height }
   })
   if (lines.some((l) => !l.width)) return
-  paragraphMask.value = buildParagraphMask(lines)
+  // Mask coordinates start at .sentence-masked's own corner, which is
+  // padded MASK_PAD out past this container on every side (CSS).
+  for (const line of lines) {
+    line.left += MASK_PAD
+    line.top += MASK_PAD
+  }
+  const fontScale = parseFloat(getComputedStyle(container).fontSize) / 120 || 1
+  paragraphMask.value = buildParagraphMask(lines, fontScale, maskSeed.value)
 }
 
 // The "bank" — DECODE.cms/content/wiki, a media library page, not any one
@@ -390,6 +432,7 @@ const informationsText = computed(() => (info.value?.informations ?? '').replace
 // can end up slightly rectangular rather than perfectly square) so each
 // axis gets a whole number of cells with no leftover.
 const SQUARE_TARGET = 80
+const SQUARE_TARGET_MOBILE = 44
 
 // Folder-tab silhouette above the grid: a long flat top line with steep
 // (~70-74°) diagonal "shoulders" down to a lower baseline at each edge,
@@ -498,12 +541,16 @@ function computeGrid() {
   // Measured off the section itself, not window.innerHeight — `.splash`'s
   // height is `100vh - var(--footer-height)`, not the full viewport.
   const { width: boxW, height: boxH } = splashEl.value.getBoundingClientRect()
+  const isMobile = window.innerWidth <= 768
+  mobileScale.value = isMobile ? 0.35 : 1
 
   // The tab's own sizing is specified against the *viewport*, not the
   // splash box (which is already a few vh short, for the footer) — and
   // since .splash starts at the very top of the page, a top-of-viewport
   // offset is also a top-of-splash offset.
-  tabWidth.value = window.innerWidth * 0.25
+  // Mobile: half the width (the ticker inside needs the room), the same
+  // as SiteNav's own mobile MENU tab.
+  tabWidth.value = window.innerWidth * (isMobile ? 0.5 : 0.25)
   tabHeight.value = window.innerHeight * 0.035
   tabTop.value = window.innerHeight * 0.015
   pageWidth.value = window.innerWidth
@@ -512,26 +559,34 @@ function computeGrid() {
   // right, bottom (the gap above the footer), and — tying it to the tab —
   // the *gap between the tab's own bottom edge and the grid's top line*,
   // not the tab's whole footprint.
-  const margin = window.innerHeight * 0.075
-  const gridTop = tabTop.value + tabHeight.value + margin
+  // Mobile: off the width instead — 7.5% of a tall phone's height would
+  // eat a large share of its narrow width on each side.
+  const margin = isMobile ? window.innerWidth * 0.05 : window.innerHeight * 0.075
+  const fullTop = tabTop.value + tabHeight.value + margin
   const usableW = boxW - margin * 2
-  const usableH = boxH - gridTop - margin
+  const fullH = boxH - fullTop - margin
+  // Mobile: 20% shorter than the space allows, centered in it — the full
+  // height reads too tall and narrow on a phone.
+  const usableH = isMobile ? fullH * 0.8 : fullH
+  const gridTop = fullTop + (fullH - usableH) / 2
+  const gridBottomGap = boxH - gridTop - usableH
 
-  const cols = Math.max(1, Math.round(usableW / SQUARE_TARGET))
-  const rows = Math.max(1, Math.round(usableH / SQUARE_TARGET))
+  const square = isMobile ? SQUARE_TARGET_MOBILE : SQUARE_TARGET
+  const cols = Math.max(1, Math.round(usableW / square))
+  const rows = Math.max(1, Math.round(usableH / square))
   const cellWidth = usableW / cols
   const cellHeight = usableH / rows
 
   gridStyle.value = {
     top: `${gridTop}px`,
-    bottom: `${margin}px`,
+    bottom: `${gridBottomGap}px`,
     left: `${margin}px`,
     right: `${margin}px`,
     backgroundSize: `${cellWidth}px ${cellHeight}px`,
   }
 
-  ctaStyle.value = { top: `${boxH - margin}px` }
-  grid.value = { top: gridTop, left: margin, right: boxW - margin, bottom: boxH - margin, cols, rows, cellW: cellWidth, cellH: cellHeight, boxW, boxH }
+  ctaStyle.value = { top: `${boxH - gridBottomGap}px` }
+  grid.value = { top: gridTop, left: margin, right: boxW - margin, bottom: boxH - gridBottomGap, cols, rows, cellW: cellWidth, cellH: cellHeight, boxW, boxH }
 
   // Each corner title is inset *past* the grid's own margin by a further
   // fixed amount (with a little per-corner variation — "laid differently"
@@ -579,7 +634,7 @@ function computeGrid() {
 // hold on the emptied screen before the home side starts drawing.
 const OUTRO_MS = 1900
 
-// Arrival (useSplashIntro), desktop only (mobile and reduced motion go
+// Arrival (useSplashIntro), desktop and mobile alike (reduced motion goes
 // straight to 'done'):
 //  1. A white screen; DE.CO.DE grows in black in the middle from nothing,
 //     then the subtitle deciphers in just under it, inverted (white on a
@@ -647,9 +702,76 @@ function headlineIn() {
   }, 1400))
 }
 
+// Headline cycle: each headline holds HEADLINE_HOLD_MS, then turns
+// straight into the next one letter by letter (decipherFrom) — never
+// through an empty or half-empty headline — the white backing mask
+// following the lines' widths as they change.
+const HEADLINE_HOLD_MS = 4000
+const HEADLINE_MORPH_MS = 1400
+let headlineTimer: ReturnType<typeof setTimeout> | undefined
+let maskFollow: ReturnType<typeof setInterval> | undefined
+let morphStops: (() => void)[] = []
+function followMask(ms: number) {
+  clearInterval(maskFollow)
+  maskFollow = setInterval(buildSentenceMasks, 50)
+  setTimeout(() => {
+    clearInterval(maskFollow)
+    buildSentenceMasks()
+  }, ms)
+}
+// The frame deciphers along with the letters: while they morph, the
+// mask jumps through other silhouettes at the same irregular rhythm,
+// further apart as it goes, and lands on the new headline's own one.
+let frameTimers: ReturnType<typeof setTimeout>[] = []
+function shuffleFrame(finalSeed: number) {
+  frameTimers.forEach(clearTimeout)
+  frameTimers = []
+  let t = 0
+  let gap = 70
+  while (t + gap < HEADLINE_MORPH_MS - 100) {
+    t += gap
+    frameTimers.push(setTimeout(() => {
+      maskSeed.value = Math.floor(Math.random() * 1e9)
+      buildSentenceMasks()
+    }, t))
+    gap *= 1.18
+  }
+  frameTimers.push(setTimeout(() => {
+    maskSeed.value = finalSeed
+    buildSentenceMasks()
+  }, HEADLINE_MORPH_MS))
+}
+
+async function nextHeadline() {
+  if (leaving.value || !splashEl.value) return
+  const previous = [...headlineWords.value]
+  headlineIndex.value = (headlineIndex.value + 1) % headlines.value.length
+  shuffleFrame(MASK_SEED + headlineIndex.value * 7919)
+  await nextTick()
+  if (leaving.value) return
+  morphStops = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])]
+    .map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS))
+  buildSentenceMasks()
+  followMask(HEADLINE_MORPH_MS + 100)
+  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + HEADLINE_HOLD_MS)
+}
+function startHeadlineCycle() {
+  clearTimeout(headlineTimer)
+  if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  headlineTimer = setTimeout(nextHeadline, HEADLINE_HOLD_MS)
+}
+function stopHeadlineCycle() {
+  clearTimeout(headlineTimer)
+  clearInterval(maskFollow)
+  morphStops.forEach((stop) => stop())
+  morphStops = []
+  frameTimers.forEach(clearTimeout)
+  frameTimers = []
+}
+
 function playIntro() {
-  if (splashIntro.value !== 'logo') return
-  if (window.innerWidth <= 768 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (splashIntro.value !== 'logo') return startHeadlineCycle()
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     logoVisible.value = false
     splashIntro.value = 'done'
     return
@@ -670,14 +792,17 @@ function playIntro() {
   at(HEADLINE_AT, headlineIn)
   at(TAB_AT, () => { splashIntro.value = 'tab' })
   at(FOOTER_AT, () => { splashIntro.value = 'footer' })
-  at(DONE_AT, () => { splashIntro.value = 'done' })
+  at(DONE_AT, () => {
+    splashIntro.value = 'done'
+    startHeadlineCycle()
+  })
 }
 
 function countryStyle(icon: CountryIcon) {
   return {
     top: icon.top,
     left: icon.left,
-    width: `${icon.width}px`,
+    width: `${icon.width * mobileScale.value}px`,
     transform: `translate(-50%, -50%) rotate(${icon.rotate ?? 0}deg) scale(${icon.scale ?? 1})`,
   }
 }
@@ -697,6 +822,7 @@ const gridHorizontals = computed(() => {
 })
 function leave() {
   if (leaving.value) return
+  stopHeadlineCycle()
   const g = grid.value
   if (!g || !splashEl.value || window.innerWidth <= 768 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     emit('continue')
@@ -727,6 +853,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   introTimers.forEach(clearTimeout)
+  stopHeadlineCycle()
   if (splashIntro.value !== 'done') splashIntro.value = 'done'
   window.removeEventListener('resize', handleResize)
 })
@@ -776,16 +903,11 @@ onUnmounted(() => {
       />
     </svg>
 
-    <!-- Scrolling ticker (CMS `informations` field). Clipped to the
-         trapezoid's own *top-line* span (tabLeftInset/tabRightInset), not
-         the full tabWidth bounding box — the shape is narrower than
-         tabWidth near the top (that's what the diagonal shoulders are),
-         so a plain tabWidth-wide clip let text render out past them, into
-         the corner outside the actual white fill. A further 2% of that
-         narrower span is padded in on each side so text fades out before
-         reaching the shoulders at all, rather than getting cut off flush
-         against them. Same doubled-content/translateX(-50%) loop
-         technique as the image band below. -->
+    <!-- The tab's label (CMS `informations` field), fixed, not
+         scrolling. Kept inside the trapezoid's own *top-line* span
+         (tabLeftInset/tabRightInset), not the full tabWidth bounding box —
+         the shape is narrower near the top (the diagonal shoulders), with
+         a further 2% padding on each side so the text never touches them. -->
     <div
       v-if="informationsText"
       class="splash-tab-ticker"
@@ -799,12 +921,31 @@ onUnmounted(() => {
       }"
       aria-hidden="true"
     >
-      <div class="splash-tab-ticker-track text-h4">
-        <span>{{ informationsText }}</span>
-        <span>{{ informationsText }}</span>
-      </div>
+      <div class="splash-tab-ticker-track text-h4">{{ informationsText }}</div>
     </div>
 
+    <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
+      <!-- Dark mode's own gray duotone (app.vue's #duotone-dark: same
+           luma, same neutral grays), but not inverted and held to its
+           dark end — black lands on the page's own background, the
+           brightest land on a mid gray. -->
+      <svg width="0" height="0" style="position: absolute">
+        <filter id="splash-satellite-duotone" color-interpolation-filters="sRGB">
+          <feColorMatrix
+            type="matrix"
+            values="0.299 0.587 0.114 0 0
+                    0.299 0.587 0.114 0 0
+                    0.299 0.587 0.114 0 0
+                    0     0     0     1 0"
+          />
+          <feComponentTransfer>
+            <feFuncR type="table" tableValues="0.10980 0.55" />
+            <feFuncG type="table" tableValues="0.10980 0.55" />
+            <feFuncB type="table" tableValues="0.10980 0.55" />
+          </feComponentTransfer>
+        </filter>
+      </svg>
+    </div>
     <div class="splash-grid" :style="gridStyle" aria-hidden="true" />
     <!-- The grid as separate lines, each moving on its own: growing out of
          their centres on arrival (is-building), retracting on exit. -->
@@ -887,7 +1028,7 @@ onUnmounted(() => {
     </div>
 
     <div class="splash-info">
-      <div v-if="info?.sentences?.length" ref="sentencesEl" class="splash-sentences">
+      <div v-if="headlineWords.length" ref="sentencesEl" class="splash-sentences">
         <!-- Both the white backing (.sentence-fill) and the text itself
              live inside this one wrapper, which has an SVG mask
              (#splash-headline-mask, below) applied to it — `base` rects
@@ -900,12 +1041,12 @@ onUnmounted(() => {
         <div class="sentence-masked">
           <div class="sentence-fill" aria-hidden="true" />
           <div
-            v-for="(item, index) in info.sentences"
+            v-for="(word, index) in headlineWords"
             :key="index"
             class="sentence-line"
             :style="{ transform: `translateX(${sentenceOffset(index)})` }"
           >
-            <span class="sentence-text" :ref="(el) => setSentenceRef(el as Element | null, index)">{{ item.sentence }}</span>
+            <span class="sentence-text" :ref="(el) => setSentenceRef(el as Element | null, index)">{{ word }}</span>
           </div>
         </div>
         <!-- Literal #fff/#000, never theme tokens: a mask reads luminance
@@ -938,8 +1079,8 @@ onUnmounted(() => {
            into two more lines at this width, so three lines total. -->
       <div v-if="info?.header_subtitle" class="text-h3 splash-subtitle">
         <span class="splash-subtitle-box">
-          An open multimedia guide exploring disinformation<br>
-          through investigations, interactive tools and collaborative workshops for youth
+          An open multimedia&nbsp;guide exploring disinformation<br>
+          through investigations, interactive&nbsp;tools and collaborative&nbsp;workshops for&nbsp;youth
         </span>
       </div>
     </div>
@@ -951,24 +1092,6 @@ onUnmounted(() => {
       Enter the investigation guide
     </button>
 
-    <!-- Below 768px only (CSS, like SiteNav.vue's own mobile row) — every
-         element above is tuned for a wide desktop canvas (window-width-
-         driven grid/tab math, a headline reveal-mask built from measured
-         per-line pixel boxes) and no mobile maquette exists for this
-         screen yet, so rather than guess a pixel design that might
-         contradict one the user hasn't shared, this is a plain
-         simplified hero using the same CMS fields already fetched above
-         (info.header_subtitle, same text the desktop .splash-subtitle
-         shows) — no JS-driven inline positioning of its own, so it can't
-         conflict with the desktop elements' own computed styles the way
-         trying to override those with plain CSS would. -->
-    <div class="splash-mobile-hero">
-      <span class="splash-mobile-brand">DE.CO.DE</span>
-      <p v-if="info?.header_subtitle" class="splash-mobile-subtitle">{{ info.header_subtitle }}</p>
-      <button type="button" class="splash-mobile-cta btn-fill" @click="leave">
-        Enter the investigation guide
-      </button>
-    </div>
   </section>
 </template>
 
@@ -1016,31 +1139,18 @@ onUnmounted(() => {
   overflow: hidden;
   display: flex;
   align-items: center;
+  justify-content: center;
   pointer-events: none;
 }
 
+/* A fixed line (the CMS's tab text, e.g. "A project by the Geneva
+   Graduate Institute") — no longer scrolling; cut with an ellipsis if a
+   narrow tab can't hold it. */
 .splash-tab-ticker-track {
-  display: flex;
+  min-width: 0;
   white-space: nowrap;
-  width: max-content;
-  /* Scrolls right to left — translateX(0) to (-50%) moves the (doubled)
-     content leftward, so new text keeps entering from the right. Exactly
-     half the track's width is where the first copy started, so the loop
-     has no visible seam (same technique as .splash-images-track). */
-  animation: splash-tab-ticker-scroll 20s linear infinite;
-}
-
-.splash-tab-ticker-track span {
-  padding-right: 3rem;
-}
-
-@keyframes splash-tab-ticker-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .splash-info {
@@ -1160,6 +1270,36 @@ onUnmounted(() => {
 
 .splash-countries {
   transition: opacity 0.8s ease;
+}
+
+/* Under the grid (same box, earlier in the DOM, same z-index) and the
+   country shapes. In dark mode's gray duotone (#splash-satellite-duotone)
+   so it reads as a texture behind the page, not a photo; fades in as the splash builds,
+   out with the countries on exit. */
+.splash-satellite {
+  position: absolute;
+  z-index: 0;
+  transition: opacity 1.6s ease;
+  pointer-events: none;
+}
+
+.splash-satellite::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--satellite) center / cover no-repeat;
+  filter: url(#splash-satellite-duotone);
+  opacity: 0.45;
+}
+
+.splash.intro-logo .splash-satellite {
+  opacity: 0;
+  transition: none;
+}
+
+.splash.is-leaving .splash-satellite {
+  opacity: 0;
+  transition-duration: 0.8s;
 }
 
 .splash.is-leaving .splash-countries {
@@ -1334,6 +1474,13 @@ onUnmounted(() => {
   max-width: 52ch;
   line-height: 1.15;
   text-align: center;
+  /* Even line lengths instead of filling each line greedily and leaving
+     a stub at the end — balance evens the whole block out; the
+     non-breaking spaces in the template keep word pairs that
+     read as one unit together ("for youth", "interactive tools"…), and
+     guarantee no single word ends up alone where balance isn't
+     supported. */
+  text-wrap: balance;
 }
 
 .splash-cta {
@@ -1450,15 +1597,25 @@ onUnmounted(() => {
   position: relative;
   mask-image: url(#splash-headline-mask);
   -webkit-mask-image: url(#splash-headline-mask);
+  /* The mask is only as big as this box and tiles past it by default —
+     a copy of the lower lines' silhouette was showing as a solid white
+     band above the headline. No repeat, and the box padded out (negative
+     margin keeps the layout unchanged) by MASK_PAD (script) so every
+     outward extension still falls inside the mask's own area. */
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  padding: 80px;
+  margin: -80px;
 }
 
 /* Plain solid fill — the mask alone carves it down to the exact irregular
    silhouette (buildParagraphMask's `base` rects), so this just needs to
-   generously over-cover every line's own measured box; -80px comfortably
-   clears the largest possible extension (46px) with room to spare. */
+   generously over-cover every line's own measured box; the 80px padding
+   (.sentence-masked) comfortably clears the largest possible extension
+   (46px) with room to spare. */
 .sentence-fill {
   position: absolute;
-  inset: -80px;
+  inset: 0;
   background: var(--color-surface);
 }
 
@@ -1549,6 +1706,9 @@ onUnmounted(() => {
   left: 0;
   z-index: 1;
   padding: 2px 6px;
+  /* Black on its pastel chip in both themes (dark mode's own ink is
+     near-white, unreadable on these light colors). */
+  color: var(--color-on-pastel);
   font-family: var(--font-mono);
   text-transform: uppercase;
   white-space: nowrap;
@@ -1566,70 +1726,46 @@ onUnmounted(() => {
   }
 }
 
-/* Hidden by default — only shown below 768px (media query further down),
-   same "both always render, CSS alone picks which one shows" pattern
-   SiteNav.vue's own mobile row uses, so there's no hydration flash
-   switching between this and the desktop layout above. */
-.splash-mobile-hero {
-  display: none;
-}
-
+/* Below 768px: the same composition as desktop, drawn smaller — minus
+   the four corner article titles, too much at phone width. The tab, grid
+   and country sizes come from computeGrid's own mobile branch (script);
+   the headline mask follows the smaller font on its own (it's measured). */
 @media (max-width: 768px) {
-  /* Every one of these has either window-width-driven JS math behind it
-     (the tab, the grid, the reveal-mask headline) or simply has no mobile
-     maquette to match yet — see the template comment above
-     .splash-mobile-hero for why this is a plain simplified fallback
-     rather than an attempt to reflow them. */
-  .splash-tab,
-  .splash-tab-ticker,
-  .splash-grid,
-  .splash-corner,
-  .splash-countries,
-  .splash-images,
-  .splash-info,
-  .splash-cta {
+  .splash {
+    --splash-image-min-width: 70px;
+    --splash-image-max-width: 60vw;
+  }
+
+  .splash-corner {
     display: none;
   }
 
-  .splash-mobile-hero {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 24px;
-    box-sizing: border-box;
-    padding: 10vh 8% 0;
-    text-align: center;
+  .splash-logo {
+    font-size: 12vw;
   }
 
-  .splash-mobile-brand {
-    color: var(--color-brand);
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 32pt;
+  .splash-sentences {
+    font-size: 13vw;
   }
 
-  .splash-mobile-subtitle {
-    margin: 0;
-    max-width: 32em;
-    color: var(--color-ink);
-    font-family: var(--font-serif);
-    font-size: 15pt;
-    line-height: 1.5;
+  .splash-subtitle-box {
+    max-width: 30ch;
+    padding: 8px;
+    font-size: 9pt;
   }
 
-  .splash-mobile-cta {
-    appearance: none;
-    border-radius: 0;
-    padding: 14px 24px;
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 11pt;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    cursor: pointer;
+  .splash-subtitle-box br {
+    display: none;
+  }
+
+  .splash-images {
+    height: 28vh;
+  }
+
+  .splash-cta {
+    padding: 12px 16px;
+    font-size: 10pt;
+    white-space: nowrap;
   }
 }
 </style>

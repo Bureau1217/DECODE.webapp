@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
 // Mirrors the CMS's own "Mot-clés" Panel section (site/blueprints/site.yml):
 // every root page using the `tags` template, each with its tag children —
 // not a fixed list of category names, so a new category added in the CMS
@@ -31,7 +32,27 @@ onBeforeUnmount(() => {
 
 // A hovered row's own definition (tag.yml's "Description" field) pops up
 // over the row's own unused white space, to the right of its title.
+// Mobile has no hover: tapping a row opens its definition inline, right
+// under the title, and tapping it again (or another row) closes it.
 const hoveredTagId = ref<string | null>(null)
+const isMobile = useIsMobile()
+function onRowEnter(tag: CategoryWithTags['tags'][number]) {
+  if (isMobile.value) return
+  const img = tag.image?.[0]
+  if (displayMode.value === 'visual' && img) {
+    previewImage.value = { url: img.url, alt: img.alt || tag.title, title: tag.title, description: tag.description }
+    return
+  }
+  hoveredTagId.value = tag.id
+}
+function onRowLeave() {
+  if (isMobile.value) return
+  hoveredTagId.value = null
+  previewImage.value = null
+}
+function onRowTap(tagId: string) {
+  if (isMobile.value) hoveredTagId.value = hoveredTagId.value === tagId ? null : tagId
+}
 
 // Splash -> home draw-in (useIntroTransition): every row's rule draws
 // itself left to right, top to bottom (rowDelay staggers by position in
@@ -61,6 +82,13 @@ const readingMode = useReadingMode()
 // show that tag's own images below its title.
 const displayMode = useDisplayMode()
 
+// Visual mode, desktop: hovering a keyword's row opens its first image,
+// in full color, at its own size and ratio in the middle of the keywords
+// panel (capped to it), with the keyword's definition pinned to its
+// top-left corner in place of the usual row popup.
+const previewImage = ref<{ url: string, alt: string, title: string, description?: string } | null>(null)
+watch(displayMode, () => { previewImage.value = null })
+
 // Set by guide/index.vue on card hover (shared state — this panel is a
 // separate, globally-rendered component, not a child of that page).
 const highlighted = useHighlightedKeywords()
@@ -84,11 +112,12 @@ function isRelated(tagId: string) {
           :key="tag.id"
           :class="{ dimmed: isDimmed(tag.id), related: isRelated(tag.id) }"
           :style="{ '--row-delay': `${rowDelaySeconds(tag.id)}s` }"
-          @mouseenter="hoveredTagId = tag.id"
-          @mouseleave="hoveredTagId = null"
+          @mouseenter="onRowEnter(tag)"
+          @mouseleave="onRowLeave"
+          @click="onRowTap(tag.id)"
         >
           <div class="keywords-panel-row">
-            <!-- Hover only (definition popup below) — not a link. -->
+            <!-- Hover (tap on mobile) only — definition popup below, not a link. -->
             <span class="keywords-panel-label"><DecipherText :text="tag.title" :delay="introTransition ? Math.round((rowDelaySeconds(tag.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(tag.id) ?? 0)" /></span>
           </div>
           <div class="keywords-panel-images-outer" :class="{ expanded: displayMode === 'visual' }">
@@ -105,6 +134,18 @@ function isRelated(tagId: string) {
       </ul>
     </template>
   </InfoPanel>
+  <Teleport to="body">
+    <div v-if="previewImage" class="keywords-image-preview" :class="{ 'reading-mode': readingMode }" aria-hidden="true">
+      <figure class="keywords-image-preview-frame">
+        <img :src="previewImage.url" :alt="previewImage.alt" class="no-duotone">
+        <figcaption class="keywords-image-preview-label">
+          <div class="keywords-panel-popup-title">{{ previewImage.title }}</div>
+          <!-- eslint-disable-next-line vue/no-v-html -->
+          <div v-if="previewImage.description" class="keywords-panel-popup-definition" v-html="previewImage.description" />
+        </figcaption>
+      </figure>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -292,6 +333,70 @@ function isRelated(tagId: string) {
   margin-bottom: 8px;
 }
 
+/* Thumbnails keep the gray duotone on hover too (main.css drops it on
+   any hovered img) — the enlarged copy below stays gray as well. */
+.keywords-panel-images img:hover {
+  filter: url(#duotone-silver);
+}
+
+:root[data-theme='dark'] .keywords-panel-images img:hover {
+  filter: url(#duotone-dark);
+}
+
+/* Centered over the keywords panel itself (same box: under the nav and
+   index bar, above the footer, 50vw or 25vw wide in reading mode), never
+   catching the pointer, so the row underneath keeps its hover. The image
+   shows at its own pixel size, only scaled down (ratio kept) to fit
+   within 90% of the panel's width and 56% of the viewport's height. */
+.keywords-image-preview {
+  position: fixed;
+  top: 8.5vh;
+  bottom: var(--footer-height);
+  left: 0;
+  width: 50vw;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.keywords-image-preview.reading-mode {
+  width: 25vw;
+}
+
+.keywords-image-preview-frame {
+  position: relative;
+  margin: 0;
+  max-width: 90%;
+  display: flex;
+}
+
+.keywords-image-preview-frame img {
+  display: block;
+  max-width: 100%;
+  max-height: 56vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* The keyword's definition, in the row popup's own box (below), pinned
+   to the image's top-left corner. */
+.keywords-image-preview-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  width: min(300px, 70%);
+  padding: 8px 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-brand);
+  color: var(--color-brand);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
 /* Floats over the row's own unused white space, half the row's own width
    and centered in it — left:25%/width:50% (not fixed vw values) is what
    keeps it "half the panel, centered" regardless of the panel's current
@@ -375,5 +480,24 @@ function isRelated(tagId: string) {
   font-size: 11pt;
   color: var(--color-ink);
   cursor: default;
+}
+
+/* Mobile (script, onRowTap): the definition opens inline under the row's
+   title instead of floating over the rows below it. */
+@media (max-width: 768px) {
+  .keywords-panel li {
+    cursor: pointer;
+  }
+
+  .keywords-panel-label {
+    cursor: pointer;
+  }
+
+  .keywords-panel-popup {
+    position: static;
+    width: auto;
+    margin: 0 10px 10px;
+    box-shadow: none;
+  }
 }
 </style>

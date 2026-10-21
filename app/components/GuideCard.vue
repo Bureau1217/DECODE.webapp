@@ -14,6 +14,7 @@ const props = defineProps<{
 }>()
 
 const badgeColor = computed(() => badgeColorFor(props.index))
+const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 
 // Opening the article (and closing back into this card): see
 // useSharedTransition.

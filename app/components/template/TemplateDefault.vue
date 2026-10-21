@@ -210,44 +210,25 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
    template's 2-column content, not every consumer of that shared shell
    (TemplateRessource.vue's own single centered child stays untouched). */
 @media (max-width: 768px) {
-  /* Edge to edge, not inset — Chapitre.png's own mobile mockup bleeds the
-     cover image to both viewport edges; the desktop 20%-per-side frame
-     reads as a narrow postage-stamp crop at phone width. */
+  /* Portrait 4/5 crop (same ratio as the desktop guide card's own image),
+     inset 2.5% on every side — the divider band's rules below share that
+     same inset (TemplateDividerBand.vue), so image and rules line up. */
   .article-detail-cover {
-    padding: 0;
+    padding: 2.5%;
   }
 
-  /* Left-aligned, not centered — the mockup's own title/badge block
-     starts flush with the body text's own left margin, not centered on
-     the viewport (the divider-band rows below keep their own center/
-     left-start split unchanged, see .article-detail-divider-half's own
-     comment). */
+  .article-detail-cover img {
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+  }
+
   .article-detail-header {
-    text-align: left;
     padding: 0 6%;
   }
 
   .article-detail-title {
-    margin-left: 0;
-    margin-top: 24px;
+    margin-top: 16px;
     font-size: 36px;
-  }
-
-  /* Full-width strip, same (0) padding as the cover image above it — not
-     the desktop's shrink-to-fit chip. Negative side margins equal to
-     .article-detail-header's own 6% padding pull it back out to the
-     header's full-bleed parent width; width stays auto so it fills
-     exactly that reclaimed space rather than needing a calc(). Overrides
-     BadgeChip.vue's own display:inline-block/padding, same treatment as
-     GuideCard.vue's own mobile subtitle. */
-  .article-detail-subtitle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: auto;
-    height: 22px;
-    margin: 10px -6% 0;
-    padding: 0;
   }
 
   :deep(.divider-band-row) {
@@ -255,19 +236,22 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
     flex-direction: column;
   }
 
-  /* Keeps the base rule's own center alignment (the chapter-info row
-     reads centered, same as desktop) — only .article-detail-divider-half-
-     right's own flex-start override (unchanged, desktop rule above)
-     differs, same as before. */
   .article-detail-divider-half {
     flex: none;
     width: 100%;
-    padding: 14px 16px;
+    padding: 14px 2.5%;
   }
 
+  /* Centered like the title above it, not the desktop's left-start. */
+  .article-detail-divider-half-right {
+    align-items: center;
+  }
+
+  /* The left half is empty — stacked, it only added a blank strip and a
+     second rule above the related tool. */
+  .article-detail-divider-half:not(.article-detail-divider-half-right),
   .article-detail-divider-vertical {
-    width: 100%;
-    height: 1px;
+    display: none;
   }
 }
 </style>

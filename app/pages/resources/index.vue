@@ -85,5 +85,11 @@ onUnmounted(() => {
   .resources-grid :deep(.resource-card:nth-child(2n + 1)) {
     border-left: none;
   }
+
+  /* First row sits right under the index bar's own bottom rule — its
+     top strokes would double that line. */
+  .resources-grid :deep(.resource-card:nth-child(-n + 2)) {
+    border-top: none;
+  }
 }
 </style>

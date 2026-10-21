@@ -34,10 +34,15 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 <template>
   <NuxtLink :to="`/resources/${item.id}`" class="resource-card" @mouseenter="onHover" @mouseleave="onLeave" @click.capture="open">
     <div class="resource-card-spacer" />
-    <h2 class="resource-card-title" :title="item.title" :style="sharedPart('title')">{{ item.title }}</h2>
-    <div class="resource-card-below">
-      <span v-if="item.authors" class="resource-card-author" :style="sharedPart('authors')">{{ item.authors }}</span>
-      <span class="resource-card-type" :style="sharedPart('type')">{{ item.type }}</span>
+    <!-- display:contents on desktop (the card's own 3-row grid lays out
+         the title and .resource-card-below directly); one block centered
+         in the card on mobile. -->
+    <div class="resource-card-content">
+      <h2 class="resource-card-title" :title="item.title" :style="sharedPart('title')">{{ item.title }}</h2>
+      <div class="resource-card-below">
+        <span v-if="item.authors" class="resource-card-author" :title="item.authors" :style="sharedPart('authors')">{{ item.authors }}</span>
+        <span class="resource-card-type" :style="sharedPart('type')">{{ item.type }}</span>
+      </div>
     </div>
   </NuxtLink>
 </template>
@@ -81,6 +86,10 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 
 /* Authors directly under the title; the type badge pinned to the
    bottom of the same row, so it sits at the same height on every card. */
+.resource-card-content {
+  display: contents;
+}
+
 .resource-card-below {
   min-height: 0;
   width: 100%;
@@ -129,5 +138,49 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   font-weight: 500;
   font-size: 10pt;
   text-transform: uppercase;
+}
+
+/* Near-square on phones (a touch taller than wide). Title, authors and
+   type sit together as one block centered in the card, not spread over
+   the desktop's 3-row grid; authors cut to a single line with an
+   ellipsis. min-height:0 and overflow:hidden hold the ratio regardless. */
+@media (max-width: 768px) {
+  .resource-card {
+    aspect-ratio: 20 / 21;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8%;
+  }
+
+  .resource-card-spacer {
+    display: none;
+  }
+
+  .resource-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .resource-card-below {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  .resource-card-author {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .resource-card-type {
+    margin-top: 0;
+  }
 }
 </style>

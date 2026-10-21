@@ -23,13 +23,22 @@ export function useHoverTooltip<T>() {
     return { top: rect.top, left: rect.right - 2 }
   }
 
-  function showTooltip(item: T, event: MouseEvent | FocusEvent) {
+  function openTooltip(item: T, event: Event) {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
     tooltipPos.value = computePos(rect)
     hovered.value = item
   }
 
+  // Hover/focus only — ignored on mobile, where a tap also fires
+  // emulated mouseenter/focus right before its click: letting those open
+  // the tooltip made tapTooltip's toggle immediately close it again.
+  function showTooltip(item: T, event: MouseEvent | FocusEvent) {
+    if (isMobile.value) return
+    openTooltip(item, event)
+  }
+
   function hideTooltip() {
+    if (isMobile.value) return
     hovered.value = null
   }
 
@@ -40,12 +49,14 @@ export function useHoverTooltip<T>() {
   // click would just close what hover just opened.
   function tapTooltip(item: T, event: MouseEvent) {
     if (!isMobile.value) return
-    if (hovered.value === item) {
-      hideTooltip()
+    // toRaw on both — the ref hands back its own reactive proxy of the
+    // item, never identical to the plain object the row passes in.
+    if (hovered.value !== null && toRaw(hovered.value) === toRaw(item)) {
+      hovered.value = null
     } else {
-      showTooltip(item, event)
+      openTooltip(item, event)
     }
   }
 
-  return { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip }
+  return { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile }
 }

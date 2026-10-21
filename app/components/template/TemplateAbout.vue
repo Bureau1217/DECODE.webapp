@@ -51,7 +51,7 @@ const activeIndex = ref(0)
     <article class="about-detail">
       <header class="about-detail-header">
         <h1 class="about-detail-title"><DecipherText :text="siteTitle" /></h1>
-        <p v-if="page.header_subtitle" class="about-detail-subtitle">{{ page.header_subtitle }}</p>
+        <h2 v-if="page.header_subtitle" class="about-detail-subtitle">{{ page.header_subtitle }}</h2>
       </header>
 
       <!-- In place of the article template's divider band — one tab per
@@ -104,6 +104,7 @@ const activeIndex = ref(0)
 
 .about-detail-subtitle {
   margin: 10px auto 0;
+  font-weight: 400;
   max-width: 60%;
   color: var(--color-brand-about);
   font-family: var(--font-serif);
@@ -173,13 +174,16 @@ const activeIndex = ref(0)
    reasonable responsive extrapolation, not a pixel match: the fixed
    padding:14px 60px tabs would overflow/clip at phone width otherwise. */
 @media (max-width: 768px) {
+  /* Title at an opened resource's own title size (TemplateRessource.vue,
+     48px); subtitle at a heading-2 size (1.5em of the 16px base). */
   .about-detail-title {
-    font-size: 30px;
+    font-size: 48px;
   }
 
   .about-detail-subtitle {
     max-width: 90%;
-    font-size: 16pt;
+    font-size: 24px;
+    line-height: 1.35;
   }
 
   .about-detail-nav {

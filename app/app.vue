@@ -143,6 +143,7 @@ watch(
         'has-nav': !showSplash,
         'reading-mode': readingMode,
         'mobile-index-open': mobileIndexOpen,
+        'is-intro': introTransition,
       }"
     >
       <NuxtPage />
@@ -220,6 +221,13 @@ body {
 
 .app-content.has-keywords-panel {
   margin-left: 50vw;
+}
+
+/* Splash -> home: the panel appears and the content lands straight in
+   its half — no margin slide from the left; the home's own content
+   builds itself in place instead (HomeHero.vue). */
+.app-content.is-intro {
+  transition: none;
 }
 
 .app-content.has-keywords-panel.reading-mode {

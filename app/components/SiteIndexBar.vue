@@ -30,13 +30,14 @@ function onIndexClick() {
 const route = useRoute()
 const isResourcesPage = computed(() => route.path === '/resources')
 const isAboutPage = computed(() => route.path === '/about')
+const isHomePage = computed(() => route.path === '/')
 // A custom tool page reskins this bar in its own accent instead of
 // brown — each tool page gets its own exit button (TemplateToolPageLayout.
 // vue, top-right corner) rather than this bar.
 const { theme, isThemed } = useToolTheme()
 // No tool has a "visual" layout to switch to (unlike guide/resources'
-// card grids) — hide the toggle across /tools and its sub-pages rather
-// than leaving a non-functional button.
+// card grids) — across /tools and its sub-pages the toggle stays in
+// place but grayed out and disabled, rather than vanishing from the bar.
 const isToolsSection = computed(() => route.path.startsWith('/tools'))
 // Splash -> home draw-in: as SiteNav's tabs rise out of the splash's
 // baseline, the bar fills in brown from left to right underneath.
@@ -44,7 +45,11 @@ const introTransition = useIntroTransition()
 </script>
 
 <template>
-  <div class="index-bar" :class="{ 'is-tool-themed': isThemed, 'is-intro': introTransition }" :style="{ '--local-accent': theme?.chromeAccent }">
+  <div
+    class="index-bar"
+    :class="{ 'is-tool-themed': isThemed, 'is-intro': introTransition }"
+    :style="{ '--local-accent': theme?.chromeAccent, '--local-accent-text': theme?.chromeText }"
+  >
     <div class="index-bar-group">
       <button
         type="button"
@@ -56,10 +61,10 @@ const introTransition = useIntroTransition()
         Index
       </button>
       <button
-        v-if="!isToolsSection"
         type="button"
         class="index-bar-item index-bar-visual"
-        :class="{ active: displayMode === 'visual' }"
+        :class="{ active: !isToolsSection && displayMode === 'visual' }"
+        :disabled="isToolsSection"
         @click="displayMode = 'visual'"
       >
         <span class="index-bar-dot" aria-hidden="true" />
@@ -93,10 +98,15 @@ const introTransition = useIntroTransition()
        (.is-resources). z-index sits above the plain brown rectangle
        (unpositioned, stacking level 0) but below .site-footer (its own
        z-index). -->
-  <div class="index-bar-divider" :class="{ 'reading-mode': readingMode }" aria-hidden="true" />
+  <div
+    class="index-bar-divider"
+    :class="{ 'reading-mode': readingMode, 'is-tool-themed': isThemed }"
+    :style="{ '--local-accent-text': theme?.chromeText }"
+    aria-hidden="true"
+  />
   <div
     class="content-divider"
-    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'reading-mode': readingMode}"
+    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'reading-mode': readingMode}"
     aria-hidden="true"
   />
 </template>
@@ -162,6 +172,12 @@ const introTransition = useIntroTransition()
   cursor: pointer;
 }
 
+/* Visual on /tools (script, isToolsSection): nothing to switch to. */
+.index-bar-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* Centered on the bar, then pulled left of that center point — not just
    centered. */
 .index-bar-search {
@@ -208,8 +224,14 @@ const introTransition = useIntroTransition()
   left: calc(50% - 0.5px);
   transition: left 0.5s ease;
   width: 1px;
-  background: var(--color-on-fill);
+  background: var(--color-chrome-divider);
   z-index: 3;
+}
+
+/* Dark mode on a tool page: the tabs are outlined in the tool's own text
+   shade (SiteNav.vue), so the dividers follow it rather than the tan. */
+:root[data-theme='dark'] .index-bar-divider.is-tool-themed {
+  background: var(--local-accent-text);
 }
 
 /* left tracks the keywords-panel/content boundary (KeywordsPanel.vue,
@@ -239,7 +261,8 @@ const introTransition = useIntroTransition()
   background: var(--color-brand-resources);
 }
 
-.content-divider.is-about {
+.content-divider.is-about,
+.content-divider.is-home {
   background: var(--color-brand);
 }
 
@@ -255,10 +278,24 @@ const introTransition = useIntroTransition()
     left: calc(50% - 0.5px);
   }
 
+  /* White rule under the bar, separating it from the page content. */
   .index-bar {
     display: grid;
     grid-template-columns: 1fr 1fr;
     padding: 0;
+    border-bottom: 1px solid var(--color-chrome-divider);
+  }
+
+  /* Dark mode: a top rule too, in the same brown as the tabs' outline —
+     the dark bar otherwise has no edge against the ticker beside the
+     MENU tab. */
+  :root[data-theme='dark'] .index-bar {
+    border-top: 1px solid var(--color-chrome-divider);
+  }
+
+  :root[data-theme='dark'] .index-bar.is-tool-themed {
+    border-top-color: var(--local-accent-text);
+    border-bottom-color: var(--local-accent-text);
   }
 
   .index-bar-group {

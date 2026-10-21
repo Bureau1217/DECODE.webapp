@@ -367,33 +367,62 @@ onBeforeUnmount(() => {
   z-index: 2;
 }
 
-/* Inline band above the map, not a floating top-left overlay — Outil_1.png's
-   own mobile mockup; a 260px-capped floating box would eat most of a
-   phone-width map otherwise. .disinfo-map drops out of the absolute
-   inset:0 stack to take the flex space left under this band; the exit
-   button (TemplateToolPageLayout.vue) stays floating — its 28px corner
-   square reads fine overlapping this band's own top-right corner. */
+/* Mobile: still floating over the map (not a band above it), but
+   stretched across its top — right inset clears the exit cross
+   (TemplateToolPageLayout.vue: 14px inset + 28px box), and the open
+   options list is capped and scrolls so it never swallows the map. */
 @media (max-width: 768px) {
-  .map-wrapper {
-    display: flex;
-    flex-direction: column;
-  }
-
   .map-filters-overlay {
-    position: static;
-    width: 100%;
-    box-sizing: border-box;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.95);
-    border-bottom: 1px solid var(--tool-campaigns-accent);
+    top: 10px;
+    left: 10px;
+    right: 52px;
   }
 
-  .disinfo-map {
-    position: relative;
-    inset: auto;
-    flex: 1 1 auto;
-    min-height: 0;
+  .map-filters-overlay :deep(.filter-options) {
+    max-height: 30vh;
+    overflow-y: auto;
   }
+}
+
+/* Zoom +/- (Mapbox NavigationControl): square, outlined in the tool's own
+   coral like the filter tabs, instead of Mapbox's rounded white pill. The
+   stock icons are background images, swapped for plain mono glyphs. */
+.map-wrapper :deep(.mapboxgl-ctrl-group) {
+  border-radius: 0;
+  box-shadow: none;
+  border: 1px solid var(--tool-campaigns-accent);
+  background: var(--color-surface);
+}
+
+.map-wrapper :deep(.mapboxgl-ctrl-group button) {
+  width: 32px;
+  height: 32px;
+  color: var(--tool-campaigns-accent-deep);
+  font-family: var(--font-mono);
+  font-size: 16pt;
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.map-wrapper :deep(.mapboxgl-ctrl-group button + button) {
+  border-top: 1px solid var(--tool-campaigns-accent);
+}
+
+.map-wrapper :deep(.mapboxgl-ctrl-group button:not(:disabled):hover) {
+  background: var(--tool-campaigns-accent);
+  color: var(--color-on-fill);
+}
+
+.map-wrapper :deep(.mapboxgl-ctrl-group button .mapboxgl-ctrl-icon) {
+  display: none;
+}
+
+.map-wrapper :deep(.mapboxgl-ctrl-zoom-in)::before {
+  content: '+';
+}
+
+.map-wrapper :deep(.mapboxgl-ctrl-zoom-out)::before {
+  content: '\2212';
 }
 
 /* Row, pin then label — label sits to the right of the pin (script's own

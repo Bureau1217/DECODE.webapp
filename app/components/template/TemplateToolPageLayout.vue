@@ -165,6 +165,7 @@ const mobileIndexOpen = useMobileIndexOpen()
   .tool-page-content.scrollable {
     min-height: 0;
     height: auto;
+    overflow-x: hidden;
   }
 
   .tool-page-content:not(.scrollable) {

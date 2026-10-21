@@ -33,10 +33,10 @@ function dismissSplash() {
 <template>
   <ClientOnly>
     <Splash v-if="showSplash" @continue="dismissSplash" />
-    <!-- The keywords panel is rendered globally (app.vue, KeywordsPanel)
-         since it's always visible across routes, not just here — nothing
-         else lives on the home page once the splash is dismissed. -->
-    <main v-else class="visual-placeholder" />
+    <!-- The keywords panel is rendered globally (app.vue, KeywordsPanel);
+         the right half is the splash's grid, countries and a headline at
+         rest (HomeHero). -->
+    <HomeHero v-else />
 
     <template #fallback>
       <div class="loading" />

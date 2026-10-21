@@ -1,4 +1,5 @@
 export default defineNuxtConfig({
+  devtools: false,
   compatibilityDate: '2025-07-15',
   extends: ['../DECODE'],
   // mapbox-gl's own CSS (controls, popups, attribution) — needed by

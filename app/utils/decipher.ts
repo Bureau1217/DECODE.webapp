@@ -353,6 +353,63 @@ export function decipherIn(root: HTMLElement, { grow = true, growMax = 2, reveal
   }
 }
 
+// Turns `from` into `root`'s own (already rendered) text in place, one
+// letter position at a time — Splash.vue's headline cycle, so one
+// headline becomes the next with no empty moment in between. Each
+// position starts on `from`'s letter, flickers through letters of the
+// two texts (never random characters, as everywhere else here) and
+// lands on its own letter at its own moment; positions past the end of
+// the shorter text appear or drop away. Like decipherIn, the text node
+// is swapped for temporary spans and put back afterwards, so Vue's own
+// render stays intact.
+export function decipherFrom(root: HTMLElement, from: string, duration = DURATION): () => void {
+  const node = [...root.childNodes].find((n): n is Text => n.nodeType === Node.TEXT_NODE)
+  const to = node?.nodeValue ?? ''
+  if (!node || to === from || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {}
+
+  const source = [...from]
+  const target = [...to]
+  const pool = [...source, ...target].filter((c) => c.trim())
+  const length = Math.max(source.length, target.length)
+  const charEls = Array.from({ length }, (_, i) => {
+    const c = document.createElement('span')
+    c.textContent = source[i] ?? ''
+    return c
+  })
+  const fixAt = charEls.map(() => 80 + Math.random() * (duration - 140))
+  const fixed = charEls.map(() => false)
+  node.replaceWith(...charEls)
+
+  let restored = false
+  const restore = () => {
+    if (restored) return
+    restored = true
+    charEls[0]!.replaceWith(node)
+    charEls.slice(1).forEach((c) => c.remove())
+  }
+
+  const t0 = performance.now()
+  let timer = setTimeout(function tick() {
+    const t = performance.now() - t0
+    if (t >= duration) return restore()
+    charEls.forEach((c, i) => {
+      if (fixed[i]) return
+      if (fixAt[i]! <= t) {
+        fixed[i] = true
+        c.textContent = target[i] ?? ''
+      } else if (Math.random() < 0.5) {
+        c.textContent = pool[Math.floor(Math.random() * pool.length)] ?? ''
+      }
+    })
+    timer = setTimeout(tick, MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP))
+  }, MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP))
+
+  return () => {
+    clearTimeout(timer)
+    restore()
+  }
+}
+
 // Wraps the first MAX_WORDS words of a CMS rich-text string in
 // .decipher-word spans for the v-decipher directive. Tags pass through;
 // only the text between them is split, on whitespace (entities like

@@ -34,7 +34,9 @@ const categories = computed(() => {
   return [...groups.entries()].map(([name, items]) => ({ name, items }))
 })
 
-const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTooltip<Criterion>()
+// Mobile: tapping a criterion opens its definition inline under the row
+// (same as KeywordsPanel.vue's own), not as a floating tooltip.
+const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = useHoverTooltip<Criterion>()
 </script>
 
 <template>
@@ -62,6 +64,12 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
             @click="tapTooltip(criterion, $event)"
           >
             <span class="tool-fill-in" :style="{ '--fill-delay': `${stackDelay(i) + 0.1}s` }">{{ criterion.interface_label }}</span>
+            <div v-if="isMobile && hovered?.slug === criterion.slug" class="bt-tooltip bt-inline-definition">
+              <p v-if="criterion.why_it_matters">{{ criterion.why_it_matters }}</p>
+              <p v-if="criterion.observable_signal" class="bt-tooltip-signal">
+                Signal observed — {{ criterion.observable_signal }}
+              </p>
+            </div>
           </li>
         </template>
       </ul>
@@ -69,7 +77,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 
     <!-- Classed wrapper inside the slot, not a class on HoverTooltip
          itself — its root is a <Teleport>, which drops a passed class. -->
-    <HoverTooltip v-if="hovered" :pos="tooltipPos" accent="var(--tool-bottroll-accent-deep)">
+    <HoverTooltip v-if="hovered && !isMobile" :pos="tooltipPos" accent="var(--tool-bottroll-accent-deep)">
       <div class="bt-tooltip">
         <strong class="bt-tooltip-title">{{ hovered.interface_label }}</strong>
         <p v-if="hovered.why_it_matters">{{ hovered.why_it_matters }}</p>
@@ -164,5 +172,23 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 
 .bt-tooltip-signal {
   font-style: italic;
+}
+
+/* Mobile (script, tapTooltip): the definition opens inline under the
+   criterion's own label. */
+.bt-inline-definition {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--tool-bottroll-accent-deep);
+  background: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .bt-criterion {
+    flex-wrap: wrap;
+    cursor: pointer;
+  }
 }
 </style>

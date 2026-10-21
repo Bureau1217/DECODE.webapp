@@ -41,12 +41,11 @@ defineProps<{
   display: flex;
 }
 
-/* Edge to edge, not inset 10px each side — Chapitre.png's own mobile
-   mockup draws these rules spanning the full card width, same reasoning
-   as the article template's own cover image. */
+/* Inset 2.5% each side — the same inset as the article template's own
+   mobile cover image (TemplateDefault.vue), so rules and image line up. */
 @media (max-width: 768px) {
   .divider-band-line {
-    margin: 0;
+    margin: 0 2.5%;
   }
 }
 </style>
