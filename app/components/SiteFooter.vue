@@ -33,7 +33,7 @@ function toggleColorMode() {
   <footer
     class="site-footer"
     :class="{ 'is-branded': !showSplash, 'is-tool-themed': isThemed, 'is-intro-hidden': introHidden }"
-    :style="{ '--local-accent': theme?.chromeText }"
+    :style="{ '--local-accent': theme?.chromeText, '--local-chrome': theme?.chromeAccent }"
   >
     <NuxtLink to="/" class="footer-brand">DE.CO.DE</NuxtLink>
     <span class="footer-tagline text-h4">
@@ -62,10 +62,11 @@ function toggleColorMode() {
         class="footer-dark-mode text-h4"
         :class="{ 'is-on': colorMode === 'dark' }"
         :aria-pressed="colorMode === 'dark'"
+        aria-label="Dark mode"
+        title="Dark mode"
         @click="toggleColorMode"
       >
         <span class="footer-dark-mode-dot" aria-hidden="true" />
-        DARK MODE
       </button>
     </div>
   </footer>
@@ -181,20 +182,23 @@ function toggleColorMode() {
   cursor: pointer;
 }
 
-/* 1em = the button's own font-size (.text-h4, inherited) — scales with
-   the text instead of a fixed px guess. */
+/* No label: a circle split on its diagonal, half white, half brown (the
+   two themes) — a tool's own color instead of the brown on its page.
+   Toggling turns it half a turn, bringing the other half to the
+   top-left. 1.2em = scales with the footer's text. */
 .footer-dark-mode-dot {
-  width: 1em;
-  height: 1em;
+  --dot-dark: var(--local-chrome, var(--color-brand));
+  width: 1.2em;
+  height: 1.2em;
+  box-sizing: border-box;
   border-radius: 50%;
   border: 1px solid currentColor;
-  transition: background-color 0.15s ease;
+  background: linear-gradient(135deg, #fff 50%, var(--dot-dark) 50%);
+  transition: transform 0.5s cubic-bezier(0.3, 0, 0.15, 1);
 }
 
-/* Filled dot while dark mode is on — same on/off language as
-   SiteIndexBar's own INDEX/VISUAL radio dots. */
 .footer-dark-mode.is-on .footer-dark-mode-dot {
-  background-color: currentColor;
+  transform: rotate(180deg);
 }
 
 /* Moved to the top ticker (SiteNav.vue's own mobile row) — keeping both

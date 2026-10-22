@@ -31,9 +31,18 @@ const TOOL_THEMES: ToolTheme[] = [
   { path: '/tools/source-reliability-plugin', chromeAccent: 'var(--tool-sourcerel-chrome)', chromeText: 'var(--tool-sourcerel-text)' },
 ]
 
+// The page a search was started from (SiteIndexBar, its full path):
+// search results opened from a tool keep that tool's colors, and closing
+// the search goes back there.
+export const useSearchOrigin = () => useState<string | null>('search-origin', () => null)
+
 export function useToolTheme() {
   const route = useRoute()
-  const theme = computed(() => TOOL_THEMES.find((t) => t.path === route.path) ?? null)
+  const searchOrigin = useSearchOrigin()
+  const theme = computed(() => {
+    const path = route.path === '/search' ? searchOrigin.value?.split(/[?#]/)[0] : route.path
+    return TOOL_THEMES.find((t) => t.path === path) ?? null
+  })
 
   return {
     theme,

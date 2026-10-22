@@ -13,20 +13,35 @@ if (!showSplash.value) splashIntro.value = 'done'
 
 onUnmounted(() => {
   // Leaving '/' entirely (e.g. typing another URL) shouldn't leave the nav
-  // hidden elsewhere.
+  // hidden elsewhere. Also what drops the splash on its way to /guide
+  // (dismissSplash): this only runs once that page is ready to swap in.
   showSplash.value = false
 })
 
-// Set before the splash goes, so SiteNav/SiteIndexBar/KeywordsPanel
-// already see it when they mount, and play their draw-in once.
+// The splash hands over straight to the Investigation Guide, not to this
+// page's own HomeHero. Its page chunk loads while the splash is up.
+onMounted(() => {
+  if (showSplash.value) preloadRouteComponents('/guide')
+})
+
+// Set before the splash goes, so SiteNav/SiteIndexBar/KeywordsPanel and
+// the guide grid already see it when they mount, and play their draw-in
+// once.
 const introTransition = useIntroTransition()
 const INTRO_MS = 2800
+const nuxtApp = useNuxtApp()
 
 function dismissSplash() {
   splashDismissed.value = true
   introTransition.value = true
-  showSplash.value = false
-  setTimeout(() => { introTransition.value = false }, INTRO_MS)
+  // The splash holds its outro's last frame until /guide has its data, so
+  // the chrome and the guide grid draw in together in one frame, with
+  // no HomeHero flashing in between.
+  const off = nuxtApp.hook('page:finish', () => {
+    off()
+    setTimeout(() => { introTransition.value = false }, INTRO_MS)
+  })
+  navigateTo('/guide')
 }
 </script>
 

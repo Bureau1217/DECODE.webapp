@@ -117,6 +117,13 @@ onUnmounted(() => {
       >
         <path :d="tabPath" stroke-linejoin="round" />
       </svg>
+      <!-- Splash -> guide: the tab the visitor lands on fills up from its
+           baseline once the row has warmed to brown (see the CSS). -->
+      <div v-if="introTransition && isActive(link.to) && tabPath" class="nav-tab-fill" aria-hidden="true">
+        <svg :viewBox="`0 0 ${tabWidth} ${tabHeight}`" :width="tabWidth" :height="tabHeight" preserveAspectRatio="none">
+          <path :d="tabPath" stroke-linejoin="round" />
+        </svg>
+      </div>
       <NuxtLink :to="link.to" class="nav-tab">
         <DecipherText v-if="introTransition" :text="link.label" :delay="labelDelay(index)" grow />
         <template v-else>{{ link.label }}</template>
@@ -352,6 +359,69 @@ onUnmounted(() => {
 @keyframes nav-tab-warm {
   from {
     stroke: var(--color-ink);
+  }
+}
+
+/* The landing tab (template): its own outline stays unfilled during the
+   intro, and a filled copy above it rises out of the baseline, clipped
+   from the bottom up. Its label goes ink -> brown with the rest of the
+   row, then white as the fill passes under it. */
+.site-nav.is-intro .nav-tab-wrap.active .nav-tab-shape path {
+  fill: var(--color-surface);
+}
+
+.nav-tab-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  animation: nav-tab-fill-rise 0.7s cubic-bezier(0.5, 0, 0.2, 1) 1.1s both;
+}
+
+.nav-tab-fill svg {
+  display: block;
+  overflow: visible;
+}
+
+.nav-tab-fill path {
+  fill: var(--color-chrome);
+  stroke: var(--color-chrome);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+@keyframes nav-tab-fill-rise {
+  from {
+    clip-path: inset(100% -4px -4px -4px);
+  }
+
+  to {
+    clip-path: inset(-4px -4px -4px -4px);
+  }
+}
+
+.site-nav.is-intro .nav-tab-wrap.active .nav-tab {
+  animation: nav-tab-label-land 1.6s ease-in-out 0.2s both;
+}
+
+@keyframes nav-tab-label-land {
+  0% {
+    color: var(--color-ink);
+  }
+
+  55% {
+    color: var(--color-brand);
+  }
+
+  80%,
+  100% {
+    color: var(--color-on-fill);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-tab-fill {
+    animation: none;
   }
 }
 

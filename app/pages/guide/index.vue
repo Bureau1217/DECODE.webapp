@@ -28,6 +28,11 @@ const highlighted = useHighlightedKeywords()
 onUnmounted(() => {
   highlighted.value = null
 })
+
+// Arriving from the splash (useIntroTransition): the 4 cards open out of
+// the grid's centre, where the white cross meets, each from its own
+// inner corner, then their image settles and their text comes up.
+const introTransition = useIntroTransition()
 </script>
 
 <template>
@@ -38,7 +43,7 @@ onUnmounted(() => {
        guarantees the vertical one lands exactly on the grid's own
        horizontal center and the horizontal one spans only this grid's own
        width, never the keywords panel beside it. -->
-  <article class="guide-grid">
+  <article class="guide-grid" :class="{ 'is-intro': introTransition }">
     <GuideCard
       v-for="(item, index) in articles?.slice(0, 4)"
       :key="item.id"
@@ -63,6 +68,84 @@ onUnmounted(() => {
      with no way to scroll it into view, unlike the keywords panel beside
      it, which actually can scroll behind the footer by design. */
   height: calc(100vh - 8.5vh - var(--footer-height));
+}
+
+/* Splash -> guide (script). The cross itself is the grid's background
+   showing through its gap, so it's there from the first frame, and each
+   card opens out of it. Ends well inside useIntroTransition's 2.8s, after
+   which the class goes and the cards are just themselves. */
+.guide-grid.is-intro :deep(.guide-card) {
+  animation: guide-card-open 0.9s cubic-bezier(0.3, 0, 0.15, 1) both;
+}
+
+.guide-grid.is-intro :deep(.guide-card:nth-child(1)) {
+  --card-from: inset(100% 0 0 100%);
+  animation-delay: 0.45s;
+}
+
+.guide-grid.is-intro :deep(.guide-card:nth-child(2)) {
+  --card-from: inset(100% 100% 0 0);
+  animation-delay: 0.55s;
+}
+
+.guide-grid.is-intro :deep(.guide-card:nth-child(3)) {
+  --card-from: inset(0 0 100% 100%);
+  animation-delay: 0.65s;
+}
+
+.guide-grid.is-intro :deep(.guide-card:nth-child(4)) {
+  --card-from: inset(0 100% 100% 0);
+  animation-delay: 0.75s;
+}
+
+@keyframes guide-card-open {
+  from {
+    clip-path: var(--card-from);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.guide-grid.is-intro :deep(.guide-card-image-wrap img) {
+  animation: guide-card-image-settle 1.4s cubic-bezier(0.2, 0.6, 0.3, 1) 0.6s both;
+}
+
+@keyframes guide-card-image-settle {
+  from {
+    transform: scale(1.12);
+    opacity: 0;
+  }
+}
+
+.guide-grid.is-intro :deep(.guide-card-title),
+.guide-grid.is-intro :deep(.guide-card-subtitle) {
+  animation: guide-card-text-up 0.7s cubic-bezier(0.2, 0.6, 0.3, 1) both;
+}
+
+.guide-grid.is-intro :deep(.guide-card-title) {
+  animation-delay: 1.1s;
+}
+
+.guide-grid.is-intro :deep(.guide-card-subtitle) {
+  animation-delay: 1.25s;
+}
+
+@keyframes guide-card-text-up {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-grid.is-intro :deep(.guide-card),
+  .guide-grid.is-intro :deep(.guide-card-image-wrap img),
+  .guide-grid.is-intro :deep(.guide-card-title),
+  .guide-grid.is-intro :deep(.guide-card-subtitle) {
+    animation: none;
+  }
 }
 
 /* Stacked vertically (one full-width card per row, scrolling down), not

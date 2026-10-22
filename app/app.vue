@@ -15,7 +15,7 @@ useHead({ htmlAttrs: { 'data-theme': colorMode } })
 // detail page (DetailPanelChrome.vue) should show it too, half-viewport
 // same as the lists.
 const route = useRoute()
-const KEYWORDS_PANEL_EXACT_ROUTES = ['/', '/tools', '/about']
+const KEYWORDS_PANEL_EXACT_ROUTES = ['/', '/tools', '/about', '/search']
 const KEYWORDS_PANEL_PREFIX_ROUTES = ['/guide', '/resources']
 const showKeywordsPanel = computed(() => {
   if (showSplash.value) return false

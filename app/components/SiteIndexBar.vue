@@ -31,14 +31,45 @@ const route = useRoute()
 const isResourcesPage = computed(() => route.path === '/resources')
 const isAboutPage = computed(() => route.path === '/about')
 const isHomePage = computed(() => route.path === '/')
+const isSearchPage = computed(() => route.path === '/search')
 // A custom tool page reskins this bar in its own accent instead of
 // brown — each tool page gets its own exit button (TemplateToolPageLayout.
 // vue, top-right corner) rather than this bar.
 const { theme, isThemed } = useToolTheme()
-// No tool has a "visual" layout to switch to (unlike guide/resources'
-// card grids) — across /tools and its sub-pages the toggle stays in
-// place but grayed out and disabled, rather than vanishing from the bar.
-const isToolsSection = computed(() => route.path.startsWith('/tools'))
+// A tool's own page has no keywords panel to show visually — there the
+// toggle stays in place but grayed out and disabled, rather than
+// vanishing from the bar. The /tools list itself keeps it.
+const isToolsSection = computed(() => route.path.startsWith('/tools/'))
+// The Investigation Guide in dark mode: the middle rule in the same brown
+// as this bar's own divider, instead of vanishing into the dark page.
+const isGuidePage = computed(() => route.path === '/guide' || route.path.startsWith('/guide/'))
+
+// SEARCH opens into a field (an underline to type on, a cross to close);
+// Enter shows the results in the right half (pages/search.vue).
+const searchOpen = ref(route.path === '/search')
+const searchQuery = ref(String(route.query.q ?? ''))
+const searchInput = ref<HTMLInputElement | null>(null)
+async function openSearch() {
+  searchOpen.value = true
+  await nextTick()
+  searchInput.value?.focus()
+}
+const searchOrigin = useSearchOrigin()
+function submitSearch() {
+  const q = searchQuery.value.trim()
+  if (!q) return
+  if (route.path !== '/search') searchOrigin.value = route.fullPath
+  navigateTo({ path: '/search', query: { q } })
+}
+// Closing from the results goes back to the page the search started on
+// (however many searches were run since), or the guide if it started on
+// /search itself (a shared link).
+function closeSearch() {
+  searchOpen.value = false
+  searchQuery.value = ''
+  if (route.path !== '/search') return
+  navigateTo(searchOrigin.value ?? '/guide')
+}
 // Splash -> home draw-in: as SiteNav's tabs rise out of the splash's
 // baseline, the bar fills in brown from left to right underneath.
 const introTransition = useIntroTransition()
@@ -72,13 +103,29 @@ const introTransition = useIntroTransition()
       </button>
     </div>
 
-    <!-- Anchored to the bar's own center, then pulled further left of it —
-         not simply centered (desktop only — below 768px this becomes the
-         index bar's own second half, see the media query below). -->
-    <button type="button" class="index-bar-item index-bar-search" :class="{ 'reading-mode': readingMode }">
-      <span class="index-bar-dot" aria-hidden="true" />
-      Search
-    </button>
+    <!-- Just right of the middle divider, on the content side (desktop
+         only — below 768px this becomes the index bar's own second half,
+         see the media query below). -->
+    <div class="index-bar-search" :class="{ 'reading-mode': readingMode, 'is-open': searchOpen }">
+      <button v-if="!searchOpen" type="button" class="index-bar-item" @click="openSearch">
+        <span class="index-bar-dot" aria-hidden="true" />
+        Search
+      </button>
+      <form v-else class="index-bar-search-form" role="search" @submit.prevent="submitSearch">
+        <input
+          ref="searchInput"
+          v-model="searchQuery"
+          class="index-bar-search-input"
+          type="search"
+          enterkeyhint="search"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Search"
+          @keydown.esc="closeSearch"
+        >
+        <button type="button" class="index-bar-search-close" aria-label="Close search" @click="closeSearch" />
+      </form>
+    </div>
 
     <button
       type="button"
@@ -106,7 +153,8 @@ const introTransition = useIntroTransition()
   />
   <div
     class="content-divider"
-    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'reading-mode': readingMode}"
+    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'is-guide': isGuidePage, 'is-search': isSearchPage, 'is-tool-themed': isThemed, 'reading-mode': readingMode}"
+    :style="{ '--local-accent-text': theme?.chromeText }"
     aria-hidden="true"
   />
 </template>
@@ -178,12 +226,14 @@ const introTransition = useIntroTransition()
   cursor: default;
 }
 
-/* Centered on the bar, then pulled left of that center point — not just
-   centered. */
+/* Just right of the middle divider, at the start of the content side. */
 .index-bar-search {
   position: absolute;
-  left: 50%;
-  transform: translateX(-130%);
+  left: calc(50% + 14px);
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
   transition: left 0.5s ease;
 }
 
@@ -191,7 +241,75 @@ const introTransition = useIntroTransition()
    own divider follow its new edge (also the end of the first nav tab),
    in step with the panel's own 0.5s width transition. */
 .index-bar-search.reading-mode {
-  left: 25%;
+  left: calc(25% + 14px);
+}
+
+.index-bar-search-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(320px, 24vw);
+  animation: index-bar-search-open 0.35s cubic-bezier(0.2, 0.6, 0.3, 1) both;
+}
+
+@keyframes index-bar-search-open {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* Just a line to type on. */
+.index-bar-search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--color-on-fill);
+  border-radius: 0;
+  padding: 0 0 1px;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 12pt;
+  letter-spacing: 0.03em;
+  color: var(--color-on-fill);
+  caret-color: var(--color-on-fill);
+}
+
+.index-bar-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.index-bar-search-close {
+  position: relative;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.index-bar-search-close::before,
+.index-bar-search-close::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: var(--color-on-fill);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.index-bar-search-close::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
 }
 
 /* Sized off the item's own font (1em = that font-size), so it scales
@@ -266,6 +384,20 @@ const introTransition = useIntroTransition()
   background: var(--color-brand);
 }
 
+:root[data-theme='dark'] .content-divider.is-guide {
+  background: var(--color-chrome-divider);
+}
+
+/* Search results: brown between the keywords and the results — the
+   tool's own color when the search was started on a tool. */
+.content-divider.is-search {
+  background: var(--color-brand);
+}
+
+.content-divider.is-search.is-tool-themed {
+  background: var(--local-accent-text);
+}
+
 /* Below 768px: just INDEX | SEARCH, each half the bar (mirrors
    .index-bar-divider above, which already sits at the viewport's own
    center — no change needed there). Visual has nothing to switch to on
@@ -309,10 +441,14 @@ const introTransition = useIntroTransition()
 
   .index-bar-search {
     position: static;
-    transform: none;
     width: 100%;
     justify-content: flex-end;
-    padding-right: 12px;
+    padding: 0 12px;
+    box-sizing: border-box;
+  }
+
+  .index-bar-search-form {
+    width: 100%;
   }
 
   .content-divider {
