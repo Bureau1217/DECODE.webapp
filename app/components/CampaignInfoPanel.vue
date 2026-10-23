@@ -11,12 +11,11 @@ import type { CampaignWithReceivers } from '~/types/campaign'
 
 const props = defineProps<{
   campaign: CampaignWithReceivers | null
-  tool?: { title: string, description?: string } | null
+  tool?: { title: string, description?: string, credits?: string } | null
+  // Entrance state (TemplateToolPageLayout.vue): the campaign fields, all
+  // "-", while the cover beside it introduces the tool.
+  empty?: boolean
 }>()
-
-// Placeholder until the project team confirms the actual names — asked
-// to invent something for now rather than leave the credit line blank.
-const CREDIT_NAMES = 'Léa Dubois, Hugo Martin & Chloé Rousseau'
 
 // Same reading-mode shrink as KeywordsPanel.vue/TeamPanel.vue (50vw ->
 // 25vw) — kept in sync with TemplateCampaignsMap.vue's own
@@ -48,69 +47,71 @@ const display = computed(() => {
     <!-- No campaign selected (first arrival, or after deselecting) — the
          tool's own name/description instead of an all-dash field grid,
          same h3-category + li-row shell as the campaign detail below. -->
-    <template v-if="!campaign">
-      <h3>About this tool</h3>
+    <template v-if="!campaign && !empty">
+      <h3 class="text-label">About this tool</h3>
       <ul>
         <li class="campaign-panel-tool-title-row">{{ tool?.title ?? 'Campaigns Maps' }}</li>
       </ul>
 
       <template v-if="tool?.description">
-        <h3>Description</h3>
+        <h3 class="text-label">Description</h3>
         <ul>
           <!-- eslint-disable-next-line vue/no-v-html -->
           <li class="campaign-panel-description-row" v-html="tool.description" />
         </ul>
       </template>
 
-      <h3>Idea by</h3>
-      <ul>
-        <li>{{ CREDIT_NAMES }}</li>
-      </ul>
+      <template v-if="tool?.credits">
+        <h3 class="text-label">Idea by</h3>
+        <ul>
+          <li>{{ tool.credits }}</li>
+        </ul>
+      </template>
     </template>
 
     <template v-else>
-    <h3>Campaign name</h3>
+    <h3 class="text-label">Campaign name</h3>
     <ul>
-      <li class="campaign-panel-title-row">{{ display.title }}</li>
+      <li class="campaign-panel-title-row text-h2">{{ display.title }}</li>
     </ul>
 
-    <h3>Emitter</h3>
+    <h3 class="text-label">Emitter</h3>
     <ul>
       <li>{{ display.emitter }}</li>
     </ul>
 
-    <h3>Actor</h3>
+    <h3 class="text-label">Actor</h3>
     <ul>
       <li>{{ display.actor }}</li>
     </ul>
 
-    <h3>Period</h3>
+    <h3 class="text-label">Period</h3>
     <ul>
       <li>{{ display.period }}</li>
     </ul>
 
-    <h3>Platform</h3>
+    <h3 class="text-label">Platform</h3>
     <ul>
       <li v-for="(platform, i) in display.platforms" :key="i">{{ platform }}</li>
     </ul>
 
-    <h3>Target audience</h3>
+    <h3 class="text-label">Target audience</h3>
     <ul>
       <li v-for="(audience, i) in display.audiences" :key="i">{{ audience }}</li>
     </ul>
 
-    <h3>Analysis</h3>
+    <h3 class="text-label">Analysis</h3>
     <ul>
       <!-- eslint-disable-next-line vue/no-v-html -->
       <li class="campaign-panel-analysis-row" v-html="display.analysis" />
     </ul>
 
-    <h3>Strategies</h3>
+    <h3 class="text-label">Strategies</h3>
     <ul>
       <li v-for="(strategy, i) in display.strategies" :key="i">{{ strategy }}</li>
     </ul>
 
-    <h3>Sources</h3>
+    <h3 class="text-label">Sources</h3>
     <ul>
       <li v-for="(source, i) in display.sources" :key="i">
         <a v-if="source !== '-'" :href="source" target="_blank" rel="noopener">{{ source }}</a>
@@ -134,10 +135,6 @@ const display = computed(() => {
   padding-left: 10px;
   background: var(--tool-campaigns-accent);
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 12pt;
-  text-transform: uppercase;
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border);
@@ -163,10 +160,7 @@ const display = computed(() => {
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  font-family: var(--font-mono);
-  font-size: 11pt;
   color: var(--color-ink);
-  line-height: 1.3;
   transition: background-color 0.15s ease;
 }
 
@@ -181,16 +175,10 @@ const display = computed(() => {
 .campaign-panel li.campaign-panel-title-row {
   padding: 16px 10px;
   color: var(--color-ink);
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: 28pt;
-  line-height: 1.25;
 }
 
 .campaign-panel li.campaign-panel-analysis-row {
   padding: 14px 10px;
-  font-family: var(--font-mono);
-  font-size: 12pt;
   line-height: 1.5;
 }
 
@@ -204,10 +192,6 @@ const display = computed(() => {
 .campaign-panel li.campaign-panel-tool-title-row {
   padding: 16px 10px;
   color: var(--color-ink);
-  font-family: var(--font-mono);
-  font-weight: 400;
-  font-size: 12pt;
-  line-height: 1.25;
 }
 
 /* Tool description (intro state only) — no extra vertical padding beyond
@@ -216,8 +200,6 @@ const display = computed(() => {
 .campaign-panel li.campaign-panel-description-row {
   padding: 4px 10px;
   align-items: flex-start;
-  font-family: var(--font-mono);
-  font-size: 12pt;
   line-height: 1.5;
 }
 

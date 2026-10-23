@@ -14,7 +14,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="detail-body" :style="{ color }">
+  <div class="detail-body text-body" :style="{ color }">
     <slot />
   </div>
 </template>
@@ -22,9 +22,6 @@ defineProps<{
 <style scoped>
 .detail-body {
   padding: 40px 10% 0;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 26px;
-  line-height: 1.4;
 }
 
 .detail-body :deep(p) {

@@ -43,12 +43,12 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
   <InfoPanel class="bt-panel" :reading-mode="readingMode">
 
     <template v-for="category in categories" :key="category.name">
-      <h3 class="bt-category">{{ category.name }}</h3>
+      <h3 class="bt-category text-label">{{ category.name }}</h3>
       <ul>
         <!-- Entrance state: one "-" row per category. -->
         <li v-if="empty" class="bt-criterion">-</li>
         <!-- After Start the category's criteria stack up under its first
-             one (which takes the "-" row's place), each label fading in. -->
+             one (which takes the "-" row's place); the layout deciphers them. -->
         <template v-else>
           <li
             v-for="(criterion, i) in category.items"
@@ -63,8 +63,8 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
             @blur="hideTooltip"
             @click="tapTooltip(criterion, $event)"
           >
-            <span class="tool-fill-in" :style="{ '--fill-delay': `${stackDelay(i) + 0.1}s` }">{{ criterion.interface_label }}</span>
-            <div v-if="isMobile && hovered?.slug === criterion.slug" class="bt-tooltip bt-inline-definition">
+            <span>{{ criterion.interface_label }}</span>
+            <div v-if="isMobile && hovered?.slug === criterion.slug" class="bt-tooltip bt-inline-definition text-note">
               <p v-if="criterion.why_it_matters">{{ criterion.why_it_matters }}</p>
               <p v-if="criterion.observable_signal" class="bt-tooltip-signal">
                 Signal observed — {{ criterion.observable_signal }}
@@ -78,7 +78,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
     <!-- Classed wrapper inside the slot, not a class on HoverTooltip
          itself — its root is a <Teleport>, which drops a passed class. -->
     <HoverTooltip v-if="hovered && !isMobile" :pos="tooltipPos" accent="var(--tool-bottroll-accent-deep)">
-      <div class="bt-tooltip">
+      <div class="bt-tooltip text-note">
         <strong class="bt-tooltip-title">{{ hovered.interface_label }}</strong>
         <p v-if="hovered.why_it_matters">{{ hovered.why_it_matters }}</p>
         <p v-if="hovered.observable_signal" class="bt-tooltip-signal">
@@ -100,11 +100,6 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
   padding-left: 10px;
   background: var(--tool-bottroll-band);
   color: var(--color-ink);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 10pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border);
@@ -126,10 +121,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  font-family: var(--font-mono);
-  font-size: 10pt;
   color: var(--color-ink);
-  line-height: 1.3;
   cursor: default;
   outline: none;
   transition: background-color 0.15s ease;
@@ -147,22 +139,17 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
    text-safe teal (--tool-bottroll-signal, 4.9:1 on white). */
 .bt-tooltip {
   color: var(--tool-bottroll-signal);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .bt-tooltip-title {
   display: block;
   margin-bottom: 4px;
-  font-size: 12pt;
   font-weight: 700;
-  text-transform: none;
   white-space: normal;
 }
 
 .bt-tooltip p {
   margin: 0 0 8px;
-  font-size: 12pt;
-  line-height: 1.4;
   white-space: normal;
 }
 

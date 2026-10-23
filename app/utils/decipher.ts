@@ -310,14 +310,17 @@ export function decipherIn(root: HTMLElement, { grow = true, growMax = 2, reveal
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   const nodes: Text[] = []
   while (walker.nextNode()) nodes.push(walker.currentNode as Text)
-  const swaps: { original: Text, inserted: Node[] }[] = []
+  const swaps: { original: Text, wrapper: HTMLElement }[] = []
   for (const node of nodes) {
     if (!node.nodeValue?.trim()) continue
-    const inserted: Node[] = []
+    // One inline wrapper per text node: in a flex/grid parent, loose word
+    // spans would each become their own item and the spaces between
+    // them would collapse.
+    const wrapper = document.createElement('span')
     for (const part of node.nodeValue.split(/(\s+)/)) {
       if (!part) continue
       if (/^\s+$/.test(part)) {
-        inserted.push(document.createTextNode(part))
+        wrapper.append(document.createTextNode(part))
         continue
       }
       const word = document.createElement('span')
@@ -329,10 +332,10 @@ export function decipherIn(root: HTMLElement, { grow = true, growMax = 2, reveal
         c.textContent = char
         word.append(c)
       }
-      inserted.push(word)
+      wrapper.append(word)
     }
-    node.replaceWith(...inserted)
-    swaps.push({ original: node, inserted })
+    node.replaceWith(wrapper)
+    swaps.push({ original: node, wrapper })
   }
 
   const stop = decipher(root, { grow, growMax, reveal })
@@ -340,10 +343,7 @@ export function decipherIn(root: HTMLElement, { grow = true, growMax = 2, reveal
   const restore = () => {
     if (restored) return
     restored = true
-    for (const { original, inserted } of swaps) {
-      inserted[0]?.parentNode?.replaceChild(original, inserted[0])
-      inserted.slice(1).forEach((n) => n.parentNode?.removeChild(n))
-    }
+    for (const { original, wrapper } of swaps) wrapper.replaceWith(original)
   }
   const timer = setTimeout(restore, DURATION + 120)
   return () => {
@@ -378,14 +378,17 @@ export function decipherFrom(root: HTMLElement, from: string, duration = DURATIO
   })
   const fixAt = charEls.map(() => 80 + Math.random() * (duration - 140))
   const fixed = charEls.map(() => false)
-  node.replaceWith(...charEls)
+  // One inline wrapper (see decipherIn): in a flex parent, loose letter
+  // spans would each become an item and lose their spaces.
+  const wrapper = document.createElement('span')
+  wrapper.append(...charEls)
+  node.replaceWith(wrapper)
 
   let restored = false
   const restore = () => {
     if (restored) return
     restored = true
-    charEls[0]!.replaceWith(node)
-    charEls.slice(1).forEach((c) => c.remove())
+    wrapper.replaceWith(node)
   }
 
   const t0 = performance.now()

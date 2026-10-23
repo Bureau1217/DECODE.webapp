@@ -13,9 +13,9 @@ defineProps<{
 <template>
   <article>
     <img v-if="page.image" :src="page.image.url" :alt="page.image.alt || page.title">
-    <h1>{{ page.title }}</h1>
+    <h1 class="text-h1">{{ page.title }}</h1>
     <!-- eslint-disable-next-line vue/no-v-html -->
-    <div v-if="page.description" v-html="page.description" />
+    <div v-if="page.description" class="text-note" v-html="page.description" />
     <a v-if="page.url" :href="page.url" target="_blank" rel="noopener">{{ page.url }}</a>
   </article>
 </template>

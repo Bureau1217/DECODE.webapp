@@ -61,7 +61,7 @@ onBeforeUnmount(() => {
 <template>
   <InfoPanel class="team-panel" :reading-mode="readingMode">
     <template v-for="(team, ti) in teams" :key="team.title">
-      <h3><DecipherText :text="team.title" :from="panelMorph.fromAt(textOrder[ti]![0]!)" /></h3>
+      <h3 class="text-label"><DecipherText :text="team.title" :from="panelMorph.fromAt(textOrder[ti]![0]!)" /></h3>
       <ul>
         <li
           v-for="(member, mi) in team.members"
@@ -71,11 +71,11 @@ onBeforeUnmount(() => {
           @click="onRowTap(`${ti}-${mi}`)"
         >
           <span class="team-panel-member"><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
-          <div v-if="hoveredMember === `${ti}-${mi}`" class="team-panel-popup">
+          <div v-if="hoveredMember === `${ti}-${mi}`" class="team-panel-popup text-note">
             <img v-if="member.picture" :src="member.picture" :alt="member.name" class="team-panel-popup-picture">
             <div class="team-panel-popup-text">
               <div class="team-panel-popup-title">{{ member.name }}</div>
-              <div class="team-panel-popup-position">{{ member.position || team.title }}</div>
+              <div class="team-panel-popup-position text-small">{{ member.position || team.title }}</div>
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div v-if="member.bio" class="team-panel-popup-bio" v-html="member.bio" />
             </div>
@@ -83,6 +83,17 @@ onBeforeUnmount(() => {
         </li>
       </ul>
     </template>
+    <!-- Under the last team (Design & development): the centre's logo,
+         grayed out until hovered, centred in whatever room is left down
+         to the footer. -->
+    <div class="team-panel-partner">
+      <!-- Arrives after the teams: the label deciphers once their names
+           have mostly settled, then the logo rises in under it. -->
+      <p class="team-panel-partner-label text-small"><DecipherText text="A project by" :delay="700" /></p>
+      <a href="https://www.graduateinstitute.ch/democracy" target="_blank" rel="noopener">
+        <img src="/logos/ahcd.png" alt="Albert Hirschman Centre on Democracy" class="no-duotone">
+      </a>
+    </div>
   </InfoPanel>
 </template>
 
@@ -97,10 +108,6 @@ onBeforeUnmount(() => {
   padding-left: 10px;
   background: var(--color-brand-resources);
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 12pt;
-  text-transform: uppercase;
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border-strong);
@@ -133,9 +140,6 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   width: 100%;
   padding: 4px 10px;
-  line-height: 1.3;
-  font-family: var(--font-mono);
-  font-size: 11pt;
   color: var(--color-ink);
   cursor: default;
 }
@@ -158,7 +162,6 @@ onBeforeUnmount(() => {
   border: 1px solid var(--color-brand);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   color: var(--color-brand);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .team-panel-popup-picture {
@@ -173,25 +176,96 @@ onBeforeUnmount(() => {
 }
 
 .team-panel-popup-title {
-  font-size: 12pt;
   font-weight: 700;
 }
 
 .team-panel-popup-position {
   margin-top: 2px;
-  font-family: var(--font-mono);
-  font-size: 9pt;
-  text-transform: uppercase;
 }
 
 .team-panel-popup-bio {
   margin-top: 6px;
-  font-size: 12pt;
-  line-height: 1.4;
 }
 
 .team-panel-popup-bio :deep(p) {
   margin: 0;
+}
+
+/* The panel stacks as a column so the logo block can take the space
+   left under the last team and centre itself in it. */
+.team-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.team-panel h3,
+.team-panel ul {
+  flex-shrink: 0;
+}
+
+.team-panel-partner {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 10px;
+}
+
+/* At rest the label and logo share the panels' hover brown; hovering
+   the logo shows it as it is, the label in black with it. */
+.team-panel-partner-label {
+  margin: 0;
+  color: var(--color-brand-resources);
+  transition: color 0.2s ease;
+}
+
+.team-panel-partner a {
+  display: flex;
+  justify-content: center;
+  width: min(180px, 40%);
+}
+
+.team-panel-partner img {
+  width: 100%;
+  height: auto;
+  filter: url(#logo-brown);
+  transition: filter 0.2s ease;
+  animation: team-panel-partner-in 0.7s cubic-bezier(0.2, 0.6, 0.3, 1) 1.1s backwards;
+}
+
+@keyframes team-panel-partner-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.team-panel-partner a:hover img,
+.team-panel-partner a:focus-visible img {
+  filter: none;
+}
+
+.team-panel-partner:has(a:hover, a:focus-visible) .team-panel-partner-label {
+  color: #000;
+}
+
+/* Dark page: the logo shows inverted (light) when hovered, the label
+   in the page's own ink. */
+:root[data-theme='dark'] .team-panel-partner a:hover img,
+:root[data-theme='dark'] .team-panel-partner a:focus-visible img {
+  filter: invert(1);
+}
+
+:root[data-theme='dark'] .team-panel-partner:has(a:hover, a:focus-visible) .team-panel-partner-label {
+  color: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-panel-partner img {
+    animation: none;
+  }
 }
 
 /* Mobile (script, onRowTap): opens inline under the name instead of

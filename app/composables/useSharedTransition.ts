@@ -138,3 +138,46 @@ export function useDetailTransition(id: () => string, closeTo: string, bodySelec
     style: (part: SharedPart) => sharedStyle(id(), part),
   }
 }
+
+// Tool page -> /tools (TemplateToolPageLayout.vue's exit cross): the same
+// close as a detail page's — its text scrambles away, then the tool's
+// content column shrinks back into its own card (ToolCard.vue), the two
+// sharing one cropped, never-stretched morph. The slug of the tool
+// closing, meanwhile.
+export const useToolClosing = () => useState<string | null>('tool-closing', () => null)
+
+export function toolCardStyle(slug: string) {
+  return sharedStyle(`tool-${slug}`, 'image')
+}
+
+export function useToolCloseTransition(slug: () => string, textRoot: () => HTMLElement | null | undefined) {
+  const toolClosing = useToolClosing()
+  const start = usePageViewTransition()
+  const closing = ref(false)
+  const TEXT_OUT_MS = 600
+  const MORPH_AT = 650
+
+  function close(event: MouseEvent) {
+    if (!canViewTransition() || event.metaKey || event.ctrlKey || closing.value) return
+    event.preventDefault()
+    closing.value = true
+    // Every text on screen, not just a body: a tool page is all panels.
+    const root = textRoot()
+    const leaves = [...root?.querySelectorAll<HTMLElement>('*') ?? []].filter((el) =>
+      [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.nodeValue?.trim())
+      && el.getBoundingClientRect().top < window.innerHeight)
+    for (const el of leaves.slice(0, 200)) scrambleOut(el, TEXT_OUT_MS)
+    setTimeout(() => {
+      toolClosing.value = slug()
+      nextTick(() => {
+        start(() => navigateTo('/tools')).finished.finally(() => { toolClosing.value = null })
+      })
+    }, MORPH_AT)
+  }
+
+  return {
+    close,
+    // The content column's share of the morph, once it's closing.
+    style: computed(() => (toolClosing.value === slug() ? toolCardStyle(slug()) : undefined)),
+  }
+}

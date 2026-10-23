@@ -40,7 +40,7 @@ const readingMode = useReadingMode()
       <SourceDatabasePanel :sources="props.page.sources" :empty="empty" />
     </template>
     <template #content>
-      <SourcePluginInfoPanel :url="props.page.url" />
+      <SourcePluginInfoPanel :title="props.page.title" :url="props.page.url" />
     </template>
   </TemplateToolPageLayout>
 </template>

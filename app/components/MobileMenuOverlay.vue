@@ -157,8 +157,8 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
           <ol v-if="folder.rows.length" class="mobile-menu-rows">
             <li v-for="(row, i) in folder.rows" :key="row.key">
               <NuxtLink :to="row.to" class="mobile-menu-row" @click="close">
-                <span class="mobile-menu-row-number" :class="{ 'has-chip': row.chip }" :style="row.chip ? { backgroundColor: row.chip } : undefined">{{ i + 1 }}</span>
-                <span class="mobile-menu-row-title">{{ row.title }}</span>
+                <span class="mobile-menu-row-number text-h3" :class="{ 'has-chip': row.chip }" :style="row.chip ? { backgroundColor: row.chip } : undefined">{{ i + 1 }}</span>
+                <span class="mobile-menu-row-title text-h3">{{ row.title }}</span>
               </NuxtLink>
             </li>
           </ol>
@@ -278,8 +278,6 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   flex-shrink: 0;
   width: 1.2em;
   color: var(--folder-text);
-  font-family: var(--font-serif);
-  font-size: 20px;
 }
 
 /* Guide/Tools: the number on its card's color, as a small square. */
@@ -295,9 +293,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   margin-left: auto;
   min-width: 0;
   color: var(--folder-text);
-  font-family: var(--font-serif);
   font-style: italic;
-  font-size: 18px;
   text-align: right;
 }
 

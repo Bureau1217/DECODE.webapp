@@ -46,12 +46,12 @@ function isTabActive(key: string) {
 <template>
   <div class="map-filters">
     <div class="filter-tabs">
-      <button type="button" class="filter-tab" :class="{ active: !modelValue }" @click="selectAll">All</button>
+      <button type="button" class="filter-tab text-small" :class="{ active: !modelValue }" @click="selectAll">All</button>
       <button
         v-for="tab in tabs"
         :key="tab.key"
         type="button"
-        class="filter-tab"
+        class="filter-tab text-small"
         :class="{ active: isTabActive(tab.key) || openTab === tab.key }"
         @click="toggleTab(tab.key)"
       >
@@ -64,7 +64,7 @@ function isTabActive(key: string) {
         v-for="opt in filterOptions[openTab]"
         :key="opt"
         type="button"
-        class="filter-option"
+        class="filter-option text-small"
         :class="{ active: modelValue?.type === openTab && modelValue?.value === opt }"
         @click="selectOption(openTab, opt)"
       >
@@ -79,7 +79,6 @@ function isTabActive(key: string) {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-family: var(--font-mono);
 }
 
 .filter-tabs {
@@ -97,10 +96,6 @@ function isTabActive(key: string) {
   border-radius: 0;
   background: rgba(255, 255, 255, 0.92);
   color: var(--tool-campaigns-accent-deep);
-  font-family: inherit;
-  font-size: 9pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 .filter-tab.active {
@@ -129,9 +124,6 @@ function isTabActive(key: string) {
   border-radius: 0;
   background: rgba(255, 255, 255, 0.92);
   color: var(--tool-campaigns-accent-deep);
-  font-family: inherit;
-  font-size: 8pt;
-  text-transform: uppercase;
 }
 
 .filter-option.active {

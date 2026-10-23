@@ -43,6 +43,9 @@ const isToolsSection = computed(() => route.path.startsWith('/tools/'))
 // The Investigation Guide in dark mode: the middle rule in the same brown
 // as this bar's own divider, instead of vanishing into the dark page.
 const isGuidePage = computed(() => route.path === '/guide' || route.path.startsWith('/guide/'))
+// The DE.CO.DE Extension page: the rule between its two halves in the
+// index bar's own purple.
+const isSourceReliabilityPage = computed(() => route.path === '/tools/source-reliability-plugin')
 
 // SEARCH opens into a field (an underline to type on, a cross to close);
 // Enter shows the results in the right half (pages/search.vue).
@@ -81,10 +84,10 @@ const introTransition = useIntroTransition()
     :class="{ 'is-tool-themed': isThemed, 'is-intro': introTransition }"
     :style="{ '--local-accent': theme?.chromeAccent, '--local-accent-text': theme?.chromeText }"
   >
-    <div class="index-bar-group">
+    <div class="index-bar-group" :class="{ 'reading-mode': readingMode }">
       <button
         type="button"
-        class="index-bar-item index-bar-index"
+        class="text-label index-bar-item index-bar-index"
         :class="{ active: isMobile ? mobileIndexOpen : displayMode === 'index' }"
         @click="onIndexClick"
       >
@@ -93,7 +96,7 @@ const introTransition = useIntroTransition()
       </button>
       <button
         type="button"
-        class="index-bar-item index-bar-visual"
+        class="text-label index-bar-item index-bar-visual"
         :class="{ active: !isToolsSection && displayMode === 'visual' }"
         :disabled="isToolsSection"
         @click="displayMode = 'visual'"
@@ -107,7 +110,7 @@ const introTransition = useIntroTransition()
          only — below 768px this becomes the index bar's own second half,
          see the media query below). -->
     <div class="index-bar-search" :class="{ 'reading-mode': readingMode, 'is-open': searchOpen }">
-      <button v-if="!searchOpen" type="button" class="index-bar-item" @click="openSearch">
+      <button v-if="!searchOpen" type="button" class="text-label index-bar-item" @click="openSearch">
         <span class="index-bar-dot" aria-hidden="true" />
         Search
       </button>
@@ -115,7 +118,7 @@ const introTransition = useIntroTransition()
         <input
           ref="searchInput"
           v-model="searchQuery"
-          class="index-bar-search-input"
+          class="index-bar-search-input text-label"
           type="search"
           enterkeyhint="search"
           autocomplete="off"
@@ -129,7 +132,7 @@ const introTransition = useIntroTransition()
 
     <button
       type="button"
-      class="index-bar-item index-bar-reading"
+      class="text-label index-bar-item index-bar-reading"
       :class="{ active: readingMode }"
       @click="readingMode = !readingMode"
     >
@@ -153,8 +156,8 @@ const introTransition = useIntroTransition()
   />
   <div
     class="content-divider"
-    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'is-guide': isGuidePage, 'is-search': isSearchPage, 'is-tool-themed': isThemed, 'reading-mode': readingMode}"
-    :style="{ '--local-accent-text': theme?.chromeText }"
+    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'is-guide': isGuidePage, 'is-search': isSearchPage, 'is-sourcerel': isSourceReliabilityPage, 'is-tool-themed': isThemed, 'reading-mode': readingMode}"
+    :style="{ '--local-accent': theme?.chromeAccent, '--local-accent-text': theme?.chromeText }"
     aria-hidden="true"
   />
 </template>
@@ -198,10 +201,19 @@ const introTransition = useIntroTransition()
   background: var(--local-accent);
 }
 
+/* Spans the keywords panel's half (25vw in reading mode): INDEX at its
+   left, VISUAL at its right, each 12px in from its edge. */
 .index-bar-group {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 28px;
+  width: calc(50vw - 24px);
+  transition: width 0.5s ease;
+}
+
+.index-bar-group.reading-mode {
+  width: calc(25vw - 24px);
 }
 
 .index-bar-item {
@@ -212,10 +224,6 @@ const introTransition = useIntroTransition()
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: var(--font-mono);
-  font-size: 12pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   color: var(--color-on-fill);
   cursor: pointer;
 }
@@ -273,9 +281,6 @@ const introTransition = useIntroTransition()
   border-radius: 0;
   padding: 0 0 1px;
   outline: none;
-  font-family: var(--font-mono);
-  font-size: 12pt;
-  letter-spacing: 0.03em;
   color: var(--color-on-fill);
   caret-color: var(--color-on-fill);
 }
@@ -398,6 +403,10 @@ const introTransition = useIntroTransition()
   background: var(--local-accent-text);
 }
 
+.content-divider.is-sourcerel {
+  background: var(--local-accent);
+}
+
 /* Below 768px: just INDEX | SEARCH, each half the bar (mirrors
    .index-bar-divider above, which already sits at the viewport's own
    center — no change needed there). Visual has nothing to switch to on
@@ -413,7 +422,10 @@ const introTransition = useIntroTransition()
   /* White rule under the bar, separating it from the page content. */
   .index-bar {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* minmax(0, …): a bare 1fr won't shrink below the open search
+       field's own width, which pushed it past the divider into INDEX's
+       half. */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     padding: 0;
     border-bottom: 1px solid var(--color-chrome-divider);
   }
@@ -430,7 +442,9 @@ const introTransition = useIntroTransition()
     border-bottom-color: var(--local-accent-text);
   }
 
-  .index-bar-group {
+  .index-bar-group,
+  .index-bar-group.reading-mode {
+    width: auto;
     padding-left: 12px;
   }
 
@@ -441,6 +455,7 @@ const introTransition = useIntroTransition()
 
   .index-bar-search {
     position: static;
+    min-width: 0;
     width: 100%;
     justify-content: flex-end;
     padding: 0 12px;

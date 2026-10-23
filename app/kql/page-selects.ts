@@ -188,7 +188,7 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     ...summary,
     subtitle: true,
     description: true,
-    // Students' names (DECODE.cms fields/credits.yml) — ToolIntro.vue's
+    // Students' names (DECODE.cms fields/credits.yml) — ToolCover.vue's
     // entrance screen; empty until editors fill it in.
     credits: true,
     image: fileUrl('image'),

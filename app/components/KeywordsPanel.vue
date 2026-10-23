@@ -36,14 +36,24 @@ onBeforeUnmount(() => {
 // under the title, and tapping it again (or another row) closes it.
 const hoveredTagId = ref<string | null>(null)
 const isMobile = useIsMobile()
+function showPreview(tag: CategoryWithTags['tags'][number], index: number) {
+  const img = tag.image?.[index]
+  if (displayMode.value !== 'visual' || !img) return false
+  previewImage.value = { url: img.url, alt: img.alt || tag.title, title: tag.title, description: tag.description }
+  return true
+}
 function onRowEnter(tag: CategoryWithTags['tags'][number]) {
   if (isMobile.value) return
-  const img = tag.image?.[0]
-  if (displayMode.value === 'visual' && img) {
-    previewImage.value = { url: img.url, alt: img.alt || tag.title, title: tag.title, description: tag.description }
-    return
-  }
+  if (showPreview(tag, 0)) return
   hoveredTagId.value = tag.id
+}
+// The row itself always previews its first image; hovering one of its
+// thumbnails previews that one instead, back to the first on leaving it.
+function onImageEnter(tag: CategoryWithTags['tags'][number], index: number) {
+  if (!isMobile.value) showPreview(tag, index)
+}
+function onImageLeave(tag: CategoryWithTags['tags'][number]) {
+  if (!isMobile.value) showPreview(tag, 0)
 }
 function onRowLeave() {
   if (isMobile.value) return
@@ -103,7 +113,7 @@ function isRelated(tagId: string) {
 <template>
   <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition }" :reading-mode="readingMode">
     <template v-for="(category, ci) in categories" :key="category.id">
-      <h3 :style="{ '--band-delay': `${bandDelaySeconds(ci)}s` }">
+      <h3 class="text-label" :style="{ '--band-delay': `${bandDelaySeconds(ci)}s` }">
         <DecipherText :text="category.title" :delay="introTransition ? Math.round(bandDelaySeconds(ci) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" />
       </h3>
       <ul>
@@ -122,10 +132,17 @@ function isRelated(tagId: string) {
           </div>
           <div class="keywords-panel-images-outer" :class="{ expanded: displayMode === 'visual' }">
             <div class="keywords-panel-images">
-              <img v-for="(img, i) in tag.image" :key="i" :src="img.url" :alt="img.alt || tag.title">
+              <img
+                v-for="(img, i) in tag.image"
+                :key="i"
+                :src="img.url"
+                :alt="img.alt || tag.title"
+                @mouseenter="onImageEnter(tag, i)"
+                @mouseleave="onImageLeave(tag)"
+              >
             </div>
           </div>
-          <div v-if="hoveredTagId === tag.id && tag.description" class="keywords-panel-popup">
+          <div v-if="hoveredTagId === tag.id && tag.description" class="keywords-panel-popup text-note">
             <div class="keywords-panel-popup-title">{{ tag.title }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="keywords-panel-popup-definition" v-html="tag.description" />
@@ -138,7 +155,7 @@ function isRelated(tagId: string) {
     <div v-if="previewImage" class="keywords-image-preview" :class="{ 'reading-mode': readingMode }" aria-hidden="true">
       <figure class="keywords-image-preview-frame">
         <img :src="previewImage.url" :alt="previewImage.alt" class="no-duotone">
-        <figcaption class="keywords-image-preview-label">
+        <figcaption class="keywords-image-preview-label text-note">
           <div class="keywords-panel-popup-title">{{ previewImage.title }}</div>
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div v-if="previewImage.description" class="keywords-panel-popup-definition" v-html="previewImage.description" />
@@ -167,10 +184,6 @@ function isRelated(tagId: string) {
   padding-left: 10px;
   background: var(--color-brand-resources);
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 12pt;
-  text-transform: uppercase;
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border-strong);
@@ -394,7 +407,6 @@ function isRelated(tagId: string) {
   background: var(--color-surface);
   border: 1px solid var(--color-brand);
   color: var(--color-brand);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 /* Floats over the row's own unused white space, half the row's own width
@@ -421,18 +433,11 @@ function isRelated(tagId: string) {
   border: 1px solid var(--color-brand);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   color: var(--color-brand);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .keywords-panel-popup-title {
   margin-bottom: 4px;
-  font-size: 12pt;
   font-weight: 700;
-}
-
-.keywords-panel-popup-definition {
-  font-size: 12pt;
-  line-height: 1.4;
 }
 
 .keywords-panel-popup-definition :deep(p) {
@@ -475,9 +480,6 @@ function isRelated(tagId: string) {
   box-sizing: border-box;
   width: 100%;
   padding: 4px 10px;
-  line-height: 1.3;
-  font-family: var(--font-mono);
-  font-size: 11pt;
   color: var(--color-ink);
   cursor: default;
 }

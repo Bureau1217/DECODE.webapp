@@ -136,7 +136,7 @@ onUnmounted(() => {
          (doubled text + translateX loop), not static truncated text —
          same technique as Splash.vue's own .splash-tab-ticker-track. -->
     <div class="site-nav-ticker">
-      <div class="site-nav-ticker-track">
+      <div class="site-nav-ticker-track text-small">
         <span>{{ SITE_TAGLINE }}</span>
         <span>{{ SITE_TAGLINE }}</span>
       </div>
@@ -212,10 +212,6 @@ onUnmounted(() => {
   display: flex;
   white-space: nowrap;
   width: max-content;
-  font-family: var(--font-mono);
-  font-size: 10pt;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
   /* Scrolls right to left — translateX(0) to (-50%) moves the (doubled)
      content leftward, so new text keeps entering from the right. Exactly
      half the track's width is where the first copy started, so the loop

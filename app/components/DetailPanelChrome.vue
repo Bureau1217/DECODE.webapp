@@ -46,9 +46,9 @@ defineProps<{
       <div class="detail-panel-scroll-inner">
         <slot />
         <div class="detail-panel-nav">
-          <NuxtLink v-if="prevTo" :to="prevTo" class="detail-panel-nav-btn detail-panel-nav-prev">Previous</NuxtLink>
+          <NuxtLink v-if="prevTo" :to="prevTo" class="detail-panel-nav-btn text-label detail-panel-nav-prev">Previous</NuxtLink>
           <span v-else />
-          <NuxtLink v-if="nextTo" :to="nextTo" class="detail-panel-nav-btn detail-panel-nav-next">Next</NuxtLink>
+          <NuxtLink v-if="nextTo" :to="nextTo" class="detail-panel-nav-btn text-label detail-panel-nav-next">Next</NuxtLink>
         </div>
       </div>
     </div>
@@ -165,10 +165,6 @@ defineProps<{
 }
 
 .detail-panel-nav-btn {
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 16pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   color: inherit;
   text-decoration: none;
 }

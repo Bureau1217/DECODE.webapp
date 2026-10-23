@@ -33,7 +33,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     <div class="guide-card-image-wrap">
       <img v-if="item.header_image" :src="item.header_image.url" :alt="item.header_image.alt || item.title" :style="sharedPart('image')">
     </div>
-    <h2 class="guide-card-title" :style="sharedPart('title')">{{ item.title }}</h2>
+    <h2 class="guide-card-title text-h2" :style="sharedPart('title')">{{ item.title }}</h2>
     <!-- Under the title, same order as on the opened article
          (TemplateDefault.vue), so the opening morph never crosses them. -->
     <BadgeChip v-if="item.header_subtitle" class="guide-card-subtitle" :color="badgeColor" :style="sharedPart('subtitle')">
@@ -94,16 +94,12 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 }
 
 .guide-card-title {
-  font-size: 24pt;
   /* Same 5.5%-of-card gap as the card's own padding: a child's margin %
      resolves against the card's content box (89% of the card), hence
      5.5 / 0.89. */
   margin: 6.18% 0 0;
-  line-height: 1.1;
   text-align: center;
   color: var(--color-on-fill);
-  font-family: var(--font-serif);
-  font-weight: 500;
 }
 
 /* Per the reference (Articles.png): number → title → colored subtitle
@@ -123,7 +119,6 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   .guide-card-title {
     order: 2;
     margin: 4px 0 0;
-    font-size: 28px;
   }
 
   /* Full-width strip (within the card's own 12px padding), not the
@@ -139,7 +134,6 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     height: 20px;
     margin: 6px 0 0;
     padding: 0;
-    font-size: 16px;
   }
 
   .guide-card-image-wrap {

@@ -20,20 +20,20 @@ const readingMode = useReadingMode()
 
 <template>
   <InfoPanel class="tool-intro" :reading-mode="readingMode" :style="{ '--intro-band': band, '--intro-band-text': bandText }">
-    <h3>About this tool</h3>
+    <h3 class="text-label">About this tool</h3>
     <ul>
       <li class="tool-intro-title-row">{{ title }}</li>
     </ul>
 
     <template v-if="credits">
-      <h3>Idea by</h3>
+      <h3 class="text-label">Idea by</h3>
       <ul>
         <li>{{ credits }}</li>
       </ul>
     </template>
 
     <template v-if="description">
-      <h3>Description</h3>
+      <h3 class="text-label">Description</h3>
       <ul>
         <!-- eslint-disable-next-line vue/no-v-html -->
         <li class="tool-intro-description-row" v-html="description" />
@@ -53,10 +53,6 @@ const readingMode = useReadingMode()
   padding-left: 10px;
   background: var(--intro-band);
   color: var(--intro-band-text);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 12pt;
-  text-transform: uppercase;
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border);
@@ -77,21 +73,15 @@ const readingMode = useReadingMode()
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  font-family: var(--font-mono);
-  font-size: 11pt;
   color: var(--color-ink);
-  line-height: 1.3;
 }
 
 .tool-intro li.tool-intro-title-row {
   padding: 16px 10px;
-  font-size: 12pt;
-  line-height: 1.25;
 }
 
 .tool-intro li.tool-intro-description-row {
   align-items: flex-start;
-  font-size: 12pt;
   line-height: 1.5;
 }
 

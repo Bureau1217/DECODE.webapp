@@ -921,7 +921,17 @@ onUnmounted(() => {
       }"
       aria-hidden="true"
     >
-      <div class="splash-tab-ticker-track text-h4">{{ informationsText }}</div>
+      <div class="splash-tab-ticker-track text-small">
+        <span class="splash-tab-ticker-full">{{ informationsText }}</span>
+        <!-- Mobile: the institution's name alone, sliding past endlessly
+             — three copies (always enough to fill the tab), the loop jumps
+             back by exactly one of them. -->
+        <span class="splash-tab-ticker-short">
+          <span>GENEVA GRADUATE INSTITUTE</span>
+          <span aria-hidden="true">GENEVA GRADUATE INSTITUTE</span>
+          <span aria-hidden="true">GENEVA GRADUATE INSTITUTE</span>
+        </span>
+      </div>
     </div>
 
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
@@ -980,11 +990,11 @@ onUnmounted(() => {
     <div
       v-for="(article, index) in (articleTitles ?? []).slice(0, 4)"
       :key="article.title"
-      class="splash-corner"
+      class="splash-corner text-h2"
       :style="cornerStyles[index]"
     >
       <div class="corner-title-wrap">
-        <span class="corner-badge" :style="{ backgroundColor: BADGE_COLORS[index % BADGE_COLORS.length] }">
+        <span class="corner-badge text-label" :style="{ backgroundColor: BADGE_COLORS[index % BADGE_COLORS.length] }">
           {{ index + 1 }}
         </span>
         <div class="corner-title">{{ article.title }}</div>
@@ -1012,7 +1022,7 @@ onUnmounted(() => {
     <div v-if="images?.length" ref="imagesEl" class="splash-images" aria-hidden="true">
       <div class="splash-images-track">
         <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper">
-          <span v-if="imageLabel(index, image.alt)" class="image-label text-h4" :style="{ backgroundColor: imageBadgeColor(index) }">
+          <span v-if="imageLabel(index, image.alt)" class="image-label text-small" :style="{ backgroundColor: imageBadgeColor(index) }">
             {{ imageLabel(index, image.alt) }}
           </span>
           <img
@@ -1077,7 +1087,7 @@ onUnmounted(() => {
       </div>
       <!-- Manual break after "disinformation" — the rest wraps on its own
            into two more lines at this width, so three lines total. -->
-      <div v-if="info?.header_subtitle" class="text-h3 splash-subtitle">
+      <div v-if="info?.header_subtitle" class="text-label splash-subtitle">
         <span class="splash-subtitle-box">
           An open multimedia&nbsp;guide exploring disinformation<br>
           through investigations, interactive&nbsp;tools and collaborative&nbsp;workshops for&nbsp;youth
@@ -1088,7 +1098,7 @@ onUnmounted(() => {
     <!-- Its own element (not inside .splash-info, which is centered on the
          full viewport) so its vertical position can be pinned to the
          grid's bottom line instead. -->
-    <button type="button" class="splash-cta btn-fill" :style="ctaStyle" @click="leave">
+    <button type="button" class="splash-cta btn-fill text-label" :style="ctaStyle" @click="leave">
       Enter the investigation guide
     </button>
 
@@ -1151,6 +1161,43 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.splash-tab-ticker-short {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .splash-tab-ticker-full {
+    display: none;
+  }
+
+  .splash-tab-ticker-track {
+    width: 100%;
+    text-overflow: clip;
+  }
+
+  .splash-tab-ticker-short {
+    display: inline-flex;
+    animation: splash-tab-ticker-slide 9s linear infinite;
+  }
+
+  /* Gap after each copy, so the loop's seam spaces like the rest. */
+  .splash-tab-ticker-short span {
+    padding-right: 2.5em;
+  }
+}
+
+@keyframes splash-tab-ticker-slide {
+  to {
+    transform: translateX(calc(-100% / 3));
+  }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .splash-tab-ticker-short {
+    animation: none;
+  }
 }
 
 .splash-info {
@@ -1493,8 +1540,6 @@ onUnmounted(() => {
   /* Fill/hover colors: .btn-fill (main.css). */
   border-radius: 0;
   padding: 18px;
-  font-family: Arial, Helvetica, sans-serif;
-  text-transform: uppercase;
   cursor: pointer;
 }
 
@@ -1506,9 +1551,6 @@ onUnmounted(() => {
 .splash-corner {
   position: absolute;
   z-index: 2;
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: 34px;
   text-align: center;
   /* Room for .corner-badge below, which deliberately overlaps *outward*
      past the title's own top-left corner — without this padding, that
@@ -1546,9 +1588,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   padding: 1px 4px;
-  font-family: var(--font-mono);
-  font-weight: 400;
-  font-size: 20px;
   color: var(--color-ink);
 }
 
@@ -1709,8 +1748,6 @@ onUnmounted(() => {
   /* Black on its pastel chip in both themes (dark mode's own ink is
      near-white, unreadable on these light colors). */
   color: var(--color-on-pastel);
-  font-family: var(--font-mono);
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -1751,6 +1788,7 @@ onUnmounted(() => {
   .splash-subtitle-box {
     max-width: 30ch;
     padding: 8px;
+    /* Smaller than text-label on a phone: the splash's own art sizing. */
     font-size: 9pt;
   }
 
@@ -1764,7 +1802,6 @@ onUnmounted(() => {
 
   .splash-cta {
     padding: 12px 16px;
-    font-size: 10pt;
     white-space: nowrap;
   }
 }

@@ -50,8 +50,8 @@ const activeIndex = ref(0)
   <DetailPanelChrome background="var(--color-surface)" text-color="var(--color-brand-about)">
     <article class="about-detail">
       <header class="about-detail-header">
-        <h1 class="about-detail-title"><DecipherText :text="siteTitle" /></h1>
-        <h2 v-if="page.header_subtitle" class="about-detail-subtitle">{{ page.header_subtitle }}</h2>
+        <h1 class="about-detail-title text-display"><DecipherText :text="siteTitle" /></h1>
+        <h2 v-if="page.header_subtitle" class="about-detail-subtitle text-h2">{{ page.header_subtitle }}</h2>
       </header>
 
       <!-- In place of the article template's divider band — one tab per
@@ -63,7 +63,7 @@ const activeIndex = ref(0)
           v-for="(section, index) in paragraphs"
           :key="section.title"
           type="button"
-          class="about-detail-nav-btn"
+          class="about-detail-nav-btn text-label"
           :class="{ active: activeIndex === index }"
           @click="activeIndex = index"
         >
@@ -97,19 +97,12 @@ const activeIndex = ref(0)
 .about-detail-title {
   margin: 0;
   color: var(--color-brand-about);
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 48px;
 }
 
 .about-detail-subtitle {
   margin: 10px auto 0;
-  font-weight: 400;
   max-width: 60%;
   color: var(--color-brand-about);
-  font-family: var(--font-serif);
-  font-size: 28pt;
-  line-height: 1.4;
 }
 
 /* No gap — tabs sit flush against each other (see .about-detail-nav-btn's
@@ -136,10 +129,6 @@ const activeIndex = ref(0)
   border: 1px solid var(--color-brand-about);
   border-radius: 0;
   padding: 14px 60px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-weight: 400;
-  font-size: 14pt;
-  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
 }
@@ -176,14 +165,8 @@ const activeIndex = ref(0)
 @media (max-width: 768px) {
   /* Title at an opened resource's own title size (TemplateRessource.vue,
      48px); subtitle at a heading-2 size (1.5em of the 16px base). */
-  .about-detail-title {
-    font-size: 48px;
-  }
-
   .about-detail-subtitle {
     max-width: 90%;
-    font-size: 24px;
-    line-height: 1.35;
   }
 
   .about-detail-nav {
@@ -192,7 +175,6 @@ const activeIndex = ref(0)
 
   .about-detail-nav-btn {
     padding: 10px 18px;
-    font-size: 11pt;
   }
 }
 </style>

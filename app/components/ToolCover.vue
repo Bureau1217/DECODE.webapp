@@ -24,19 +24,19 @@ defineEmits<{
   <div class="tool-cover" :style="{ '--cover-fill': fill }">
     <header class="tool-cover-header">
       <div />
-      <h1 class="tool-cover-title"><DecipherText :text="title" /></h1>
-      <p v-if="credits" class="tool-cover-credits">Idea by {{ credits }}</p>
+      <h1 class="tool-cover-title text-h1"><DecipherText :text="title" grow :grow-max="1" /></h1>
+      <p v-if="credits" class="tool-cover-credits text-row">Idea by {{ credits }}</p>
     </header>
 
     <TemplateDividerBand color="var(--tool-cover-text)">
-      <button type="button" class="tool-cover-start" @click="$emit('start')">
+      <button type="button" class="tool-cover-start text-label" @click="$emit('start')">
         Start
       </button>
     </TemplateDividerBand>
 
     <TemplateDetailBody v-if="description" color="var(--tool-cover-text)" class="tool-cover-body">
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <div v-decipher v-html="decipherHtml(description)" />
+      <div v-decipher="{ grow: true }" v-html="decipherHtml(description)" />
     </TemplateDetailBody>
   </div>
 </template>
@@ -66,16 +66,10 @@ defineEmits<{
 
 .tool-cover-title {
   margin: 0;
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: 48px;
-  line-height: 1.1;
 }
 
 .tool-cover-credits {
   margin: 10px 0 0;
-  font-family: var(--font-mono);
-  font-size: 12pt;
 }
 
 /* Inverse of the resource page's own outline action button: cover-text
@@ -89,10 +83,6 @@ defineEmits<{
   border-radius: 0;
   background: transparent;
   color: var(--tool-cover-text);
-  font-family: var(--font-mono);
-  font-size: 11pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -110,8 +100,5 @@ defineEmits<{
     height: 100%;
   }
 
-  .tool-cover-title {
-    font-size: 34px;
-  }
 }
 </style>

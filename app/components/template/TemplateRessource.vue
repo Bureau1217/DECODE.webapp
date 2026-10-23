@@ -38,13 +38,13 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
     <article ref="root" class="resource-detail" :class="`detail-lines-${drawState}`">
       <header class="resource-detail-header">
         <div class="resource-detail-header-spacer" />
-        <h1 class="resource-detail-title" :style="sharedPart('title')">
+        <h1 class="resource-detail-title text-h1" :style="sharedPart('title')">
           <template v-if="openedFromCard">{{ page.title }}</template>
           <DecipherText v-else :text="page.title" />
         </h1>
         <div class="resource-detail-meta">
-          <p v-if="page.authors" class="resource-detail-author" :style="sharedPart('authors')">{{ page.authors }}</p>
-          <span v-if="page.type" class="resource-detail-type" :style="sharedPart('type')">{{ page.type }}</span>
+          <p v-if="page.authors" class="resource-detail-author text-row" :style="sharedPart('authors')">{{ page.authors }}</p>
+          <span v-if="page.type" class="resource-detail-type text-tag" :style="sharedPart('type')">{{ page.type }}</span>
         </div>
       </header>
 
@@ -54,7 +54,7 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
           :href="actionHref"
           target="_blank"
           rel="noopener"
-          class="resource-detail-action-btn detail-draw-fade"
+          class="resource-detail-action-btn detail-draw-fade text-label"
         >
           {{ actionLabel }}
         </a>
@@ -95,10 +95,6 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
 .resource-detail-title {
   margin: 0;
   color: var(--color-brand-about);
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: 48px;
-  line-height: 1.1;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -109,8 +105,6 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
 .resource-detail-author {
   margin: 10px 0 0;
   color: var(--color-brand-about);
-  font-family: var(--font-mono);
-  font-size: 12pt;
 }
 
 /* Same chip treatment as ResourceCard's own type badge. */
@@ -120,10 +114,6 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
   padding: 2px;
   background: var(--color-brand-resources);
   color: var(--color-on-fill);
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: 10pt;
-  text-transform: uppercase;
 }
 
 /* Divider-band shell lives in TemplateDividerBand.vue now (this one has no
@@ -140,10 +130,6 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
   color: var(--color-brand-about);
   border: 1px solid var(--color-brand-about);
   padding: 14px 24px;
-  font-family: var(--font-mono);
-  font-size: 11pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   text-decoration: none;
   cursor: pointer;
 }

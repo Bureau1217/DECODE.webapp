@@ -23,7 +23,9 @@ const mobileIndexOpen = useMobileIndexOpen()
 </script>
 
 <template>
-  <aside class="info-panel" :class="{ 'reading-mode': readingMode, 'mobile-open': mobileIndexOpen }">
+  <!-- text-row: what every panel's rows read in (main.css type scale);
+       bands and popups set their own. -->
+  <aside class="info-panel text-row" :class="{ 'reading-mode': readingMode, 'mobile-open': mobileIndexOpen }">
     <slot />
   </aside>
 </template>
@@ -34,7 +36,8 @@ const mobileIndexOpen = useMobileIndexOpen()
   z-index: 1;
   left: 0;
   top: 8.5vh;
-  bottom: 0;
+  /* Ends at the fixed footer, so the last rows can scroll clear of it. */
+  bottom: var(--footer-height);
   width: 50vw;
   overflow-y: auto;
   background: var(--color-surface);

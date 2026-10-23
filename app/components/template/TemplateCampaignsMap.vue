@@ -17,11 +17,22 @@ const props = defineProps<{
   page: {
     title: string
     description?: string
+    credits?: string
     campaigns: CampaignWithReceivers[]
   }
 }>()
 
+// Placeholder until the project team confirms the actual names — the
+// CMS has no credits for this tool yet.
+const credits = computed(() => props.page.credits || 'Léa Dubois, Hugo Martin & Chloé Rousseau')
+
 const selectedCampaign = ref<CampaignWithReceivers | null>(null)
+
+// Start opens on a campaign, a different one picked at random each visit.
+function selectRandomCampaign() {
+  const { campaigns } = props.page
+  selectedCampaign.value = campaigns[Math.floor(Math.random() * campaigns.length)] ?? null
+}
 
 // SiteIndexBar's own "Reading mode" toggle — same shared state
 // KeywordsPanel.vue/TeamPanel.vue read, wired in here too so it actually
@@ -36,9 +47,20 @@ const readingMode = useReadingMode()
     :reading-mode="readingMode"
     :scrollable="false"
     :exit="{ accent: 'var(--tool-campaigns-accent)', textColor: 'var(--tool-campaigns-accent-deep)' }"
+    :intro="{
+      title: props.page.title,
+      description: props.page.description,
+      credits,
+      band: 'var(--tool-campaigns-accent)',
+      bandText: 'var(--color-on-fill)',
+      start: 'var(--tool-campaigns-chrome)',
+      cover: 'var(--tool-campaigns-cover)',
+      build: 'fade',
+    }"
+    @start="selectRandomCampaign"
   >
-    <template #panel>
-      <CampaignInfoPanel :campaign="selectedCampaign" :tool="page" />
+    <template #panel="{ empty }">
+      <CampaignInfoPanel :campaign="selectedCampaign" :tool="{ ...page, credits }" :empty="empty" />
     </template>
     <template #content>
       <DisinfoMap v-model:campaign="selectedCampaign" :campaigns="props.page.campaigns" />

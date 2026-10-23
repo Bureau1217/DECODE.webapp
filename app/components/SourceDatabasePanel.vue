@@ -35,13 +35,18 @@ const countries = computed(() => {
     .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
 })
 
+// Entrance state: four countries and the band of a fifth — a glimpse
+// of the database, not the whole list; Start stacks them all in.
+const EMPTY_COUNTRIES = 4
+const shownCountries = computed(() => (props.empty ? countries.value.slice(0, EMPTY_COUNTRIES + 1) : countries.value))
+
 const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTooltip<Source>()
 </script>
 
 <template>
   <InfoPanel class="src-panel" :reading-mode="readingMode">
 
-    <div class="src-row src-row--header">
+    <div class="src-row src-row--header text-small">
       <span class="src-col-name">Sources</span>
       <span class="src-col-domain">Domain</span>
       <span class="src-col-type">Type</span>
@@ -49,20 +54,21 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
       <span class="src-col-score">Score</span>
     </div>
 
-    <template v-for="country in countries" :key="country.name">
-      <h3 class="src-country">{{ country.name }}</h3>
+    <template v-for="(country, ci) in shownCountries" :key="country.name">
+      <h3 class="src-country text-label">{{ country.name }}</h3>
 
-      <!-- Entrance state: one "-" row per country. -->
-      <div v-if="empty" class="src-row">
-        <span v-for="col in 5" :key="col" :class="{ 'src-col-score': col === 5 }">-</span>
+      <!-- Entrance state: a single "-" per country, under its name — and
+           the last country shown (the half one) only its band. -->
+      <div v-if="empty && ci < EMPTY_COUNTRIES" class="src-row text-caption">
+        <span>-</span>
       </div>
       <!-- After Start the country's rows stack up under its first one
-           (which takes the "-" row's place), each cell fading in. -->
-      <template v-else>
+           (which takes the "-" row's place); the layout deciphers them. -->
+      <template v-else-if="!empty">
         <div
           v-for="(source, i) in country.items"
           :key="source.slug"
-          class="src-row"
+          class="src-row text-caption"
           :class="{ 'tool-stack-in': i > 0 }"
           :style="{ '--stack-delay': `${stackDelay(i)}s` }"
           tabindex="0"
@@ -75,9 +81,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
           <span
             v-for="(cell, col) in [source.title, source.source_domain, source.source_type, source.topic_area, `${source.trust_score_100}/100`]"
             :key="col"
-            class="tool-fill-in"
             :class="{ 'src-col-score': col === 4 }"
-            :style="{ '--fill-delay': `${stackDelay(i) + 0.1 + col * 0.04}s` }"
           >{{ cell }}</span>
         </div>
       </template>
@@ -86,7 +90,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
     <!-- Classed wrapper inside the slot, not a class on HoverTooltip
          itself — its root is a <Teleport>, which drops a passed class. -->
     <HoverTooltip v-if="hovered" :pos="tooltipPos" accent="var(--tool-sourcerel-accent-deep)">
-      <div class="src-tooltip">
+      <div class="src-tooltip text-note">
         <strong class="src-tooltip-title">{{ hovered.title }}</strong>
         <span class="src-tooltip-level">{{ hovered.trust_level }} trust — {{ hovered.trust_score_100 }}/100</span>
         <p v-if="hovered.trust_score_explanation">{{ hovered.trust_score_explanation }}</p>
@@ -109,16 +113,13 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
   padding: 6px 10px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-  font-family: var(--font-mono);
-  font-size: 8.5pt;
   color: var(--color-ink);
-  line-height: 1.3;
   cursor: default;
   outline: none;
   transition: background-color 0.15s ease;
 }
 
-.src-row span {
+.src-row > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -126,9 +127,6 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 
 .src-row--header {
   background: var(--tool-sourcerel-tint);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   position: sticky;
   top: 0;
   z-index: 2;
@@ -151,11 +149,6 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
   padding-left: 10px;
   background: var(--tool-sourcerel-accent);
   color: var(--color-ink);
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 9.5pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--color-border);
@@ -169,13 +162,11 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
    4.6:1, above WCAG AA's 4.5:1 for body text. */
 .src-tooltip {
   color: var(--tool-sourcerel-accent-deep);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .src-tooltip-title {
   display: block;
   margin-bottom: 4px;
-  font-size: 12pt;
   font-weight: 700;
   white-space: normal;
 }
@@ -183,14 +174,10 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
 .src-tooltip-level {
   display: block;
   margin-bottom: 8px;
-  font-size: 12pt;
-  line-height: 1.4;
 }
 
 .src-tooltip p {
   margin: 0 0 8px;
-  font-size: 12pt;
-  line-height: 1.4;
   white-space: normal;
 }
 
@@ -218,7 +205,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
     padding: 10px;
   }
 
-  .src-row span {
+  .src-row > span {
     display: flex;
     justify-content: space-between;
     gap: 8px;
@@ -228,12 +215,11 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
     text-align: right;
   }
 
-  .src-row span::before {
+  .src-row > span::before {
     flex-shrink: 0;
     color: var(--tool-sourcerel-accent-deep);
     font-weight: 700;
     text-transform: uppercase;
-    font-size: 7.5pt;
     text-align: left;
   }
 

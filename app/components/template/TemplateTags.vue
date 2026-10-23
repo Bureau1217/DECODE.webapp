@@ -15,16 +15,16 @@ defineProps<{
 
 <template>
   <article>
-    <h1>{{ page.title }}</h1>
+    <h1 class="text-h1">{{ page.title }}</h1>
     <ul>
       <li v-for="tag in page.tags" :key="tag.slug">
         <!-- `page.slug` is the container's own slug (themes/concepts/platforms/question). -->
         <NuxtLink :to="`/keywords/${page.slug}/${tag.slug}`">
           <img v-if="tag.image?.[0]" :src="tag.image[0].url" :alt="tag.image[0].alt || tag.title">
-          <h2>{{ tag.title }}</h2>
+          <h2 class="text-h3">{{ tag.title }}</h2>
         </NuxtLink>
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-if="tag.description" v-html="tag.description" />
+        <div v-if="tag.description" class="text-note" v-html="tag.description" />
       </li>
     </ul>
   </article>

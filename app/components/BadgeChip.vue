@@ -9,7 +9,7 @@ defineProps<{
 </script>
 
 <template>
-  <span class="badge-chip" :style="{ backgroundColor: color }">
+  <span class="badge-chip text-chip" :style="{ backgroundColor: color }">
     <slot />
   </span>
 </template>
@@ -19,9 +19,5 @@ defineProps<{
   display: inline-block;
   padding: 1px;
   color: var(--color-on-pastel);
-  font-family: var(--font-serif);
-  font-style: italic;
-  font-weight: 400;
-  font-size: 12pt;
 }
 </style>

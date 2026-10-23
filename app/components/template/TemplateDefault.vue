@@ -57,7 +57,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
       </div>
 
       <header class="article-detail-header">
-        <h1 class="article-detail-title" :style="sharedPart('title')">
+        <h1 class="article-detail-title text-h1" :style="sharedPart('title')">
           <template v-if="openedFromCard">{{ page.title }}</template>
           <DecipherText v-else :text="page.title" />
         </h1>
@@ -71,10 +71,10 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
         <div class="article-detail-divider-vertical detail-draw-vertical" />
         <div class="article-detail-divider-half article-detail-divider-half-right detail-draw-fade">
           <template v-if="relatedTool">
-            <span class="article-detail-related-label">Related tool</span>
+            <span class="article-detail-related-label text-small">Related tool</span>
             <NuxtLink
               :to="`/tools/${relatedTool.slug}`"
-              class="article-detail-tool-btn btn-fill"
+              class="article-detail-tool-btn btn-fill text-label"
               :style="{ '--btn-fill': badgeColor }"
             >
               {{ relatedTool.title }}
@@ -86,7 +86,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
       <TemplateDetailBody color="var(--color-on-fill)">
         <div v-for="(block, index) in textBlocks" :key="index" class="article-detail-block">
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <h2 v-if="block.content?.title" class="article-detail-block-title" v-decipher="bodyDecipher" v-html="decipherHtml(block.content.title)" />
+          <h2 v-if="block.content?.title" class="article-detail-block-title text-note" v-decipher="bodyDecipher" v-html="decipherHtml(block.content.title)" />
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div
             class="article-detail-paragraph"
@@ -123,9 +123,6 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   width: fit-content;
   margin: 20px auto 0;
   color: var(--color-on-fill);
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: 48px;
 }
 
 /* Chip look itself lives in BadgeChip.vue now — only this header's own
@@ -160,10 +157,6 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 
 .article-detail-related-label {
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
-  font-size: 10pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 /* Same look as Splash.vue's own .splash-cta (its one CTA button) — square
@@ -174,9 +167,6 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   display: inline-block;
   border-radius: 0;
   padding: 8px 12px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10pt;
-  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
 }
@@ -190,10 +180,8 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 
 .article-detail-block-title {
   margin: 0 0 0.3em;
-  font-family: Arial, Helvetica, sans-serif;
   font-style: italic;
   font-weight: 700;
-  font-size: 0.7em;
 }
 
 /* A plain first-line indent (alinéa), not a drop cap — :first-child
@@ -228,7 +216,6 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 
   .article-detail-title {
     margin-top: 16px;
-    font-size: 36px;
   }
 
   :deep(.divider-band-row) {

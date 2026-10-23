@@ -38,10 +38,10 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
          the title and .resource-card-below directly); one block centered
          in the card on mobile. -->
     <div class="resource-card-content">
-      <h2 class="resource-card-title" :title="item.title" :style="sharedPart('title')">{{ item.title }}</h2>
+      <h2 class="resource-card-title text-h3" :title="item.title" :style="sharedPart('title')">{{ item.title }}</h2>
       <div class="resource-card-below">
-        <span v-if="item.authors" class="resource-card-author" :title="item.authors" :style="sharedPart('authors')">{{ item.authors }}</span>
-        <span class="resource-card-type" :style="sharedPart('type')">{{ item.type }}</span>
+        <span v-if="item.authors" class="resource-card-author text-caption" :title="item.authors" :style="sharedPart('authors')">{{ item.authors }}</span>
+        <span class="resource-card-type text-tag" :style="sharedPart('type')">{{ item.type }}</span>
       </div>
     </div>
   </NuxtLink>
@@ -103,10 +103,6 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 .resource-card-title {
   margin: 0;
   color: var(--color-brand-resources);
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-size: 16pt;
-  line-height: 1.25;
   /* Always one line — cut with an ellipsis right where it would wrap,
      whatever the card's current width (was a fixed 4-word cutoff, which
      still wrapped on narrow cards and cut short titles needlessly).
@@ -120,8 +116,6 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 
 .resource-card-author {
   color: var(--color-brand-resources);
-  font-family: var(--font-mono);
-  font-size: 9pt;
 }
 
 /* Shrink-to-fit rectangle behind the type label, not the full card width —
@@ -134,10 +128,6 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   padding: 2px;
   background: var(--color-brand-resources);
   color: var(--color-on-fill);
-  font-family: var(--font-serif);
-  font-weight: 500;
-  font-size: 10pt;
-  text-transform: uppercase;
 }
 
 /* Near-square on phones (a touch taller than wide). Title, authors and

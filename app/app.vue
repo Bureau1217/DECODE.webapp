@@ -41,6 +41,19 @@ const isAboutPage = computed(() => route.path === '/about')
 // Mobile's INDEX/MENU toggles (SiteIndexBar.vue/SiteNav.vue) — reset on
 // every navigation so arriving at a new page always shows its content
 // first, never leaving a visitor stuck on the previous page's index/menu.
+// Opening a tool (or leaving one) reskins the chrome in its colors —
+// eased over 0.6s while it happens, like the site's other panel moves,
+// rather than snapping. Only during the change: hovers keep their own
+// quick transitions the rest of the time.
+const { theme } = useToolTheme()
+const themeShift = ref(false)
+let themeShiftTimer: ReturnType<typeof setTimeout> | undefined
+watch(() => theme.value?.path, () => {
+  themeShift.value = true
+  clearTimeout(themeShiftTimer)
+  themeShiftTimer = setTimeout(() => { themeShift.value = false }, 700)
+})
+
 const mobileIndexOpen = useMobileIndexOpen()
 const mobileMenuOpen = useMobileMenuOpen()
 watch(
@@ -53,7 +66,7 @@ watch(
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'is-theme-shift': themeShift }">
     <!-- Hidden defs for the global image duotone treatment (app/assets/css/main.css).
          https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Element/feComponentTransfer -->
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -102,6 +115,18 @@ watch(
           <feFuncG type="table" tableValues="0.91373 0.10980" />
           <feFuncB type="table" tableValues="0.90588 0.10980" />
         </feComponentTransfer>
+      </filter>
+      <!-- The About page's partner logo (TeamPanel.vue) at rest: its two
+           grays mapped onto the panels' hover brown (#b8a084, the darker
+           box exactly, the lighter one a paler step), white kept white. -->
+      <filter id="logo-brown" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          type="matrix"
+          values="0.1494 0.2934 0.0570 0 0.5002
+                  0.2000 0.3926 0.0762 0 0.3312
+                  0.2590 0.5084 0.0987 0 0.1339
+                  0      0      0      1 0"
+        />
       </filter>
     </svg>
 
@@ -183,6 +208,16 @@ watch(
   }
 }
 
+.app-shell.is-theme-shift :is(.site-nav, .index-bar, .index-bar-divider, .content-divider, .site-footer),
+.app-shell.is-theme-shift :is(.site-nav, .index-bar, .site-footer) * {
+  transition:
+    background-color 0.6s ease,
+    color 0.6s ease,
+    fill 0.6s ease,
+    stroke 0.6s ease,
+    border-color 0.6s ease !important;
+}
+
 /* html/body need the full viewport height passed down explicitly —
    otherwise a height:100% here has nothing to resolve against, and the
    flex column collapses to its content height instead of the viewport. */
@@ -212,6 +247,9 @@ body {
      to fit its content regardless of the parent's own size — which is
      what would push the footer down instead of scrolling in place. */
   min-height: 0;
+  /* The footer is fixed over the bottom of the screen: the scroll area
+     stops at its top edge, so nothing can end up hidden under it. */
+  margin-bottom: var(--footer-height);
   overflow-y: auto;
   /* Smooth, not an instant jump, when reading mode toggles this margin
      (below) between 50vw and 25vw — matches KeywordsPanel's own width

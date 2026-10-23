@@ -34,7 +34,7 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
 
 <template>
   <section class="search-results" :style="themeVars">
-    <p class="search-summary">
+    <p class="search-summary text-label">
       <template v-if="status === 'pending' || status === 'idle'">{{ copy.searching }}</template>
       <template v-else-if="!groups.length">{{ copy.none }} “{{ query }}”</template>
       <template v-else>{{ pageCount }} {{ copy.for }} “{{ query }}”</template>
@@ -42,17 +42,17 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
 
     <ol class="search-groups">
       <li v-for="group in groups" :key="group.word" class="search-group" :class="`is-score-${group.score}`">
-        <p class="search-word">
+        <p class="search-word text-h3">
           <span>{{ wordParts(group.word, group.match).before }}</span><mark>{{ wordParts(group.word, group.match).hit }}</mark><span>{{ wordParts(group.word, group.match).after }}</span>
         </p>
         <ul class="search-hits">
           <li v-for="hit in group.hits" :key="hit.doc.key">
             <NuxtLink :to="hit.doc.to" class="search-hit">
-              <span class="search-hit-title">
+              <span class="search-hit-title text-h3">
                 {{ hit.doc.title }}
                 <span v-if="hit.doc.context" class="search-hit-context">{{ copy.in }} {{ hit.doc.context }}</span>
               </span>
-              <span v-if="hit.doc.kind" class="search-hit-kind">{{ hit.doc.kind }}</span>
+              <span v-if="hit.doc.kind" class="search-hit-kind text-small">{{ hit.doc.kind }}</span>
             </NuxtLink>
           </li>
         </ul>
@@ -71,9 +71,7 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
   box-sizing: border-box;
   background: var(--color-surface);
   color: var(--search-line);
-  /* The footer is fixed over the bottom of this scroll area: room to
-     scroll the last row clear of it. */
-  padding-bottom: calc(var(--footer-height) + 26px);
+  padding-bottom: 26px;
 }
 
 .search-summary {
@@ -91,10 +89,6 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
   align-items: center;
   background: var(--color-surface);
   color: var(--search-line);
-  font-family: var(--font-mono);
-  font-weight: 500;
-  font-size: 12pt;
-  text-transform: uppercase;
   border-bottom: 1px solid var(--search-line);
 }
 
@@ -119,10 +113,9 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
   align-self: start;
   margin: 0;
   padding: 12px 16px;
-  font-family: var(--font-serif);
-  font-size: 18pt;
-  line-height: 1.15;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .search-group.is-score-3 .search-word {
@@ -165,6 +158,10 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  /* As tall as the word beside it (.search-word: text-h3, 16pt × 1.25,
+     + padding), so a one-page group is no taller than any other row. */
+  min-height: calc(16pt * 1.25 + 24px);
+  box-sizing: border-box;
   padding: 12px 16px;
   text-decoration: none;
   color: var(--color-brand-resources);
@@ -179,10 +176,13 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
   color: var(--color-brand-about);
 }
 
+/* One line per page, cut on the right — every result row the same
+   height whatever its title's length. */
 .search-hit-title {
-  font-family: var(--font-serif);
-  font-size: 14pt;
-  line-height: 1.25;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .search-hit-context {
@@ -194,10 +194,6 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
   padding: 2px 4px;
   background: var(--search-band);
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
-  font-size: 8pt;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
 
 @media (max-width: 768px) {
@@ -212,6 +208,19 @@ useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
 
   .search-hits {
     border-left: none;
+  }
+}
+</style>
+
+<style>
+/* Desktop: the scroll area's own top padding (app.vue, 8.5vh) sits
+   behind the nav, whose folder tabs leave gaps — rows scrolled past the
+   results band showed through them. Clip that strip away so they're
+   gone once they pass the band. (Mobile's scroll area already starts
+   under the nav, no padding.) */
+@media (min-width: 769px) {
+  .app-content:has(.search-results) {
+    clip-path: inset(8.5vh 0 0 0);
   }
 }
 </style>

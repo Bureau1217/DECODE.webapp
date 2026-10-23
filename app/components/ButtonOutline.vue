@@ -29,7 +29,7 @@ withDefaults(defineProps<{
   <NuxtLink
     v-if="to"
     :to="to"
-    class="button-outline"
+    class="button-outline text-label"
     :style="{ '--btn-accent': accent, '--btn-text': textColor || accent, '--btn-bg': background }"
   >
     <slot />
@@ -37,7 +37,7 @@ withDefaults(defineProps<{
   <a
     v-else-if="href"
     :href="href"
-    class="button-outline"
+    class="button-outline text-label"
     :style="{ '--btn-accent': accent, '--btn-text': textColor || accent, '--btn-bg': background }"
   >
     <slot />
@@ -45,7 +45,7 @@ withDefaults(defineProps<{
   <button
     v-else
     type="button"
-    class="button-outline"
+    class="button-outline text-label"
     :disabled="disabled"
     :style="{ '--btn-accent': accent, '--btn-text': textColor || accent, '--btn-bg': background }"
   >
@@ -62,7 +62,6 @@ withDefaults(defineProps<{
   border-radius: 0;
   background: var(--btn-bg);
   color: var(--btn-text);
-  font-family: inherit;
   text-decoration: none;
   display: inline-flex;
   align-items: center;

@@ -97,12 +97,12 @@ function placeholderGradient(seed: string) {
 </script>
 
 <template>
-  <div class="bt-account">
+  <div class="bt-account text-row">
     <template v-if="account">
-      <span class="bt-eyebrow">Analysis</span>
+      <span class="bt-eyebrow text-small">Analysis</span>
 
       <div class="bt-handle-row">
-        <h1 class="bt-handle">{{ account.handle }}</h1>
+        <h1 class="bt-handle text-h2">{{ account.handle }}</h1>
         <div class="bt-nav">
           <ButtonOutline
             class="bt-nav-arrow"
@@ -114,7 +114,7 @@ function placeholderGradient(seed: string) {
               <polyline points="15,4 7,12 15,20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" />
             </svg>
           </ButtonOutline>
-          <span class="bt-nav-count">{{ accountIndex + 1 }}/{{ accounts.length }}</span>
+          <span class="bt-nav-count text-caption">{{ accountIndex + 1 }}/{{ accounts.length }}</span>
           <ButtonOutline
             class="bt-nav-arrow"
             accent="var(--tool-bottroll-accent-deep)"
@@ -130,39 +130,39 @@ function placeholderGradient(seed: string) {
 
       <div class="bt-stats">
         <div class="bt-stat">
-          <span class="bt-stat-label">Social media</span>
+          <span class="bt-stat-label text-small">Social media</span>
           <span class="bt-stat-value">{{ account.platform }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Account created</span>
+          <span class="bt-stat-label text-small">Account created</span>
           <span class="bt-stat-value">{{ formatMonthYear(account.account_created) }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Followers</span>
+          <span class="bt-stat-label text-small">Followers</span>
           <span class="bt-stat-value">{{ formatCount(account.followers_count) }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Following</span>
+          <span class="bt-stat-label text-small">Following</span>
           <span class="bt-stat-value">{{ formatCount(account.following_count) }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Posts</span>
+          <span class="bt-stat-label text-small">Posts</span>
           <span class="bt-stat-value">{{ formatCount(account.posts_count) }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Avg engagement</span>
+          <span class="bt-stat-label text-small">Avg engagement</span>
           <span class="bt-stat-value">{{ formatUnit(account.avg_engagement_pct, '%') }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Posts frequency</span>
+          <span class="bt-stat-label text-small">Posts frequency</span>
           <span class="bt-stat-value">{{ formatUnit(account.post_frequency_per_day, '/day') }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Unique hashtags</span>
+          <span class="bt-stat-label text-small">Unique hashtags</span>
           <span class="bt-stat-value">{{ formatCount(account.unique_hashtags_count) }}</span>
         </div>
         <div class="bt-stat">
-          <span class="bt-stat-label">Recent geotags</span>
+          <span class="bt-stat-label text-small">Recent geotags</span>
           <span class="bt-stat-value bt-stat-value--list">
             <template v-if="account.geotags?.length">
               <span v-for="geo in account.geotags" :key="geo">{{ geo }}</span>
@@ -173,12 +173,12 @@ function placeholderGradient(seed: string) {
       </div>
 
       <template v-if="account.posts?.length">
-        <h3 class="bt-section-title">Latest posts</h3>
+        <h3 class="bt-section-title text-label">Latest posts</h3>
         <div class="bt-post">
           <div class="bt-post-thumb" :style="{ background: placeholderGradient(account.posts[0].id) }" />
           <div class="bt-post-body">
-            <p class="bt-post-caption">{{ account.posts[0].caption }}</p>
-            <p class="bt-post-meta">
+            <p class="bt-post-caption text-note">{{ account.posts[0].caption }}</p>
+            <p class="bt-post-meta text-caption">
               <span>♡ {{ account.posts[0].likes }}</span>
               <span>💬 {{ account.posts[0].comments }}</span>
               <span class="bt-post-hashtags">{{ account.posts[0].hashtags.join(' ') }}</span>
@@ -193,7 +193,7 @@ function placeholderGradient(seed: string) {
             v-for="option in VERDICT_OPTIONS"
             :key="option.value"
             type="button"
-            class="bt-verdict-option"
+            class="bt-verdict-option text-label"
             :class="{ 'bt-verdict-option--active': selectedVerdict === option.value }"
             @click="chooseVerdict(option.value)"
           >
@@ -202,16 +202,16 @@ function placeholderGradient(seed: string) {
         </div>
 
         <label class="bt-note">
-          <span class="bt-note-label">Note</span>
-          <textarea v-model="note" rows="3" placeholder="What tipped it for you?" />
+          <span class="bt-note-label text-small">Note</span>
+          <textarea v-model="note" class="text-row" rows="3" placeholder="What tipped it for you?" />
         </label>
 
         <div class="bt-save-row">
           <ButtonOutline class="bt-save" :disabled="!selectedVerdict || saving" @click="save">
             {{ saving ? 'Saving…' : 'Save to review table' }}
           </ButtonOutline>
-          <span v-if="saved" class="bt-save-status">Saved.</span>
-          <span v-if="saveError" class="bt-save-status bt-save-status--error">Couldn't save — try again.</span>
+          <span v-if="saved" class="text-caption bt-save-status">Saved.</span>
+          <span v-if="saveError" class="text-caption bt-save-status bt-save-status--error">Couldn't save — try again.</span>
         </div>
       </div>
     </template>
@@ -224,16 +224,12 @@ function placeholderGradient(seed: string) {
   /* 56px top, not 24px — clears TemplateToolPageLayout.vue's own exit
      cross (14px inset + 28px tall) so "Analysis" never sits under it. */
   padding: 56px 32px 48px;
-  font-family: var(--font-mono);
   color: var(--color-ink);
 }
 
 .bt-eyebrow {
   display: block;
   margin-bottom: 8px;
-  font-size: 9pt;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
   color: var(--color-text-soft);
 }
 
@@ -249,9 +245,6 @@ function placeholderGradient(seed: string) {
 
 .bt-handle {
   margin: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 26pt;
 }
 
 /* Border/fill/hover-invert chrome lives in ButtonOutline.vue now — only
@@ -273,7 +266,6 @@ function placeholderGradient(seed: string) {
 .bt-nav-count {
   min-width: 5.5em;
   text-align: center;
-  font-size: 9pt;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-soft);
 }
@@ -295,21 +287,16 @@ function placeholderGradient(seed: string) {
 
 .bt-stat-label {
   display: block;
-  font-size: 8.5pt;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--tool-bottroll-signal);
   margin-bottom: 4px;
 }
 
 .bt-stat-value {
   display: block;
-  font-size: 12pt;
   font-weight: 700;
 }
 
 .bt-stat-value--list {
-  font-size: 10pt;
   font-weight: 400;
   display: flex;
   flex-direction: column;
@@ -317,10 +304,6 @@ function placeholderGradient(seed: string) {
 
 .bt-section-title {
   margin: 0 0 12px;
-  font-size: 10pt;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .bt-post {
@@ -343,9 +326,6 @@ function placeholderGradient(seed: string) {
 
 .bt-post-caption {
   margin: 0 0 8px;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10.5pt;
-  line-height: 1.4;
 }
 
 .bt-post-meta {
@@ -353,7 +333,6 @@ function placeholderGradient(seed: string) {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  font-size: 9pt;
   color: var(--color-text-soft);
 }
 
@@ -374,10 +353,6 @@ function placeholderGradient(seed: string) {
 }
 
 .bt-verdict-option {
-  font-family: var(--font-mono);
-  font-size: 10pt;
-  font-weight: 700;
-  text-transform: uppercase;
   padding: 14px 8px;
   border: 1px solid var(--color-ink);
   background: var(--color-surface);
@@ -403,17 +378,12 @@ function placeholderGradient(seed: string) {
 .bt-note-label {
   display: block;
   margin-bottom: 6px;
-  font-size: 9pt;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--color-text-soft);
 }
 
 .bt-note textarea {
   width: 100%;
   box-sizing: border-box;
-  font-family: var(--font-mono);
-  font-size: 10pt;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -431,15 +401,10 @@ function placeholderGradient(seed: string) {
    (default accent is var(--color-ink), matching this button's own) — only
    this button's own sizing/typography stays here. */
 .bt-save {
-  font-family: var(--font-mono);
-  font-size: 10pt;
-  font-weight: 700;
-  text-transform: uppercase;
   padding: 12px 22px;
 }
 
 .bt-save-status {
-  font-size: 9pt;
   color: var(--color-success);
 }
 
@@ -467,7 +432,6 @@ function placeholderGradient(seed: string) {
 
   .bt-handle {
     min-width: 0;
-    font-size: 20pt;
     overflow-wrap: anywhere;
   }
 

@@ -53,7 +53,12 @@ function selectCampaign(campaign: CampaignWithReceivers) {
   }
 
   selectedCampaign.value = campaign
+  showCampaign(campaign)
+}
 
+// The map side of a selection — also run once on load for a campaign
+// already selected before the map existed (the tool's Start opens on one).
+function showCampaign(campaign: CampaignWithReceivers) {
   emitterMarkers.forEach(({ el, campaign: c }) => {
     el.classList.toggle('is-selected', c.slug === campaign.slug)
   })
@@ -62,11 +67,14 @@ function selectCampaign(campaign: CampaignWithReceivers) {
 
   renderReceivers(campaign)
 
-  map?.flyTo({
-    center: [campaign.emitter_longitude, campaign.emitter_latitude],
-    zoom: 2.5,
-    speed: 0.8,
-  })
+  // Frames the emitter and every country it targets together, not just
+  // the emitter — pins' labels hang to their right, hence the wider
+  // right padding.
+  if (map && mapboxgl) {
+    const bounds = new mapboxgl.LngLatBounds([campaign.emitter_longitude, campaign.emitter_latitude], [campaign.emitter_longitude, campaign.emitter_latitude])
+    for (const r of campaign.receivers) bounds.extend([r.receiver_longitude, r.receiver_latitude])
+    map.fitBounds(bounds, { padding: { top: 90, bottom: 60, left: 60, right: 220 }, maxZoom: 4, duration: 1400 })
+  }
 }
 
 function deselectCampaign() {
@@ -98,7 +106,7 @@ function renderReceivers(campaign: CampaignWithReceivers) {
     // emitter's own label, so both read in the same direction. Target
     // audience stacked below the country name, inside the same pill.
     const label = document.createElement('div')
-    label.className = 'receiver-label'
+    label.className = 'receiver-label text-caption'
 
     const country = document.createElement('span')
     country.className = 'receiver-label-country'
@@ -275,7 +283,7 @@ onMounted(async () => {
       // shown once this emitter is the selected one (CSS, .is-selected),
       // so the map isn't cluttered with every campaign's actor at once.
       const label = document.createElement('div')
-      label.className = 'emitter-label'
+      label.className = 'emitter-label text-caption'
 
       const country = document.createElement('span')
       country.className = 'emitter-label-country'
@@ -319,6 +327,8 @@ onMounted(async () => {
       }
       map!.fitBounds(bounds, { padding: 160, maxZoom: 3, duration: 0 })
     }
+
+    if (selectedCampaign.value) showCampaign(selectedCampaign.value)
   })
 
   map.on('click', () => deselectCampaign())
@@ -485,9 +495,7 @@ onBeforeUnmount(() => {
 
 .map-wrapper :deep(.emitter-label-country) {
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9pt;
   white-space: nowrap;
 }
 
@@ -496,9 +504,6 @@ onBeforeUnmount(() => {
 .map-wrapper :deep(.emitter-label-actor) {
   display: none;
   color: var(--color-on-fill);
-  font-family: var(--font-mono);
-  font-size: 7pt;
-  line-height: 1.3;
   max-width: 150px;
   text-align: left;
   white-space: normal;
@@ -540,17 +545,12 @@ onBeforeUnmount(() => {
 
 .map-wrapper :deep(.receiver-label-country) {
   color: #d9291c;
-  font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 9pt;
   white-space: nowrap;
 }
 
 .map-wrapper :deep(.receiver-label-target) {
   color: #d9291c;
-  font-family: var(--font-mono);
-  font-size: 7pt;
-  line-height: 1.3;
   max-width: 150px;
   text-align: left;
   white-space: normal;

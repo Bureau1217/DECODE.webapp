@@ -167,7 +167,7 @@ const HEADLINE_MS = 900
           </span>
         </span>
       </h1>
-      <p class="text-h3 home-hero-subtitle">
+      <p class="text-label home-hero-subtitle">
         <span class="home-hero-subtitle-box">
           <DecipherText :text="copy.subtitle" :delay="HEADLINE_MS + 500" />
         </span>

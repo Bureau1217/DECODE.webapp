@@ -35,13 +35,14 @@ function toggleColorMode() {
     :class="{ 'is-branded': !showSplash, 'is-tool-themed': isThemed, 'is-intro-hidden': introHidden }"
     :style="{ '--local-accent': theme?.chromeText, '--local-chrome': theme?.chromeAccent }"
   >
-    <NuxtLink to="/" class="footer-brand">DE.CO.DE</NuxtLink>
-    <span class="footer-tagline text-h4">
+    <!-- The Investigation Guide is home. -->
+    <NuxtLink to="/guide" class="footer-brand">DE.CO.DE</NuxtLink>
+    <span class="footer-tagline text-small">
       {{ SITE_TAGLINE }}
     </span>
 
     <div class="footer-controls">
-      <span class="footer-lang text-h4">
+      <span class="footer-lang text-small">
         <button
           type="button"
           class="footer-lang-option"
@@ -59,7 +60,7 @@ function toggleColorMode() {
       </span>
       <button
         type="button"
-        class="footer-dark-mode text-h4"
+        class="footer-dark-mode text-small"
         :class="{ 'is-on': colorMode === 'dark' }"
         :aria-pressed="colorMode === 'dark'"
         aria-label="Dark mode"
@@ -148,7 +149,7 @@ function toggleColorMode() {
 }
 
 /* Same reset as .footer-dark-mode below — family only, never the `font`
-   shorthand, so .text-h4's size still applies. */
+   shorthand, so .text-small's size still applies. */
 .footer-lang-option {
   background: none;
   border: none;
@@ -176,7 +177,7 @@ function toggleColorMode() {
   border: none;
   padding: 0;
   /* Only the family, not the `font` shorthand — that resets font-size too,
-     which would silently override .text-h4's size with the inherited one. */
+     which would silently override .text-small's size with the inherited one. */
   font-family: inherit;
   color: inherit;
   cursor: pointer;
@@ -195,6 +196,12 @@ function toggleColorMode() {
   border: 1px solid currentColor;
   background: linear-gradient(135deg, #fff 50%, var(--dot-dark) 50%);
   transition: transform 0.5s cubic-bezier(0.3, 0, 0.15, 1);
+}
+
+/* Splash only: black, not brown — the rest of the footer isn't branded
+   yet there either. */
+.site-footer:not(.is-branded) .footer-dark-mode-dot {
+  --dot-dark: #000;
 }
 
 .footer-dark-mode.is-on .footer-dark-mode-dot {
