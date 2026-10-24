@@ -6,6 +6,11 @@ const page = await useKirbyPage('page:about', "page('about')", 'about')
 // singleton (content/infos/) — reused here instead of hardcoding the
 // same string a second place.
 const siteInfos = await useKirbyPage('page:infos', "page('infos')", 'site_infos')
+
+usePageSeo({
+  title: () => cmsText(page.value, 'title') ?? 'About',
+  description: () => cmsText(page.value, 'header_subtitle') ?? cmsText(siteInfos.value, 'long_description'),
+})
 </script>
 
 <template>

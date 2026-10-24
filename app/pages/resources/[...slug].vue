@@ -22,6 +22,11 @@ const id = assertSafeKirbyId(segments.join('/'))
 
 const page = await useKirbyPageAnyTemplate(`resources:${id}`, `page('${id}')`)
 
+usePageSeo({
+  title: () => cmsText(page.value, 'title'),
+  description: () => cmsText(page.value, 'description') ?? cmsText(page.value, 'subtitle'),
+})
+
 const templateComponent = computed(() => templateComponents[page.value?.template as string] ?? TemplateFallback)
 
 // Same flattened, intendedTemplate:'ressource' order resources/index.vue's

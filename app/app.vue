@@ -5,7 +5,33 @@ const showSplash = useSplashVisible()
 // `:root[data-theme='dark']` token block applies to the whole page,
 // splash included.
 const colorMode = useColorMode()
-useHead({ htmlAttrs: { 'data-theme': colorMode } })
+
+// Site-wide head/SEO defaults — each page overrides title/description/
+// image through usePageSeo(). `lang` follows the ENG/FR toggle (the same
+// cookie the CMS requests use), so the server-rendered HTML always
+// declares the language it actually contains. The canonical is the path
+// alone: query strings (?q=, filters) never create separate pages.
+const language = useLanguage()
+const { public: { siteUrl } } = useRuntimeConfig()
+const route = useRoute()
+const canonicalUrl = computed(() => new URL(route.path, siteUrl).href)
+const siteDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en)
+
+useHead({
+  htmlAttrs: { 'data-theme': colorMode, lang: language },
+  titleTemplate: (title) => (title ? `${title} · DE.CO.DE` : 'DE.CO.DE — An open multimedia guide exploring disinformation'),
+  link: [{ rel: 'canonical', href: canonicalUrl }],
+})
+useSeoMeta({
+  description: siteDescription,
+  ogSiteName: 'DE.CO.DE',
+  ogType: 'website',
+  ogTitle: 'DE.CO.DE',
+  ogDescription: siteDescription,
+  ogUrl: canonicalUrl,
+  ogLocale: () => (language.value === 'fr' ? 'fr_CH' : 'en_US'),
+  twitterCard: 'summary_large_image',
+})
 
 // Always visible (KeywordsPanel, below) on these — not on /keywords/*
 // itself or individual tool pages, which weren't asked for. Still gated
@@ -14,7 +40,6 @@ useHead({ htmlAttrs: { 'data-theme': colorMode } })
 // matches (not just the exact list/index route) — an article or resource
 // detail page (DetailPanelChrome.vue) should show it too, half-viewport
 // same as the lists.
-const route = useRoute()
 const KEYWORDS_PANEL_EXACT_ROUTES = ['/', '/tools', '/about', '/search']
 const KEYWORDS_PANEL_PREFIX_ROUTES = ['/guide', '/resources']
 const showKeywordsPanel = computed(() => {

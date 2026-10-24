@@ -21,6 +21,9 @@ export default defineNuxtConfig({
     public: {
       // Base URL of the DECODE.cms Kirby instance, e.g. http://decode-cms.test
       cmsUrl: '',
+      // Public origin of this site — canonical links, og:url and
+      // /sitemap.xml are built from it (NUXT_PUBLIC_SITE_URL to override).
+      siteUrl: 'https://de-co-de.ch',
       // Public Mapbox token (pk....) — same one DECODE.map (the sibling
       // project DisinfoMap.vue/CampaignInfoPanel.vue were ported from)
       // hardcodes; exposed to the browser by design, same as that project.

@@ -28,6 +28,11 @@ const items = await useKirbyCollection<ResourceItem>(
 
 // Leaving this page shouldn't leave some other item's keywords highlighted
 // in the panel — same reasoning as guide/index.vue.
+usePageSeo({
+  title: 'Resources',
+  description: 'Articles, papers, podcasts and videos to understand disinformation, selected by DE.CO.DE.',
+})
+
 const highlighted = useHighlightedKeywords()
 onUnmounted(() => {
   highlighted.value = null

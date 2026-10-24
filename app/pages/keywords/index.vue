@@ -14,6 +14,11 @@ const categories = await useKirbyCollection<Category>(
   "site.children.filterBy('intendedTemplate', 'tags')",
   { title: true, slug: true, id: true },
 )
+
+usePageSeo({
+  title: 'Keywords',
+  description: 'The DE.CO.DE keywords: themes, concepts, platforms and questions linking the guide, the tools and the resources.',
+})
 </script>
 
 <template>

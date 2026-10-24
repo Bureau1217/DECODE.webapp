@@ -33,6 +33,11 @@ onUnmounted(() => {
 // the grid's centre, where the white cross meets, each from its own
 // inner corner, then their image settles and their text comes up.
 const introTransition = useIntroTransition()
+
+usePageSeo({
+  title: 'Investigation Guide',
+  description: 'Articles and case studies to investigate disinformation: concepts, platforms, campaigns, trolls, deepfakes and how to verify online content.',
+})
 </script>
 
 <template>

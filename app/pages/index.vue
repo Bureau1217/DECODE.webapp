@@ -43,18 +43,60 @@ function dismissSplash() {
   })
   navigateTo('/guide')
 }
+
+// The splash and HomeHero are client-only (layout measured from the
+// viewport), so without this the server-rendered '/' had ~no text and no
+// link at all — the nav is hidden while the splash is up (app.vue). This
+// block is in the HTML from the first byte: the page's one <h1>, what the
+// site is, and plain links into the four sections. Visually hidden (the
+// splash and HomeHero already show the same things), not display:none, so
+// screen readers get it too — the splash itself has no readable structure.
+const language = useLanguage()
+const homeDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en)
 </script>
 
 <template>
-  <ClientOnly>
-    <Splash v-if="showSplash" @continue="dismissSplash" />
-    <!-- The keywords panel is rendered globally (app.vue, KeywordsPanel);
-         the right half is the splash's grid, countries and a headline at
-         rest (HomeHero). -->
-    <HomeHero v-else />
+  <!-- One root node (Nuxt pages need it), with no box of its own so the
+       splash / HomeHero lay out exactly as before. -->
+  <div class="home-page">
+    <div class="home-summary">
+      <h1>DE.CO.DE</h1>
+      <p>{{ homeDescription }}</p>
+      <nav aria-label="Sections">
+        <ul>
+          <li v-for="link in NAV_LINKS" :key="link.to">
+            <NuxtLink :to="link.to">{{ link.label }}</NuxtLink>
+          </li>
+        </ul>
+      </nav>
+    </div>
 
-    <template #fallback>
-      <div class="loading" />
-    </template>
-  </ClientOnly>
+    <ClientOnly>
+      <Splash v-if="showSplash" @continue="dismissSplash" />
+      <!-- The keywords panel is rendered globally (app.vue, KeywordsPanel);
+           the right half is the splash's grid, countries and a headline at
+           rest (HomeHero). -->
+      <HomeHero v-else />
+
+      <template #fallback>
+        <div class="loading" />
+      </template>
+    </ClientOnly>
+  </div>
 </template>
+
+<style scoped>
+.home-page {
+  display: contents;
+}
+
+/* Same visually-hidden recipe as .decipher-sr (main.css). */
+.home-summary {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+</style>

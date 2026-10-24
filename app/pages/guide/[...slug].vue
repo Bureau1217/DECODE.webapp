@@ -9,6 +9,12 @@ const id = assertSafeKirbyId(segments.join('/'))
 
 const page = await useKirbyPage(`guide:${id}`, `page('${id}')`, 'default')
 
+usePageSeo({
+  title: () => cmsText(page.value, 'title'),
+  description: () => cmsText(page.value, 'header_subtitle'),
+  image: () => cmsImage(page.value, 'page_image_preview') ?? cmsImage(page.value, 'header_image'),
+})
+
 // Same flat, intendedTemplate:'default' list guide/index.vue's own grid
 // is built from — this article's position in it is what determines its
 // badge color (GuideCard.vue) and its prev/next neighbors here.

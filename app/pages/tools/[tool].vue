@@ -3,6 +3,12 @@ const route = useRoute()
 const slug = assertSafeKirbyId(String(route.params.tool))
 const page = await useKirbyPage(`page:tools/${slug}`, `page('tools/${slug}')`, 'tool')
 
+usePageSeo({
+  title: () => cmsText(page.value, 'title'),
+  description: () => cmsText(page.value, 'description') ?? cmsText(page.value, 'subtitle'),
+  image: () => cmsImage(page.value, 'image'),
+})
+
 // Each of the three tools gets its own custom view instead of the
 // generic TemplateTool — all have underlying CMS data (campaigns /
 // criteria / sources) beyond the plain title+description+image fields

@@ -30,6 +30,9 @@ const themeVars = computed(() => (theme.value
   : undefined))
 
 useHead({ title: () => (query.value ? `${query.value} — Search` : 'Search') })
+// Result pages are endless query-string variations of other pages' content:
+// keep them out of the index, but let crawlers follow their links.
+usePageSeo({ noindex: true })
 </script>
 
 <template>

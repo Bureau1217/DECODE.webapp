@@ -1,2 +1,4 @@
 User-Agent: *
 Disallow:
+
+Sitemap: https://de-co-de.ch/sitemap.xml
