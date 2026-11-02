@@ -15,21 +15,35 @@ const language = useLanguage()
 const { public: { siteUrl } } = useRuntimeConfig()
 const route = useRoute()
 const canonicalUrl = computed(() => new URL(route.path, siteUrl).href)
+const siteTitle = computed(() => SITE_TITLE[language.value] ?? SITE_TITLE.en)
 const siteDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en)
 
 useHead({
   htmlAttrs: { 'data-theme': colorMode, lang: language },
-  titleTemplate: (title) => (title ? `${title} · DE.CO.DE` : 'DE.CO.DE — An open multimedia guide exploring disinformation'),
-  link: [{ rel: 'canonical', href: canonicalUrl }],
+  titleTemplate: (title) => (title ? `${title} · DE.CO.DE` : siteTitle.value),
+  link: [
+    { rel: 'canonical', href: canonicalUrl },
+    // Follows the site's own light/dark toggle, not just the system's.
+    { rel: 'icon', type: 'image/svg+xml', href: () => (colorMode.value === 'dark' ? '/favicon-dark.svg' : '/favicon.svg') },
+    { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+  ],
 })
+// The preview for a shared link: a page with its own image overrides it
+// (usePageSeo), any other falls back to this one. Link previews need the
+// full URL, not a path.
 useSeoMeta({
   description: siteDescription,
   ogSiteName: 'DE.CO.DE',
   ogType: 'website',
-  ogTitle: 'DE.CO.DE',
+  ogTitle: siteTitle,
   ogDescription: siteDescription,
   ogUrl: canonicalUrl,
   ogLocale: () => (language.value === 'fr' ? 'fr_CH' : 'en_US'),
+  ogImage: new URL('/og-image.png', siteUrl).href,
+  ogImageWidth: 1200,
+  ogImageHeight: 630,
+  ogImageAlt: 'DE.CO.DE, an open multimedia guide exploring disinformation',
   twitterCard: 'summary_large_image',
 })
 
@@ -309,6 +323,11 @@ body {
 }
 
 @media (max-width: 768px) {
+  /* No split on a phone: no middle line for the splash to hand over. */
+  .intro-keep-line {
+    display: none;
+  }
+
   .mobile-chrome-backdrop {
     display: block;
     position: fixed;
@@ -331,6 +350,9 @@ body {
   .app-content.has-keywords-panel,
   .app-content.has-keywords-panel.reading-mode {
     margin-left: 0;
+    /* `bottom` below already clears the footer: the base rule's margin on
+       top of it left an empty strip above the footer. */
+    margin-bottom: 0;
     padding-top: 0;
     position: fixed;
     top: 8.5vh;

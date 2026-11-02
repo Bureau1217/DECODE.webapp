@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Splash shows on every full page load of '/' (a reload, a typed URL),
-// but not again when navigating back to Home within the same visit:
-// `splashDismissed` is in-memory app state, so only a reload resets it.
+// but not again within the same visit: `splashDismissed` is in-memory app
+// state, so only a reload resets it. Once it's gone the Investigation Guide
+// is home, so '/' itself just leads there.
 const splashDismissed = useState('splash-dismissed', () => false)
 
 // Shared with app.vue, which hides the site nav while this is true.
@@ -9,7 +10,10 @@ const showSplash = useSplashVisible()
 showSplash.value = !splashDismissed.value
 // No splash this time: nothing to build, footer stays in place.
 const splashIntro = useSplashIntro()
-if (!showSplash.value) splashIntro.value = 'done'
+if (!showSplash.value) {
+  splashIntro.value = 'done'
+  navigateTo('/guide', { replace: true })
+}
 
 onUnmounted(() => {
   // Leaving '/' entirely (e.g. typing another URL) shouldn't leave the nav
@@ -18,8 +22,8 @@ onUnmounted(() => {
   showSplash.value = false
 })
 
-// The splash hands over straight to the Investigation Guide, not to this
-// page's own HomeHero. Its page chunk loads while the splash is up.
+// The splash hands over straight to the Investigation Guide. Its page chunk
+// loads while the splash is up.
 onMounted(() => {
   if (showSplash.value) preloadRouteComponents('/guide')
 })
@@ -35,29 +39,29 @@ function dismissSplash() {
   splashDismissed.value = true
   introTransition.value = true
   // The splash holds its outro's last frame until /guide has its data, so
-  // the chrome and the guide grid draw in together in one frame, with
-  // no HomeHero flashing in between.
+  // the chrome and the guide grid draw in together in one frame. Replacing
+  // the history entry: the browser's back button doesn't return to '/'.
   const off = nuxtApp.hook('page:finish', () => {
     off()
     setTimeout(() => { introTransition.value = false }, INTRO_MS)
   })
-  navigateTo('/guide')
+  navigateTo('/guide', { replace: true })
 }
 
-// The splash and HomeHero are client-only (layout measured from the
-// viewport), so without this the server-rendered '/' had ~no text and no
-// link at all — the nav is hidden while the splash is up (app.vue). This
-// block is in the HTML from the first byte: the page's one <h1>, what the
-// site is, and plain links into the four sections. Visually hidden (the
-// splash and HomeHero already show the same things), not display:none, so
-// screen readers get it too — the splash itself has no readable structure.
+// The splash is client-only (layout measured from the viewport), so without
+// this the server-rendered '/' had ~no text and no link at all — the nav is
+// hidden while the splash is up (app.vue). This block is in the HTML from the
+// first byte: the page's one <h1>, what the site is, and plain links into the
+// four sections. Visually hidden (the splash already shows the same things),
+// not display:none, so screen readers get it too — the splash itself has no
+// readable structure.
 const language = useLanguage()
 const homeDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en)
 </script>
 
 <template>
   <!-- One root node (Nuxt pages need it), with no box of its own so the
-       splash / HomeHero lay out exactly as before. -->
+       splash lays out exactly as before. -->
   <div class="home-page">
     <div class="home-summary">
       <h1>DE.CO.DE</h1>
@@ -73,10 +77,6 @@ const homeDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_
 
     <ClientOnly>
       <Splash v-if="showSplash" @continue="dismissSplash" />
-      <!-- The keywords panel is rendered globally (app.vue, KeywordsPanel);
-           the right half is the splash's grid, countries and a headline at
-           rest (HomeHero). -->
-      <HomeHero v-else />
 
       <template #fallback>
         <div class="loading" />

@@ -19,7 +19,7 @@ export function useArticleCardHighlight(item: Ref<KeywordBearing>) {
 
   return {
     onHover: () => {
-      highlighted.value = keywordIds()
+      if (canHover()) highlighted.value = keywordIds()
     },
     onLeave: () => {
       highlighted.value = null

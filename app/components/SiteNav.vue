@@ -32,9 +32,12 @@ const { theme, isThemed } = useToolTheme()
 // left at x:0 — with exactly 4 links, the 4 tabs (each 25vw) span the
 // full width edge to edge with no gaps, same as Splash's own tab would if
 // tiled across the row.
+//
+// The row's top and height are CSS `vh` (below), the same unit as
+// SiteIndexBar right under it. Computing them from window.innerHeight opened
+// a gap between the two on phones: innerHeight changes as the address bar
+// moves, `vh` doesn't. The tab's height is read back from the row itself.
 const TAB_WIDTH_RATIO = 0.25
-const TAB_HEIGHT_RATIO = 0.035
-const TAB_TOP_RATIO = 0.015
 
 // Mobile's single "MENU" tab (site-nav-mobile-row below) isn't 1/4 of the
 // row like desktop's 4 tiled tabs — half the row, the ticker text taking
@@ -44,7 +47,7 @@ const MOBILE_TAB_WIDTH_RATIO = 0.5
 const tabWidth = ref(0)
 const mobileTabWidth = ref(0)
 const tabHeight = ref(0)
-const tabTop = ref(0)
+const navEl = ref<HTMLElement | null>(null)
 
 // Same trapezoid silhouette (app/utils/tabPath.ts) for both the desktop
 // row's 4 tiled tabs and mobile's single MENU tab — only the width differs
@@ -75,8 +78,7 @@ const mobileTabPath = computed(() => buildTabPath(mobileTabWidth.value, tabHeigh
 function measure() {
   tabWidth.value = window.innerWidth * TAB_WIDTH_RATIO
   mobileTabWidth.value = window.innerWidth * MOBILE_TAB_WIDTH_RATIO
-  tabHeight.value = window.innerHeight * TAB_HEIGHT_RATIO
-  tabTop.value = window.innerHeight * TAB_TOP_RATIO
+  tabHeight.value = navEl.value?.getBoundingClientRect().height ?? 0
 }
 
 onMounted(() => {
@@ -90,11 +92,10 @@ onUnmounted(() => {
 
 <template>
   <nav
+    ref="navEl"
     class="site-nav"
     :class="{ 'is-tool-themed': isThemed, 'is-intro': introTransition }"
     :style="{
-      top: `${tabTop}px`,
-      height: `${tabHeight}px`,
       '--local-accent': theme?.chromeAccent,
       '--local-accent-text': theme?.chromeText,
     }"
@@ -163,12 +164,14 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Identical physical sizing to Splash.vue's own tab (tabWidth/tabHeight/
-   tabTop, script, all inline styles here) — with exactly 4 links, 4×25vw
-   tabs tile edge to edge and exactly fill the width, no gap/justify
-   trickery needed; the first one starts flush at x:0, same as Splash's. */
+/* Identical physical sizing to Splash.vue's own tab — with exactly 4 links,
+   4×25vw tabs tile edge to edge and exactly fill the width, no gap/justify
+   trickery needed; the first one starts flush at x:0, same as Splash's. Ends
+   at 5vh, exactly where SiteIndexBar starts. */
 .site-nav {
   position: fixed;
+  top: 1.5vh;
+  height: 3.5vh;
   left: 0;
   z-index: 3;
   display: flex;

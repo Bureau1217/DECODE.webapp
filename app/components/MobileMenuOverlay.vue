@@ -59,12 +59,11 @@ const { data: aboutTitles } = useAsyncData<AboutTitles | null>('mobile-menu-abou
 
 // One folder per top-level section (NAV_LINKS), all open at once.
 // Every row is a number and a right-aligned title; Guide/Tools numbers sit
-// on a colored square (same colors as their cards). Every row opens its
-// section's own main page, not the article/tool/theme itself.
+// on a colored square (same colors as their cards). Rows only describe what's
+// in the section: the folder's own tab is the one thing that opens a page.
 interface FolderRow {
   key: string
   title: string
-  to: string
   chip?: string
 }
 
@@ -72,17 +71,17 @@ const folders = computed(() =>
   NAV_LINKS.map((link) => {
     let rows: FolderRow[] = []
     if (link.to === '/guide') {
-      rows = (guideArticles.value ?? []).slice(0, 3).map((a, i) => ({ key: a.id, title: a.title, to: '/guide', chip: badgeColorFor(i) }))
+      rows = (guideArticles.value ?? []).slice(0, 3).map((a, i) => ({ key: a.id, title: a.title, chip: badgeColorFor(i) }))
     } else if (link.to === '/tools') {
-      rows = (toolsPage.value?.tools ?? []).slice(0, 3).map((t, i) => ({ key: t.id, title: t.title, to: '/tools', chip: toolColorFor(i) }))
+      rows = (toolsPage.value?.tools ?? []).slice(0, 3).map((t, i) => ({ key: t.id, title: t.title, chip: toolColorFor(i) }))
     } else if (link.to === '/resources') {
-      rows = (resourceThemes.value ?? []).map((r) => ({ key: r.id, title: r.title, to: '/resources' }))
+      rows = (resourceThemes.value ?? []).map((r) => ({ key: r.id, title: r.title }))
     } else if (link.to === '/about') {
       const about = aboutTitles.value
       rows = [about?.paragraph_1_title, about?.paragraph_2_title, about?.paragraph_3_title]
-        .map((title, i) => ({ key: `about-${i}`, title: title ?? '', to: '/about' }))
+        .map((title, i) => ({ key: `about-${i}`, title: title ?? '' }))
         .filter((row) => row.title)
-      rows.push({ key: 'about-credits', title: 'Credits', to: '/about' })
+      rows.push({ key: 'about-credits', title: 'Credits' })
     }
     return { ...link, rows }
   }),
@@ -155,11 +154,9 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
         <div class="mobile-menu-body">
           <ol v-if="folder.rows.length" class="mobile-menu-rows">
-            <li v-for="(row, i) in folder.rows" :key="row.key">
-              <NuxtLink :to="row.to" class="mobile-menu-row" @click="close">
-                <span class="mobile-menu-row-number text-h3" :class="{ 'has-chip': row.chip }" :style="row.chip ? { backgroundColor: row.chip } : undefined">{{ i + 1 }}</span>
-                <span class="mobile-menu-row-title text-h3">{{ row.title }}</span>
-              </NuxtLink>
+            <li v-for="(row, i) in folder.rows" :key="row.key" class="mobile-menu-row">
+              <span class="mobile-menu-row-number text-h3" :class="{ 'has-chip': row.chip }" :style="row.chip ? { backgroundColor: row.chip } : undefined">{{ i + 1 }}</span>
+              <span class="mobile-menu-row-title text-h3">{{ row.title }}</span>
             </li>
           </ol>
           <!-- Pixel-dot country shapes, same as the splash/tool cards. -->

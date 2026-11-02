@@ -177,5 +177,28 @@ usePageSeo({
   .guide-grid :deep(.guide-card:last-child) {
     border-bottom: none;
   }
+
+  /* Splash -> guide: there's no centre cross to open from in a single
+     column, so each card unrolls downward from its top edge, one after the
+     other from the top of the list. */
+  .guide-grid.is-intro :deep(.guide-card:nth-child(n)) {
+    --card-from: inset(0 0 100% 0);
+  }
+
+  .guide-grid.is-intro :deep(.guide-card:nth-child(1)) {
+    animation-delay: 0.25s;
+  }
+
+  .guide-grid.is-intro :deep(.guide-card:nth-child(2)) {
+    animation-delay: 0.45s;
+  }
+
+  .guide-grid.is-intro :deep(.guide-card:nth-child(3)) {
+    animation-delay: 0.65s;
+  }
+
+  .guide-grid.is-intro :deep(.guide-card:nth-child(4)) {
+    animation-delay: 0.85s;
+  }
 }
 </style>

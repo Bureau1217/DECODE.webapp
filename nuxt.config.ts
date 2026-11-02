@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+
 export default defineNuxtConfig({
   devtools: false,
   compatibilityDate: '2025-07-15',
@@ -5,6 +7,12 @@ export default defineNuxtConfig({
   // mapbox-gl's own CSS (controls, popups, attribution) — needed by
   // DisinfoMap.vue (the "Campaigns Maps" tool's custom detail view).
   css: ['mapbox-gl/dist/mapbox-gl.css', '~/assets/css/main.css'],
+  // Keeps every `:hover` off touch screens (see the plugin).
+  postcss: {
+    plugins: {
+      [fileURLToPath(new URL('./postcss/hover-only.mjs', import.meta.url))]: {},
+    },
+  },
   // useKirbyPageAnyTemplate makes two sequential `useKql` calls (each
   // calling `useRuntimeConfig()`) inside one useAsyncData callback —
   // without this, the Nuxt instance context is lost after the first

@@ -3,6 +3,12 @@
 // show this exact string; kept here once so they can't drift apart.
 export const SITE_TAGLINE = 'DE.CO.DE IS AN OPEN MULTIMEDIA GUIDE EXPLORING DISINFORMATION'
 
+// The title shown on a link preview of the site itself.
+export const SITE_TITLE = {
+  en: 'DE.CO.DE — An open multimedia guide exploring disinformation',
+  fr: 'DE.CO.DE — Un guide multimédia ouvert qui explore la désinformation',
+} as const
+
 // The same tagline, sentence-cased and spelled out, for search engines and
 // link previews (meta description / og:description) — the shouted caps
 // above are a visual treatment, not something to show in a results page.

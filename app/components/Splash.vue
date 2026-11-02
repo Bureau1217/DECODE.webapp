@@ -43,18 +43,24 @@ function imageLabel(index: number, alt?: string) {
 // auto-import, same as badgeColorFor() in GuideCard.vue/ToolCard.vue) —
 // this used to be its own local copy of that same array.
 
-// Horizontal rhythm for the big display sentences (assumes CMS order
-// Spotting/Deepfakes/Campaigns): first line shifted left a bit, second
-// left alone, third shifted left the most — rather than all three sharing
-// one center axis.
-const SENTENCE_OFFSETS = [-70, 0, -90]
+// Horizontal rhythm for the headline's lines, rather than all of them sharing
+// one center axis: one line further left, the next further right, each
+// headline starting on the opposite side from the one before. Sized off the
+// font, and each line is held back by what's left of the screen on its own:
+// a long line barely moves, a short one takes the whole shift.
+const LINE_SHIFT_EM = 0.6
+const HEADLINE_SIDE_MARGIN = 0.04 // of the viewport's width, each side
 function sentenceOffset(index: number) {
-  return `${(SENTENCE_OFFSETS[index % SENTENCE_OFFSETS.length] ?? 0) * mobileScale.value}px`
+  if (headlineWords.value.length < 2) return '0px'
+  const fontSize = headlineFontSize.value
+  const lineWidth = (lineWidthsEm.value[headlineIndex.value]?.[index] ?? 0) * fontSize
+  const room = Math.max(0, (headlineMaxWidth.value - lineWidth) / 2)
+  const side = (index + headlineIndex.value) % 2 === 0 ? -1 : 1
+  return `${side * Math.min(LINE_SHIFT_EM * fontSize, room)}px`
 }
 
 // Below 768px the same desktop composition is drawn smaller (computeGrid
-// sets this): the headline's offsets, the country shapes and the headline
-// mask's bite/extension depths all shrink by it. 1 on desktop.
+// sets this): the country shapes shrink by it. 1 on desktop.
 const mobileScale = ref(1)
 
 // "Reveal mask" behind the display headline — ONE blocky, orthogonal,
@@ -131,12 +137,12 @@ interface ParagraphMask {
   bites: MaskRect[]
 }
 
-// Only used on an edge that's a genuine OUTER boundary of the whole
-// headline — every line's own left/right edge, the very top of the first
-// line, the very bottom of the last line (allowBite true there). A line's
-// top/bottom where it instead borders the *next* line only ever extends
-// outward (allowBite false, never negative) — a notch there would cut a
-// horizontal slice across the middle of a word.
+// Only used on the headline's very top and very bottom edge (allowBite true
+// there). A line's top/bottom where it instead borders the *next* line only
+// ever extends outward (allowBite false, never negative) — a notch there
+// would cut a horizontal slice across the middle of a word. Same for a line's
+// left/right edge: a bite there runs the line's whole height, chopping a
+// vertical slice off its first or last letter.
 // `scale` sizes the px knobs above to the headline's actual font size
 // (they're tuned for the desktop's 120px).
 function pickLevel(rand: () => number, allowBite: boolean, scale: number): number {
@@ -197,29 +203,19 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): Para
 
     // Left/right edges: one jump each, for the line's full height — this
     // (lines being different widths) is most of what makes the combined
-    // 3-line silhouette read as stepped, so it stays simple: no internal
-    // banding.
-    {
-      const leftLevel = pickLevel(rand, true, scale)
-      if (leftLevel > 0) {
-        base.push({ left: line.left - leftLevel, top: line.top, width: leftLevel, height: line.height })
-      } else if (leftLevel < 0) {
-        bites.push({ left: line.left, top: line.top, width: -leftLevel, height: line.height })
-      }
-
-      const rightLevel = pickLevel(rand, true, scale)
-      if (rightLevel > 0) {
-        base.push({ left: line.left + line.width, top: line.top, width: rightLevel, height: line.height })
-      } else if (rightLevel < 0) {
-        bites.push({ left: line.left + line.width + rightLevel, top: line.top, width: -rightLevel, height: line.height })
-      }
+    // silhouette read as stepped, so it stays simple: no internal banding.
+    const leftLevel = pickLevel(rand, false, scale)
+    if (leftLevel > 0) {
+      base.push({ left: line.left - leftLevel, top: line.top, width: leftLevel, height: line.height })
+    }
+    const rightLevel = pickLevel(rand, false, scale)
+    if (rightLevel > 0) {
+      base.push({ left: line.left + line.width, top: line.top, width: rightLevel, height: line.height })
     }
   })
 
   return { base, bites }
 }
-
-const MASK_PAD = 80
 
 // Dark mode only: a darkened satellite view of Europe under the grid
 // (and under the country shapes). One Mapbox Static Images request (the
@@ -232,44 +228,88 @@ const satelliteUrl = computed(() => {
   return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/32,51,3.3,180/1280x900@2x?attribution=false&logo=false&access_token=${token}`
 })
 
-// The CMS headline list (site_infos.yml's "sentences"): each row is one
-// three-word headline, one word per line, and the splash cycles through
-// them. Older content had a single headline split one word per row —
-// when every row is a single word, those rows are read as that one
-// headline.
+// The CMS headline list (site_infos.yml's "sentences"), which the splash
+// cycles through. Each row is one headline, and a line break in it is a line
+// on screen. A row with no line break gets one word per line. Older content
+// had a single headline split one word per row — when every row is a single
+// word, those rows are read as that one headline.
+function headlineLines(sentence: string) {
+  const lines = sentence.split(/\r?\n/).map((line) => line.trim().replace(/\s+/g, ' ')).filter(Boolean)
+  return lines.length > 1 ? lines : (lines[0]?.split(' ') ?? [])
+}
 const headlines = computed(() => {
-  const rows = (info.value?.sentences ?? []).map((row) => (row.sentence ?? '').trim().split(/\s+/).filter(Boolean)).filter((words) => words.length)
-  if (rows.every((words) => words.length === 1)) return rows.length ? [rows.flat()] : []
+  const rows = (info.value?.sentences ?? []).map((row) => headlineLines(row.sentence ?? '')).filter((lines) => lines.length)
+  if (rows.every((lines) => lines.length === 1)) return rows.length ? [rows.flat()] : []
   return rows
 })
 const headlineIndex = ref(0)
 const headlineWords = computed(() => headlines.value[headlineIndex.value % Math.max(1, headlines.value.length)] ?? [])
 const sentencesEl = ref<HTMLElement | null>(null)
+const maskedEl = ref<HTMLElement | null>(null)
 const sentenceRefs = ref<(HTMLElement | null)[]>([])
 function setSentenceRef(el: Element | null, index: number) {
   sentenceRefs.value[index] = el as HTMLElement | null
 }
+
+// One font size for the whole cycle, the largest at which every line of every
+// headline fits the screen (no line ever wraps), so the text never changes
+// size between headlines. The block keeps the height of the tallest headline,
+// so a shorter one doesn't move the subtitle under it.
+const HEADLINE_MAX_FONT_SIZE = 120
+const HEADLINE_MAX_FONT_SIZE_MOBILE = 0.13 // of the viewport's width
+const HEADLINE_MAX_HEIGHT = 0.62 // of the splash's height
+const HEADLINE_MAX_HEIGHT_MOBILE = 0.42
+const headlineFontSize = ref(HEADLINE_MAX_FONT_SIZE)
+const headlineMaxWidth = ref(0)
+const lineWidthsEm = ref<number[][]>([])
+const headlineMaxLines = computed(() => Math.max(1, ...headlines.value.map((lines) => lines.length)))
+function fitHeadlines() {
+  const container = sentencesEl.value
+  const context = document.createElement('canvas').getContext('2d')
+  if (!container || !splashEl.value || !context) return
+  const { fontWeight, fontFamily } = getComputedStyle(container)
+  context.font = `${fontWeight} 100px ${fontFamily}`
+  lineWidthsEm.value = headlines.value.map((lines) => lines.map((line) => context.measureText(line.toUpperCase()).width / 100))
+
+  const isMobile = window.innerWidth <= 768
+  const widestEm = Math.max(0, ...lineWidthsEm.value.flat())
+  const maxHeight = splashEl.value.getBoundingClientRect().height * (isMobile ? HEADLINE_MAX_HEIGHT_MOBILE : HEADLINE_MAX_HEIGHT)
+  headlineMaxWidth.value = window.innerWidth * (1 - HEADLINE_SIDE_MARGIN * 2)
+  headlineFontSize.value = Math.min(
+    isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
+    widestEm ? headlineMaxWidth.value / widestEm : Infinity,
+    maxHeight / headlineMaxLines.value,
+  )
+}
+
 const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
 // Which silhouette the mask draws — each headline settles on its own.
 const maskSeed = ref(MASK_SEED)
 function buildSentenceMasks() {
-  const container = sentencesEl.value
-  if (!container) return
-  const containerRect = container.getBoundingClientRect()
-  const lines: LineBox[] = sentenceRefs.value.map((el) => {
-    if (!el) return { left: 0, top: 0, width: 0, height: 0 }
-    const rect = el.getBoundingClientRect()
-    return { left: rect.left - containerRect.left, top: rect.top - containerRect.top, width: rect.width, height: rect.height }
-  })
-  if (lines.some((l) => !l.width)) return
-  // Mask coordinates start at .sentence-masked's own corner, which is
-  // padded MASK_PAD out past this container on every side (CSS).
-  for (const line of lines) {
-    line.left += MASK_PAD
-    line.top += MASK_PAD
+  const masked = maskedEl.value
+  if (!masked) return
+  // Mask coordinates start at .sentence-masked's own corner. A line can be
+  // empty for a moment while a headline with more lines deciphers in.
+  const origin = masked.getBoundingClientRect()
+  const lines: LineBox[] = sentenceRefs.value
+    .slice(0, headlineWords.value.length)
+    .map((el) => el?.getBoundingClientRect())
+    .filter((rect): rect is DOMRect => !!rect?.width)
+    .map((rect) => ({ left: rect.left - origin.left, top: rect.top - origin.top, width: rect.width, height: rect.height }))
+  if (!lines.length) return
+  paragraphMask.value = buildParagraphMask(lines, headlineFontSize.value / HEADLINE_MAX_FONT_SIZE, maskSeed.value)
+}
+
+// Rebuilt whenever a line changes width — as its letters decipher, or the
+// font arrives — before that frame paints: text outside the mask is
+// invisible, so a mask a frame late cuts letters off.
+let lineObserver: ResizeObserver | undefined
+function observeLines() {
+  lineObserver?.disconnect()
+  lineObserver = new ResizeObserver(buildSentenceMasks)
+  for (const el of sentenceRefs.value.slice(0, headlineWords.value.length)) {
+    if (el) lineObserver.observe(el)
   }
-  const fontScale = parseFloat(getComputedStyle(container).fontSize) / 120 || 1
-  paragraphMask.value = buildParagraphMask(lines, fontScale, maskSeed.value)
 }
 
 // The "bank" — DECODE.cms/content/wiki, a media library page, not any one
@@ -685,21 +725,15 @@ function buildIn() {
 }
 
 // The headline's white backing is a CSS mask cut from each line's own
-// measured width, so while its words grow the mask is re-measured on
-// every step to follow them. No opacity fade-in (`reveal: false`): an
-// animated element inside the masked block makes Chrome stop applying
-// the mask.
+// measured width, following its words as they grow (observeLines). No
+// opacity fade-in (`reveal: false`): an animated element inside the masked
+// block makes Chrome stop applying the mask.
 function headlineIn() {
   headlineShown.value = true
   for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? []) {
     decipherIn(el, { growMax: 2, reveal: false })
   }
   buildSentenceMasks()
-  const follow = setInterval(buildSentenceMasks, 50)
-  introTimers.push(setTimeout(() => {
-    clearInterval(follow)
-    buildSentenceMasks()
-  }, 1400))
 }
 
 // Headline cycle: each headline holds HEADLINE_HOLD_MS, then turns
@@ -709,16 +743,7 @@ function headlineIn() {
 const HEADLINE_HOLD_MS = 4000
 const HEADLINE_MORPH_MS = 1400
 let headlineTimer: ReturnType<typeof setTimeout> | undefined
-let maskFollow: ReturnType<typeof setInterval> | undefined
 let morphStops: (() => void)[] = []
-function followMask(ms: number) {
-  clearInterval(maskFollow)
-  maskFollow = setInterval(buildSentenceMasks, 50)
-  setTimeout(() => {
-    clearInterval(maskFollow)
-    buildSentenceMasks()
-  }, ms)
-}
 // The frame deciphers along with the letters: while they morph, the
 // mask jumps through other silhouettes at the same irregular rhythm,
 // further apart as it goes, and lands on the new headline's own one.
@@ -752,7 +777,6 @@ async function nextHeadline() {
   morphStops = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])]
     .map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS))
   buildSentenceMasks()
-  followMask(HEADLINE_MORPH_MS + 100)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + HEADLINE_HOLD_MS)
 }
 function startHeadlineCycle() {
@@ -762,7 +786,6 @@ function startHeadlineCycle() {
 }
 function stopHeadlineCycle() {
   clearTimeout(headlineTimer)
-  clearInterval(maskFollow)
   morphStops.forEach((stop) => stop())
   morphStops = []
   frameTimers.forEach(clearTimeout)
@@ -824,7 +847,7 @@ function leave() {
   if (leaving.value) return
   stopHeadlineCycle()
   const g = grid.value
-  if (!g || !splashEl.value || window.innerWidth <= 768 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  if (!g || !splashEl.value || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     emit('continue')
     return
   }
@@ -837,23 +860,27 @@ function leave() {
 
 function handleResize() {
   computeGrid()
-  buildSentenceMasks()
+  fitHeadlines()
+  nextTick(buildSentenceMasks)
 }
+
+watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
   playIntro()
-  computeGrid()
-  buildSentenceMasks()
+  handleResize()
+  observeLines()
   window.addEventListener('resize', handleResize)
   // The display font loads async (main.css `@import`) — if it swaps in
-  // after this first measurement, the lines' widths shift and the mask
-  // no longer matches. Re-measure once it's actually settled.
-  document.fonts?.ready?.then(buildSentenceMasks)
+  // after this first measurement, the lines' widths shift and the fit and
+  // the mask no longer match. Re-measure once it's actually settled.
+  document.fonts?.ready?.then(handleResize)
 })
 
 onUnmounted(() => {
   introTimers.forEach(clearTimeout)
   stopHeadlineCycle()
+  lineObserver?.disconnect()
   if (splashIntro.value !== 'done') splashIntro.value = 'done'
   window.removeEventListener('resize', handleResize)
 })
@@ -1030,7 +1057,7 @@ onUnmounted(() => {
             :alt="image.alt || ''"
             :class="{ 'is-hovered': hoveredIndex === index }"
             :style="{ maxHeight: imageHeight(index) }"
-            @mouseenter="hoveredIndex = index"
+            @mouseenter="hoveredIndex = canHover() ? index : null"
             @mouseleave="hoveredIndex = null"
           >
         </div>
@@ -1038,7 +1065,12 @@ onUnmounted(() => {
     </div>
 
     <div class="splash-info">
-      <div v-if="headlineWords.length" ref="sentencesEl" class="splash-sentences">
+      <div
+        v-if="headlineWords.length"
+        ref="sentencesEl"
+        class="splash-sentences"
+        :style="{ fontSize: `${headlineFontSize}px`, minHeight: `${headlineMaxLines}em` }"
+      >
         <!-- Both the white backing (.sentence-fill) and the text itself
              live inside this one wrapper, which has an SVG mask
              (#splash-headline-mask, below) applied to it — `base` rects
@@ -1048,7 +1080,7 @@ onUnmounted(() => {
              the whole wrapper — backing and letter ink both — goes
              transparent, revealing whatever is behind the headline (grid,
              photo band) through it, like the piece hasn't been decoded. -->
-        <div class="sentence-masked">
+        <div ref="maskedEl" class="sentence-masked">
           <div class="sentence-fill" aria-hidden="true" />
           <div
             v-for="(word, index) in headlineWords"
@@ -1063,7 +1095,7 @@ onUnmounted(() => {
              (white = shown, black = hidden), not a color — a token that
              turns near-black in dark mode hid the whole headline. -->
         <svg class="sentence-mask-defs" aria-hidden="true">
-          <mask id="splash-headline-mask" maskUnits="userSpaceOnUse" x="-500" y="-500" width="3000" height="1500">
+          <mask id="splash-headline-mask" maskUnits="userSpaceOnUse" x="-500" y="-500" width="8000" height="2000">
             <rect
               v-for="(rect, ri) in paragraphMask.base"
               :key="`b${ri}`"
@@ -1109,8 +1141,12 @@ onUnmounted(() => {
 .splash {
   position: relative;
   /* Leaves exactly enough room for SiteFooter.vue below it, so the splash
-     + footer together fit one screen with no scrolling. */
+     + footer together fit one screen with no scrolling. `svh` (the screen
+     with a phone's address bar showing), since `vh` counts the area under
+     that bar too, which pushed the bottom of the splash and its button out
+     of view. `vh` only as the fallback for older browsers. */
   height: calc(100vh - var(--footer-height));
+  height: calc(100svh - var(--footer-height));
   overflow: hidden;
   /* Tune the scrolling banner's image width range here — a very wide or
      very narrow source photo otherwise renders at whatever width its own
@@ -1616,12 +1652,18 @@ onUnmounted(() => {
    condensed here; Archivo Black was tried next but reads as too heavy).
    No list styling since this is now plain stacked divs, not a <ul>. Each
    line's translateX (inline style, sentenceOffset) staggers them instead
-   of sharing one center axis. */
+   of sharing one center axis. Font size and height come from fitHeadlines
+   (script). Full width, so the mask's box (.sentence-masked) can't clip a
+   line shifted out to the side, and a headline changing width moves nothing
+   around it. */
 .splash-sentences {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 120px;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -1639,8 +1681,8 @@ onUnmounted(() => {
   /* The mask is only as big as this box and tiles past it by default —
      a copy of the lower lines' silhouette was showing as a solid white
      band above the headline. No repeat, and the box padded out (negative
-     margin keeps the layout unchanged) by MASK_PAD (script) so every
-     outward extension still falls inside the mask's own area. */
+     margin keeps the layout unchanged) so every outward extension still
+     falls inside the mask's own area. */
   mask-repeat: no-repeat;
   -webkit-mask-repeat: no-repeat;
   padding: 80px;
@@ -1668,8 +1710,10 @@ onUnmounted(() => {
   text-align: center;
 }
 
+/* A line stays one line: the CMS decides where they break. */
 .sentence-text {
   display: inline-block;
+  white-space: nowrap;
 }
 
 /* Houses #splash-headline-mask only — never rendered itself. */
@@ -1781,10 +1825,6 @@ onUnmounted(() => {
     font-size: 12vw;
   }
 
-  .splash-sentences {
-    font-size: 13vw;
-  }
-
   .splash-subtitle-box {
     max-width: 30ch;
     padding: 8px;
@@ -1800,9 +1840,11 @@ onUnmounted(() => {
     height: 28vh;
   }
 
+  /* Scales with the screen, so its one line of text fits the narrowest phone. */
   .splash-cta {
     padding: 12px 16px;
     white-space: nowrap;
+    font-size: min(12pt, 3.9vw);
   }
 }
 </style>
