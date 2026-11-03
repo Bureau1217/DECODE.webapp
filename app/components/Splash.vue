@@ -693,6 +693,12 @@ const OUTRO_MS = 1900
 //  5. The top tab and its baseline trace themselves (TAB_AT), then the
 //     footer slides up into view (FOOTER_AT).
 const splashIntro = useSplashIntro()
+const introSeen = useIntroSeen()
+// Returning visitor (useSplashIntro): no intro. The layout is measured on
+// mount, so the splash stays hidden until then and fades in, around half a
+// second instead of about ten.
+const returning = splashIntro.value === 'done'
+const measured = ref(false)
 const logoVisible = ref(splashIntro.value === 'logo')
 const subtitleShown = ref(false)
 const subtitleMoving = ref(false)
@@ -820,6 +826,7 @@ function playIntro() {
   at(FOOTER_AT, () => { splashIntro.value = 'footer' })
   at(DONE_AT, () => {
     splashIntro.value = 'done'
+    introSeen.value = '1'
     startHeadlineCycle()
   })
 }
@@ -855,6 +862,7 @@ function leave() {
     return
   }
   leaving.value = true
+  introSeen.value = '1'
   for (const el of splashEl.value.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box, .corner-title, .corner-badge, .splash-cta, .splash-tab-ticker-track, .image-label')) {
     scrambleOut(el, TEXT_OUT_MS)
   }
@@ -881,6 +889,7 @@ onMounted(() => {
   playIntro()
   handleResize()
   observeLines()
+  nextTick(() => { measured.value = true })
   window.addEventListener('resize', handleResize)
   // The display font loads async (main.css `@import`) — if it swaps in
   // after this first measurement, the lines' widths shift and the fit and
@@ -907,6 +916,8 @@ onUnmounted(() => {
       'intro-subtitle-moving': subtitleMoving,
       'intro-headline-shown': headlineShown,
       'intro-logo-up': logoVisible,
+      'is-returning': returning,
+      'is-measured': measured,
     }, introClass]"
     :style="{ '--subtitle-lift': `${subtitleLift}px` }"
   >
@@ -1277,6 +1288,16 @@ onUnmounted(() => {
 .splash-info {
   position: relative;
   z-index: 2;
+}
+
+/* Returning visitor (script, `returning`). */
+.splash.is-returning {
+  opacity: 0;
+}
+
+.splash.is-returning.is-measured {
+  opacity: 1;
+  transition: opacity 0.4s ease;
 }
 
 /* Black 1px outline per cell — adjacent cells share grid lines, so this

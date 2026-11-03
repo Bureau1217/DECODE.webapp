@@ -6,4 +6,16 @@
 // 'done' anywhere else.
 export type SplashIntroPhase = 'logo' | 'build' | 'tab' | 'footer' | 'done'
 
-export const useSplashIntro = () => useState<SplashIntroPhase>('splash-intro', () => (useRoute().path === '/' ? 'logo' : 'done'))
+// Set once the intro has played: a returning visitor gets the splash straight
+// away, without the logo screen and the build (Splash.vue). A cookie, so the
+// server already renders the right state. Crawlers keep no cookies.
+export const useIntroSeen = () => useCookie<string | null>('decode-intro-seen', {
+  default: () => null,
+  maxAge: 60 * 60 * 24 * 365,
+  sameSite: 'lax',
+})
+
+export const useSplashIntro = () => useState<SplashIntroPhase>('splash-intro', () => {
+  if (useRoute().path !== '/') return 'done'
+  return useIntroSeen().value ? 'done' : 'logo'
+})
