@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Language } from '~/composables/useLanguage'
+
 const showSplash = useSplashVisible()
 
 // Light/dark theme (SiteFooter's toggle) — on <html> so main.css's
@@ -7,24 +9,41 @@ const showSplash = useSplashVisible()
 const colorMode = useColorMode()
 
 // Site-wide head/SEO defaults — each page overrides title/description/
-// image through usePageSeo(). `lang` follows the ENG/FR toggle (the same
-// cookie the CMS requests use), so the server-rendered HTML always
-// declares the language it actually contains. The canonical is the path
-// alone: query strings (?q=, filters) never create separate pages.
+// image through usePageSeo(). `lang` follows the URL's language, so the
+// server-rendered HTML always declares the language it was asked for. The
+// canonical is the path alone: query strings (?q=, filters) never create
+// separate pages.
 const language = useLanguage()
 const { public: { siteUrl } } = useRuntimeConfig()
 const route = useRoute()
-const canonicalUrl = computed(() => new URL(route.path, siteUrl).href)
+// A /fr/ page with no translation shows the same English text as the original,
+// so it points search engines there. A translated one is its own page, with
+// each language naming the other (hreflang). See server/utils/publicPages.ts.
+const frenchPaths = useState<string[]>('french-paths', () => [])
+await callOnce('french-paths', async () => {
+  frenchPaths.value = await $fetch<string[]>('/api/french-paths').catch(() => [])
+})
+const hasFrench = computed(() => frenchPaths.value.includes(route.path))
+const urlIn = (lang: Language) => new URL(pathInLanguage(route.path, lang), siteUrl).href
+const seoUrl = useSeoUrl()
+const canonicalUrl = computed(() => seoUrl(route.path))
 const siteTitle = computed(() => SITE_TITLE[language.value] ?? SITE_TITLE.en)
 const siteDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en)
 
 useHead({
   htmlAttrs: { 'data-theme': colorMode, lang: language },
   titleTemplate: (title) => (title ? `${title} · DE.CO.DE` : siteTitle.value),
-  link: [
-    { rel: 'canonical', href: canonicalUrl },
+  link: () => [
+    { rel: 'canonical', href: canonicalUrl.value },
+    ...(hasFrench.value
+      ? [
+          { rel: 'alternate', hreflang: 'en', href: urlIn('en') },
+          { rel: 'alternate', hreflang: 'fr', href: urlIn('fr') },
+          { rel: 'alternate', hreflang: 'x-default', href: urlIn('en') },
+        ]
+      : []),
     // Follows the site's own light/dark toggle, not just the system's.
-    { rel: 'icon', type: 'image/svg+xml', href: () => (colorMode.value === 'dark' ? '/favicon-dark.svg' : '/favicon.svg') },
+    { rel: 'icon', type: 'image/svg+xml', href: colorMode.value === 'dark' ? '/favicon-dark.svg' : '/favicon.svg' },
     { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
     { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
   ],
@@ -88,6 +107,10 @@ const { theme } = useToolTheme()
 const themeShift = ref(false)
 let themeShiftTimer: ReturnType<typeof setTimeout> | undefined
 watch(() => theme.value?.path, () => {
+  // Already cross-fading as a whole (plugins/tool-view-transition.client.ts):
+  // easing the colors inside that fade as well would run them late. This
+  // stays for the browsers without view transitions.
+  if (document.documentElement.classList.contains('vt-tool-fade')) return
   themeShift.value = true
   clearTimeout(themeShiftTimer)
   themeShiftTimer = setTimeout(() => { themeShift.value = false }, 700)
@@ -105,7 +128,7 @@ watch(
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'is-theme-shift': themeShift }">
+  <div class="app-shell" :class="{ 'is-theme-shift': themeShift }" :style="{ '--scrollbar-thumb': theme?.chromeText }">
     <!-- Hidden defs for the global image duotone treatment (app/assets/css/main.css).
          https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Element/feComponentTransfer -->
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -170,7 +193,6 @@ watch(
     </svg>
 
     <template v-if="!showSplash">
-      <Map />
       <!-- Mobile only (CSS) — a plain opaque backdrop behind the full
            8.5vh top-chrome strip. SiteNav/SiteIndexBar's own backgrounds
            don't quite cover that whole strip themselves (SiteNav's own
@@ -186,9 +208,6 @@ watch(
       <MobileMenuOverlay v-if="mobileMenuOpen" />
     </template>
 
-    <TeamPanel v-if="showKeywordsPanel && isAboutPage" />
-    <KeywordsPanel v-else-if="showKeywordsPanel" />
-
     <!-- Without this, app/pages/** (the CMS-driven routes) never render —
          app.vue's own template always wins. The flex:1 wrapper (below) is
          what makes the footer always stay on screen: overflow lives here,
@@ -200,7 +219,7 @@ watch(
          padding-top does the same for SiteNav + SiteIndexBar — now fixed
          (not pushing this down on their own anymore either), so this has
          to clear them itself, only while they're actually rendered. -->
-    <div
+    <main
       class="app-content"
       :class="{
         'has-keywords-panel': showKeywordsPanel,
@@ -211,7 +230,12 @@ watch(
       }"
     >
       <NuxtPage />
-    </div>
+    </main>
+
+    <!-- After the page in the HTML, so its content comes before the keyword
+         list for search engines and keyboards. On screen it's fixed on the left. -->
+    <TeamPanel v-if="showKeywordsPanel && isAboutPage" />
+    <KeywordsPanel v-else-if="showKeywordsPanel" />
 
     <SiteFooter />
   </div>
@@ -219,25 +243,33 @@ watch(
 
 <style>
 /* The splash grid's middle line coming back (see the script comment):
-   grows from its centre, holds, fades. */
+   grows from its centre, holds, fades. Its top 3.5vh crosses the index bar
+   in that bar's divider color, so .index-bar-divider arrives as the tip of
+   this line. A clip, not scaleY, so that color stop stays put. The delay
+   brings the tip into the bar just after the bar's fill has passed the
+   middle (SiteIndexBar.vue's index-bar-fill, ~0.77s); any earlier and it
+   would be already standing there when the fill reaches it. */
 .intro-keep-line {
   position: fixed;
   z-index: 3;
   left: calc(50vw - 0.5px);
-  top: 8.5vh;
+  top: 5vh;
   bottom: 0;
   width: 1px;
-  background: var(--color-ink);
-  transform-origin: center;
+  background: linear-gradient(var(--color-chrome-divider) 3.5vh, var(--color-ink) 3.5vh);
   animation:
-    intro-keep-line-in 0.9s cubic-bezier(0.2, 0.6, 0.3, 1) 0.1s both,
+    intro-keep-line-in 0.9s cubic-bezier(0.2, 0.6, 0.3, 1) 0.3s both,
     intro-keep-line-out 0.6s ease 2s both;
   pointer-events: none;
 }
 
 @keyframes intro-keep-line-in {
   from {
-    transform: scaleY(0);
+    clip-path: inset(50% 0 50% 0);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 
@@ -269,6 +301,9 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* Inherited by every scrolling panel inside: brown, or the open tool's own
+     color (--scrollbar-thumb, set inline from useToolTheme). */
+  scrollbar-color: var(--scrollbar-thumb, var(--color-brand)) transparent;
 }
 
 .app-content {
@@ -297,7 +332,7 @@ body {
 }
 
 .app-content.has-keywords-panel {
-  margin-left: 50vw;
+  margin-left: 50%;
 }
 
 /* Splash -> home: the panel appears and the content lands straight in
@@ -308,7 +343,7 @@ body {
 }
 
 .app-content.has-keywords-panel.reading-mode {
-  margin-left: 25vw;
+  margin-left: 25%;
 }
 
 /* SiteNav (1.5vh top margin + 3.5vh height) + SiteIndexBar (3.5vh) —
@@ -322,7 +357,7 @@ body {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   /* No split on a phone: no middle line for the splash to hand over. */
   .intro-keep-line {
     display: none;
@@ -340,13 +375,13 @@ body {
   }
 }
 
-/* No side-by-side split below 768px — the keywords/team panel (InfoPanel.
+/* No side-by-side split below 1150px — the keywords/team panel (InfoPanel.
    vue's own mobile media query) takes the full screen instead of a 50vw/
    25vw slice beside this. Both become identical fixed, full-screen boxes
    and slide vertically past each other (this one up and out, the panel
    up and into view from below) when the same mobile-index-open state
    toggles — a visible scroll/slide, not an instant display swap. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .app-content.has-keywords-panel,
   .app-content.has-keywords-panel.reading-mode {
     margin-left: 0;

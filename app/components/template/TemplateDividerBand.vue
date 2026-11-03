@@ -41,9 +41,9 @@ defineProps<{
   display: flex;
 }
 
-/* Inset 2.5% each side — the same inset as the article template's own
-   mobile cover image (TemplateDefault.vue), so rules and image line up. */
-@media (max-width: 768px) {
+/* Inset 2.5% each side. The article template sets its own, to line up with
+   its mobile cover image (TemplateDefault.vue). */
+@media (max-width: 1150px) {
   .divider-band-line {
     margin: 0 2.5%;
   }

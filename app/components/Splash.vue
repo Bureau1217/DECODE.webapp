@@ -12,6 +12,7 @@ interface BankImage {
 
 interface ArticleTitle {
   title: string
+  id: string
 }
 
 interface SiteInfo {
@@ -25,7 +26,10 @@ const emit = defineEmits<{ continue: [] }>()
 
 // Warm the keywords panel's data while the splash is up — see
 // useKeywordsPanelCategories. Not awaited: the splash doesn't need it.
-useKeywordsPanelCategories().catch(() => {})
+const keywordsLoading = useKeywordsPanelCategories().catch(() => {})
+// On the server it's waited for: the image labels below depend on it, and
+// server and browser have to render the same thing.
+if (import.meta.server) await keywordsLoading
 
 // The image band's corner labels are the Concepts keywords (the keywords
 // panel's own "concepts" category, read from that same warmed cache),
@@ -59,7 +63,7 @@ function sentenceOffset(index: number) {
   return `${side * Math.min(LINE_SHIFT_EM * fontSize, room)}px`
 }
 
-// Below 768px the same desktop composition is drawn smaller (computeGrid
+// Below 1150px the same desktop composition is drawn smaller (computeGrid
 // sets this): the country shapes shrink by it. 1 on desktop.
 const mobileScale = ref(1)
 
@@ -271,7 +275,7 @@ function fitHeadlines() {
   context.font = `${fontWeight} 100px ${fontFamily}`
   lineWidthsEm.value = headlines.value.map((lines) => lines.map((line) => context.measureText(line.toUpperCase()).width / 100))
 
-  const isMobile = window.innerWidth <= 768
+  const isMobile = window.innerWidth <= 1150
   const widestEm = Math.max(0, ...lineWidthsEm.value.flat())
   const maxHeight = splashEl.value.getBoundingClientRect().height * (isMobile ? HEADLINE_MAX_HEIGHT_MOBILE : HEADLINE_MAX_HEIGHT)
   headlineMaxWidth.value = window.innerWidth * (1 - HEADLINE_SIDE_MARGIN * 2)
@@ -318,7 +322,7 @@ function observeLines() {
 const { data: images } = await useAsyncData('splash:bank-images', () =>
   useKqlCollection<BankImage>({
     query: "page('wiki').files.filterBy('type', 'image').limit(10)",
-    select: { url: true, alt: true },
+    select: { url: "file.thumb('web-splash').url", alt: true },
   }),
 )
 
@@ -351,11 +355,9 @@ function imageHeight(index: number) {
   const n = images.value?.length || 1
   const variant = HEIGHT_VARIANTS[(index % n) % HEIGHT_VARIANTS.length] ?? 1
   // imagesBandHeight starts at 0 until computeGrid's first measurement on
-  // mount — fall back to the CSS band height (44vh) so there's no brief
-  // (or, if that measurement ever fails to land, permanent) 0px/invisible
-  // flash before it resolves.
-  const bandHeight = imagesBandHeight.value || (import.meta.client ? window.innerHeight * 0.44 : 0)
-  return `${variant * bandHeight}px`
+  // mount — the CSS band height (44vh) until then, which server and browser
+  // agree on, unlike anything read off the window.
+  return imagesBandHeight.value ? `${variant * imagesBandHeight.value}px` : `${variant * 44}vh`
 }
 function imageBadgeColor(index: number) {
   const n = images.value?.length || 1
@@ -380,7 +382,7 @@ const hoveredIndex = ref<number | null>(null)
 const { data: articleTitles } = await useAsyncData('splash:article-titles', () =>
   useKqlCollection<ArticleTitle>({
     query: "site.children.filterBy('intendedTemplate', 'default')",
-    select: { title: true },
+    select: { title: true, id: true },
   }),
 )
 
@@ -455,6 +457,7 @@ const { data: info } = await useAsyncData('splash:info', () =>
     },
   }),
 )
+const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean))
 // `long_description` used to render here too, right under `header_subtitle`
 // — nearly the same sentence twice. Dropped so there's one paragraph, not
 // two near-duplicates.
@@ -581,7 +584,7 @@ function computeGrid() {
   // Measured off the section itself, not window.innerHeight — `.splash`'s
   // height is `100vh - var(--footer-height)`, not the full viewport.
   const { width: boxW, height: boxH } = splashEl.value.getBoundingClientRect()
-  const isMobile = window.innerWidth <= 768
+  const isMobile = window.innerWidth <= 1150
   mobileScale.value = isMobile ? 0.35 : 1
 
   // The tab's own sizing is specified against the *viewport*, not the
@@ -858,6 +861,14 @@ function leave() {
   setTimeout(() => emit('continue'), OUTRO_MS)
 }
 
+// A real link (for crawlers, and to open in a new tab), but a plain click plays
+// the exit first.
+function enterGuide(event: MouseEvent) {
+  if (event.metaKey || event.ctrlKey || event.shiftKey) return
+  event.preventDefault()
+  leave()
+}
+
 function handleResize() {
   computeGrid()
   fitHeadlines()
@@ -948,6 +959,12 @@ onUnmounted(() => {
       }"
       aria-hidden="true"
     >
+      <a
+        href="https://www.graduateinstitute.ch/"
+        target="_blank"
+        rel="noopener"
+        class="splash-tab-ticker-link"
+      >
       <div class="splash-tab-ticker-track text-small">
         <span class="splash-tab-ticker-full">{{ informationsText }}</span>
         <!-- Mobile: the institution's name alone, sliding past endlessly
@@ -959,6 +976,7 @@ onUnmounted(() => {
           <span aria-hidden="true">GENEVA GRADUATE INSTITUTE</span>
         </span>
       </div>
+      </a>
     </div>
 
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
@@ -1024,7 +1042,7 @@ onUnmounted(() => {
         <span class="corner-badge text-label" :style="{ backgroundColor: BADGE_COLORS[index % BADGE_COLORS.length] }">
           {{ index + 1 }}
         </span>
-        <div class="corner-title">{{ article.title }}</div>
+        <NuxtLink :to="`/guide/${article.id}`" class="corner-link"><div class="corner-title">{{ article.title }}</div></NuxtLink>
       </div>
     </div>
 
@@ -1117,12 +1135,10 @@ onUnmounted(() => {
           </mask>
         </svg>
       </div>
-      <!-- Manual break after "disinformation" — the rest wraps on its own
-           into two more lines at this width, so three lines total. -->
-      <div v-if="info?.header_subtitle" class="text-label splash-subtitle">
+      <!-- Lines as typed in the CMS (Sous-titre). -->
+      <div v-if="subtitleLines.length" class="text-label splash-subtitle">
         <span class="splash-subtitle-box">
-          An open multimedia&nbsp;guide exploring disinformation<br>
-          through investigations, interactive&nbsp;tools and collaborative&nbsp;workshops for&nbsp;youth
+          <template v-for="(line, index) in subtitleLines" :key="index"><br v-if="index">{{ line }}</template>
         </span>
       </div>
     </div>
@@ -1130,9 +1146,9 @@ onUnmounted(() => {
     <!-- Its own element (not inside .splash-info, which is centered on the
          full viewport) so its vertical position can be pinned to the
          grid's bottom line instead. -->
-    <button type="button" class="splash-cta btn-fill text-label" :style="ctaStyle" @click="leave">
+    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="ctaStyle" @click="enterGuide">
       Enter the investigation guide
-    </button>
+    </NuxtLink>
 
   </section>
 </template>
@@ -1186,7 +1202,29 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+}
+
+.splash-tab-ticker-link {
+  min-width: 0;
+  max-width: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.splash-tab-ticker-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* Keeps the track's own line, cut or sliding, inside the tab. */
+.splash-tab-ticker-link .splash-tab-ticker-track {
+  display: block;
+}
+
+.corner-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 
 /* A fixed line (the CMS's tab text, e.g. "A project by the Geneva
@@ -1203,7 +1241,7 @@ onUnmounted(() => {
   display: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .splash-tab-ticker-full {
     display: none;
   }
@@ -1230,7 +1268,7 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+@media (max-width: 1150px) and (prefers-reduced-motion: reduce) {
   .splash-tab-ticker-short {
     animation: none;
   }
@@ -1552,17 +1590,11 @@ onUnmounted(() => {
   display: inline-block;
   background: var(--color-surface);
   padding: 12px;
-  /* Wide enough for "AN OPEN MULTIMEDIA GUIDE EXPLORING DISINFORMATION" on
-     one line; the second sentence wraps on its own into two more. */
-  max-width: 52ch;
+  /* Line breaks come from the CMS (subtitleLines): a line only wraps further
+     if it doesn't fit the screen. */
+  max-width: 90vw;
   line-height: 1.15;
   text-align: center;
-  /* Even line lengths instead of filling each line greedily and leaving
-     a stub at the end — balance evens the whole block out; the
-     non-breaking spaces in the template keep word pairs that
-     read as one unit together ("for youth", "interactive tools"…), and
-     guarantee no single word ends up alone where balance isn't
-     supported. */
   text-wrap: balance;
 }
 
@@ -1576,6 +1608,8 @@ onUnmounted(() => {
   /* Fill/hover colors: .btn-fill (main.css). */
   border-radius: 0;
   padding: 18px;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1807,11 +1841,11 @@ onUnmounted(() => {
   }
 }
 
-/* Below 768px: the same composition as desktop, drawn smaller — minus
+/* Below 1150px: the same composition as desktop, drawn smaller — minus
    the four corner article titles, too much at phone width. The tab, grid
    and country sizes come from computeGrid's own mobile branch (script);
    the headline mask follows the smaller font on its own (it's measured). */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .splash {
     --splash-image-min-width: 70px;
     --splash-image-max-width: 60vw;
@@ -1826,14 +1860,9 @@ onUnmounted(() => {
   }
 
   .splash-subtitle-box {
-    max-width: 30ch;
     padding: 8px;
     /* Smaller than text-label on a phone: the splash's own art sizing. */
     font-size: 9pt;
-  }
-
-  .splash-subtitle-box br {
-    display: none;
   }
 
   .splash-images {

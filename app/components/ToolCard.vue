@@ -30,9 +30,9 @@ const badgeColor = computed(() => toolColorFor(props.index))
 const isPale = computed(() => props.index % BADGE_COLORS.length !== 0)
 const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 
-// Its tool page closing back into it (useToolCloseTransition).
-const toolClosing = useToolClosing()
-const closeStyle = computed(() => (toolClosing.value === props.item.slug ? toolCardStyle(props.item.slug) : undefined))
+// Expands into its tool page's right panel, and collapses back (useToolMorph).
+const toolMorph = useToolMorph()
+const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMorphStyle() : undefined))
 
 // Positional, not CMS data — which cards get the small country badge, and
 // which country, at its own size and spot (not derived from anything,
@@ -56,12 +56,12 @@ const countryBehindImage = computed(() => props.index === 2)
     :to="`/tools/${item.slug}`"
     class="tool-card"
     :class="{ 'is-pale': isPale }"
-    :style="[{ '--card-accent': badgeColor }, closeStyle]"
+    :style="[{ '--card-accent': badgeColor }, morphStyle]"
     @mouseenter="onHover"
     @mouseleave="onLeave"
   >
     <div class="tool-card-image-wrap">
-      <img v-if="item.image" class="no-duotone" :src="item.image.url" :alt="item.image.alt || item.title">
+      <img v-if="item.image" class="no-duotone" :src="item.image.url" :width="item.image.width" :height="item.image.height" :alt="item.image.alt || item.title">
     </div>
     <div class="tool-card-body">
       <span class="tool-card-eyebrow text-small">Tool {{ index + 1 }}</span>
@@ -187,7 +187,7 @@ const countryBehindImage = computed(() => props.index === 2)
    part) — not the desktop's 40%-image-beside-body row. `order` puts
    .tool-card-body (already eyebrow→title→subtitle in DOM order) before
    the image without touching the markup itself. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .tool-card {
     flex: none;
     flex-direction: column;

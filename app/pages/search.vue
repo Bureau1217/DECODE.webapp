@@ -154,9 +154,11 @@ usePageSeo({ noindex: true })
   border-top: 1px solid var(--search-line);
 }
 
-/* Same hover as a resource card (ResourceCard.vue). */
+/* Same hover as a resource card (ResourceCard.vue). min-width:0 lets it
+   shrink to its column, or its one-line title pushes the row past the panel. */
 .search-hit {
   flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -199,7 +201,7 @@ usePageSeo({ noindex: true })
   color: var(--color-on-fill);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .search-group {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -221,7 +223,7 @@ usePageSeo({ noindex: true })
    results band showed through them. Clip that strip away so they're
    gone once they pass the band. (Mobile's scroll area already starts
    under the nav, no padding.) */
-@media (min-width: 769px) {
+@media (min-width: 1151px) {
   .app-content:has(.search-results) {
     clip-path: inset(8.5vh 0 0 0);
   }

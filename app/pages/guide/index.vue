@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { pageSelects } from '~/kql/page-selects'
+import { imageSelect, pageSelects } from '~/kql/page-selects'
 import type { Article } from '~/types/article'
 
 const articles = await useKirbyCollection<Article>(
@@ -12,7 +12,7 @@ const articles = await useKirbyCollection<Article>(
     header_subtitle: true,
     header_image: {
       query: 'page.header_image.toFile',
-      select: { url: true, alt: true },
+      select: imageSelect,
     },
     themes: pageSelects.default!.themes,
     concepts: pageSelects.default!.concepts,
@@ -29,10 +29,12 @@ onUnmounted(() => {
   highlighted.value = null
 })
 
-// Arriving from the splash (useIntroTransition): the 4 cards open out of
-// the grid's centre, where the white cross meets, each from its own
-// inner corner, then their image settles and their text comes up.
+// Arriving from the splash (useIntroTransition): the 4 cards grow out of
+// their own centres, their image likewise just after, then their text comes
+// up. No hover on them for a moment after that (useIntroHoverLock).
 const introTransition = useIntroTransition()
+const hoverLocked = useIntroHoverLock()
+const language = useLanguage()
 
 usePageSeo({
   title: 'Investigation Guide',
@@ -48,7 +50,9 @@ usePageSeo({
        guarantees the vertical one lands exactly on the grid's own
        horizontal center and the horizontal one spans only this grid's own
        width, never the keywords panel beside it. -->
-  <article class="guide-grid" :class="{ 'is-intro': introTransition }">
+  <div class="page-with-heading">
+  <h1 class="visually-hidden">{{ language === 'fr' ? 'Guide d\'enquête' : 'Investigation Guide' }}</h1>
+  <article class="guide-grid" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }">
     <GuideCard
       v-for="(item, index) in articles?.slice(0, 4)"
       :key="item.id"
@@ -56,6 +60,7 @@ usePageSeo({
       :index="index"
     />
   </article>
+  </div>
 </template>
 
 <style scoped>
@@ -80,32 +85,28 @@ usePageSeo({
    card opens out of it. Ends well inside useIntroTransition's 2.8s, after
    which the class goes and the cards are just themselves. */
 .guide-grid.is-intro :deep(.guide-card) {
-  animation: guide-card-open 0.9s cubic-bezier(0.3, 0, 0.15, 1) both;
+  animation: guide-card-open 0.9s cubic-bezier(0.3, 0, 0.15, 1) var(--card-delay) both;
 }
 
 .guide-grid.is-intro :deep(.guide-card:nth-child(1)) {
-  --card-from: inset(100% 0 0 100%);
-  animation-delay: 0.45s;
+  --card-delay: 0.45s;
 }
 
 .guide-grid.is-intro :deep(.guide-card:nth-child(2)) {
-  --card-from: inset(100% 100% 0 0);
-  animation-delay: 0.55s;
+  --card-delay: 0.55s;
 }
 
 .guide-grid.is-intro :deep(.guide-card:nth-child(3)) {
-  --card-from: inset(0 0 100% 100%);
-  animation-delay: 0.65s;
+  --card-delay: 0.65s;
 }
 
 .guide-grid.is-intro :deep(.guide-card:nth-child(4)) {
-  --card-from: inset(0 100% 100% 0);
-  animation-delay: 0.75s;
+  --card-delay: 0.75s;
 }
 
 @keyframes guide-card-open {
   from {
-    clip-path: var(--card-from);
+    clip-path: inset(50% 50% 50% 50%);
   }
 
   to {
@@ -114,13 +115,12 @@ usePageSeo({
 }
 
 .guide-grid.is-intro :deep(.guide-card-image-wrap img) {
-  animation: guide-card-image-settle 1.4s cubic-bezier(0.2, 0.6, 0.3, 1) 0.6s both;
+  animation: guide-card-open 0.9s cubic-bezier(0.3, 0, 0.15, 1) calc(var(--card-delay) + 0.2s) both;
 }
 
-@keyframes guide-card-image-settle {
-  from {
-    transform: scale(1.12);
-    opacity: 0;
+@media (hover: hover) {
+  .guide-grid.is-hover-locked :deep(.guide-card) {
+    pointer-events: none;
   }
 }
 
@@ -159,7 +159,7 @@ usePageSeo({
    height is content-driven (GuideCard.vue's own mobile layout: number,
    title, subtitle strip, a fixed-aspect-ratio image, with explicit
    spacing/padding at every step) rather than forced to fill a row here. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .guide-grid {
     grid-template-columns: none;
     grid-template-rows: none;
@@ -178,27 +178,21 @@ usePageSeo({
     border-bottom: none;
   }
 
-  /* Splash -> guide: there's no centre cross to open from in a single
-     column, so each card unrolls downward from its top edge, one after the
-     other from the top of the list. */
-  .guide-grid.is-intro :deep(.guide-card:nth-child(n)) {
-    --card-from: inset(0 0 100% 0);
-  }
-
+  /* Splash -> guide: one after the other from the top of the list. */
   .guide-grid.is-intro :deep(.guide-card:nth-child(1)) {
-    animation-delay: 0.25s;
+    --card-delay: 0.25s;
   }
 
   .guide-grid.is-intro :deep(.guide-card:nth-child(2)) {
-    animation-delay: 0.45s;
+    --card-delay: 0.45s;
   }
 
   .guide-grid.is-intro :deep(.guide-card:nth-child(3)) {
-    animation-delay: 0.65s;
+    --card-delay: 0.65s;
   }
 
   .guide-grid.is-intro :deep(.guide-card:nth-child(4)) {
-    animation-delay: 0.85s;
+    --card-delay: 0.85s;
   }
 }
 </style>

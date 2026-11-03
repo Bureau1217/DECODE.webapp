@@ -12,7 +12,7 @@
 // generic shape would risk visual regressions for a cosmetic saving.
 defineProps<{ readingMode?: boolean }>()
 
-// Below 768px there's no side-by-side split to shrink/grow (reading-mode
+// Below 1150px there's no side-by-side split to shrink/grow (reading-mode
 // is desktop-only, see the media query below) — instead this panel is
 // either the whole screen (INDEX tapped) or not rendered at all, toggled
 // by the same state SiteIndexBar.vue's own INDEX button writes to. Every
@@ -38,17 +38,22 @@ const mobileIndexOpen = useMobileIndexOpen()
   top: 8.5vh;
   /* Ends at the fixed footer, so the last rows can scroll clear of it. */
   bottom: var(--footer-height);
-  width: 50vw;
+  /* %, not vw: a vw value changes when the window resizes, which fires the
+     transition and leaves the panel trailing behind the window. It's only
+     meant for the reading mode toggle. Same for every panel and divider
+     that moves along with this one (app.vue, SiteIndexBar.vue,
+     TemplateToolPageLayout.vue). */
+  width: 50%;
   overflow-y: auto;
   background: var(--color-surface);
   transition: width 0.5s ease;
 }
 
 .info-panel.reading-mode {
-  width: 25vw;
+  width: 25%;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .info-panel {
     top: 8.5vh;
     bottom: var(--footer-height);

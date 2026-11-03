@@ -6,7 +6,7 @@
 const displayMode = useDisplayMode()
 const readingMode = useReadingMode()
 
-// Below 768px, INDEX stops being the Index/Visual display-mode pair's own
+// Below 1150px, INDEX stops being the Index/Visual display-mode pair's own
 // "Index" option (Visual doesn't exist on mobile at all — see the
 // isToolsSection-style v-if below) and instead becomes a full-view toggle
 // — swap in whichever info panel the current route has (InfoPanel.vue's
@@ -107,7 +107,7 @@ const introTransition = useIntroTransition()
     </div>
 
     <!-- Just right of the middle divider, on the content side (desktop
-         only — below 768px this becomes the index bar's own second half,
+         only — below 1150px this becomes the index bar's own second half,
          see the media query below). -->
     <div class="index-bar-search" :class="{ 'reading-mode': readingMode, 'is-open': searchOpen }">
       <button v-if="!searchOpen" type="button" class="text-label index-bar-item" @click="openSearch">
@@ -150,7 +150,7 @@ const introTransition = useIntroTransition()
        z-index). -->
   <div
     class="index-bar-divider"
-    :class="{ 'reading-mode': readingMode, 'is-tool-themed': isThemed }"
+    :class="{ 'reading-mode': readingMode, 'is-tool-themed': isThemed, 'is-intro': introTransition }"
     :style="{ '--local-accent-text': theme?.chromeText }"
     aria-hidden="true"
   />
@@ -201,19 +201,22 @@ const introTransition = useIntroTransition()
   background: var(--local-accent);
 }
 
-/* Spans the keywords panel's half (25vw in reading mode): INDEX at its
-   left, VISUAL at its right, each 12px in from its edge. */
+/* Spans the keywords panel's half (a quarter in reading mode): INDEX at its
+   left, VISUAL at its right, each 12px in from its edge. In % of the bar's
+   content box, 24px narrower than the bar, hence 12px and 18px here for
+   half and a quarter minus 24px. % keeps the width transition out of window
+   resizes (InfoPanel.vue). */
 .index-bar-group {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 28px;
-  width: calc(50vw - 24px);
+  width: calc(50% - 12px);
   transition: width 0.5s ease;
 }
 
 .index-bar-group.reading-mode {
-  width: calc(25vw - 24px);
+  width: calc(25% - 18px);
 }
 
 .index-bar-item {
@@ -351,6 +354,28 @@ const introTransition = useIntroTransition()
   z-index: 3;
 }
 
+/* Splash -> home: hidden until app.vue's .intro-keep-line has grown through
+   this exact spot (0.3s delay + 0.9s), then takes over from it. Phones have
+   no such line, so there it simply appears with the bar. */
+@media (min-width: 1151px) {
+  .index-bar-divider.is-intro {
+    animation: index-bar-divider-wait 1.2s backwards;
+  }
+}
+
+@keyframes index-bar-divider-wait {
+  from,
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .index-bar-divider.is-intro {
+    animation: none;
+  }
+}
+
 /* Dark mode on a tool page: the tabs are outlined in the tool's own text
    shade (SiteNav.vue), so the dividers follow it rather than the tan. */
 :root[data-theme='dark'] .index-bar-divider.is-tool-themed {
@@ -365,7 +390,7 @@ const introTransition = useIntroTransition()
   position: fixed;
   top: 8.5vh;
   bottom: 0;
-  left: calc(50vw - 0.5px);
+  left: calc(50% - 0.5px);
   width: 1px;
   background: var(--color-surface);
   z-index: 3;
@@ -377,7 +402,7 @@ const introTransition = useIntroTransition()
 }
 
 .content-divider.reading-mode {
-  left: calc(25vw - 0.5px);
+  left: calc(25% - 0.5px);
 }
 
 .content-divider.is-resources {
@@ -407,14 +432,14 @@ const introTransition = useIntroTransition()
   background: var(--local-accent);
 }
 
-/* Below 768px: just INDEX | SEARCH, each half the bar (mirrors
+/* Below 1150px: just INDEX | SEARCH, each half the bar (mirrors
    .index-bar-divider above, which already sits at the viewport's own
    center — no change needed there). Visual has nothing to switch to on
    mobile (no permanent side panel to reformat) and Reading mode has
    nothing to shrink (no side-by-side split to begin with) — both hidden.
    .content-divider tracks the desktop 50vw/25vw panel boundary, which
    doesn't exist on mobile either. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .index-bar-divider.reading-mode {
     left: calc(50% - 0.5px);
   }

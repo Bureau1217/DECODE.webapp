@@ -31,7 +31,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     @mouseleave="onLeave"
   >
     <div class="guide-card-image-wrap">
-      <img v-if="item.header_image" :src="item.header_image.url" :alt="item.header_image.alt || item.title" :style="sharedPart('image')">
+      <img v-if="item.header_image" :src="item.header_image.url" :width="item.header_image.width" :height="item.header_image.height" :alt="item.header_image.alt || item.title" :style="sharedPart('image')">
     </div>
     <h2 class="guide-card-title text-h2" :style="sharedPart('title')">{{ item.title }}</h2>
     <!-- Under the title, same order as on the opened article
@@ -109,7 +109,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
    guide/index.vue's own mobile grid stacks these cards full-width one
    per row (scrolling down); each card's own height is content-driven
    here (guide/index.vue sets height:auto), not forced to fill a row. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .guide-card {
     flex-direction: column;
     align-items: center;

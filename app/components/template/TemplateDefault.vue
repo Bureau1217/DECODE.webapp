@@ -18,6 +18,7 @@ const props = defineProps<{
     slug: string
     id: string
     header_subtitle?: string
+    subpages?: { title: string, id: string }[]
     header_image?: { url: string, alt?: string } | null
     content?: ContentBlock[]
     tools?: ToolRef[]
@@ -41,6 +42,10 @@ const textBlocks = computed(() => (props.page.content ?? []).filter((b) => b.typ
 // field (default.yml) can hold several, but only the first is shown here.
 const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
+const language = useLanguage()
+const subpages = computed(() => props.page.subpages?.slice(0, 4) ?? [])
+const subpagesLabel = computed(() => (language.value === 'fr' ? 'Dans cet article' : 'In this article'))
+
 // Opened from / closed back into its guide card: see useSharedTransition.
 const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeArticle, style: sharedPart } = useDetailTransition(
   () => props.page.id,
@@ -53,7 +58,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-on-fill)" close-to="/guide" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="closeArticle">
     <article ref="articleEl" class="article-detail" :class="`detail-lines-${drawState}`">
       <div v-if="page.header_image" class="article-detail-cover">
-        <img :src="page.header_image.url" :alt="page.header_image.alt || page.title" :style="sharedPart('image')">
+        <img :src="page.header_image.url" :width="page.header_image.width" :height="page.header_image.height" :alt="page.header_image.alt || page.title" :style="sharedPart('image')">
       </div>
 
       <header class="article-detail-header">
@@ -67,11 +72,9 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
       </header>
 
       <TemplateDividerBand color="var(--color-on-fill)">
-        <div class="article-detail-divider-half" />
-        <div class="article-detail-divider-vertical detail-draw-vertical" />
-        <div class="article-detail-divider-half article-detail-divider-half-right detail-draw-fade">
+        <div class="article-detail-divider-half article-detail-divider-tool detail-draw-fade" :class="{ 'is-empty': !relatedTool }">
           <template v-if="relatedTool">
-            <span class="article-detail-related-label text-small">Related tool</span>
+            <span class="article-detail-divider-label text-small">Related tool</span>
             <NuxtLink
               :to="`/tools/${relatedTool.slug}`"
               class="article-detail-tool-btn btn-fill text-label"
@@ -81,6 +84,20 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
             </NuxtLink>
           </template>
         </div>
+        <div class="article-detail-divider-vertical detail-draw-vertical" />
+        <!-- This article's own case studies, 2 by 2. -->
+        <nav v-if="subpages.length" class="article-detail-divider-half article-detail-subpages detail-draw-fade" :aria-label="subpagesLabel">
+          <h2 class="article-detail-divider-label text-small">{{ subpagesLabel }}</h2>
+          <ul>
+            <li v-for="sub in subpages" :key="sub.id">
+              <NuxtLink :to="`/guide/${sub.id}`" class="text-note">
+                <span>{{ sub.title }}</span>
+                <span class="article-detail-subpage-arrow" aria-hidden="true">→</span>
+              </NuxtLink>
+            </li>
+          </ul>
+        </nav>
+        <div v-else class="article-detail-divider-half is-empty" />
       </TemplateDividerBand>
 
       <TemplateDetailBody color="var(--color-on-fill)">
@@ -110,6 +127,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 
 .article-detail-cover img {
   width: 100%;
+  height: auto;
   display: block;
 }
 
@@ -148,15 +166,68 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   background: var(--color-surface);
 }
 
-/* Left-aligned (not centered, like the generic .article-detail-divider-half)
-   so the button's own left edge lines up with the "Related tool" label's. */
-.article-detail-divider-half-right {
+/* Both halves start from the top on the same inset, so their two labels share
+   a line and the tool button and first links sit level below them. */
+.article-detail-divider-tool,
+.article-detail-subpages {
   align-items: flex-start;
-  padding-left: 16px;
+  justify-content: flex-start;
+  padding: 12px 16px;
 }
 
-.article-detail-related-label {
+.article-detail-divider-label {
+  margin: 0;
+  font-weight: inherit;
   color: var(--color-on-fill);
+}
+
+/* Grows past the band's usual height for two rows of links. */
+:deep(.divider-band-row) {
+  height: auto;
+  min-height: 10vh;
+}
+
+/* Index rows, like the keywords panel's: a rule above each, the whole row
+   clickable, the arrow saying it leads somewhere. */
+.article-detail-subpages ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+}
+
+.article-detail-subpages li {
+  border-top: 1px solid var(--color-on-fill);
+}
+
+.article-detail-subpages a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 5px 0 7px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.article-detail-subpages a:hover span:first-child {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.article-detail-subpage-arrow {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.article-detail-subpages a:hover .article-detail-subpage-arrow {
+  transform: translateX(3px);
 }
 
 /* Same look as Splash.vue's own .splash-cta (its one CTA button) — square
@@ -197,12 +268,16 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
    flex row on desktop) since the stacking need is specific to this
    template's 2-column content, not every consumer of that shared shell
    (TemplateRessource.vue's own single centered child stays untouched). */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   /* Portrait 4/5 crop (same ratio as the desktop guide card's own image),
-     inset 2.5% on every side — the divider band's rules below share that
-     same inset (TemplateDividerBand.vue), so image and rules line up. */
+     inset 5.5% on every side — the divider band's rules and related tool
+     below share that inset, so image and rules line up. */
   .article-detail-cover {
-    padding: 2.5%;
+    padding: 5.5%;
+  }
+
+  :deep(.divider-band-line) {
+    margin: 0 5.5%;
   }
 
   .article-detail-cover img {
@@ -226,19 +301,27 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   .article-detail-divider-half {
     flex: none;
     width: 100%;
-    padding: 14px 2.5%;
+    padding: 14px 5.5%;
   }
 
-  /* Centered like the title above it, not the desktop's left-start. */
-  .article-detail-divider-half-right {
+  /* Stacked: the tool centered like the title above it, the links full width
+     under a rule. An empty half would only add a blank strip. */
+  .article-detail-divider-tool {
     align-items: center;
   }
 
-  /* The left half is empty — stacked, it only added a blank strip and a
-     second rule above the related tool. */
-  .article-detail-divider-half:not(.article-detail-divider-half-right),
+  .article-detail-subpages {
+    padding: 14px 5.5%;
+    border-top: 1px solid var(--color-on-fill);
+  }
+
+  .article-detail-divider-half.is-empty,
   .article-detail-divider-vertical {
     display: none;
+  }
+
+  .article-detail-divider-half.is-empty + .article-detail-divider-vertical + .article-detail-subpages {
+    border-top: none;
   }
 }
 </style>

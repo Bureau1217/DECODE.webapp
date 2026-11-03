@@ -64,15 +64,20 @@ async function start() {
   await nextTick()
   decipherPanel()
 }
-// Exit cross: text scrambles out, then the content column shrinks back
-// into this tool's card on /tools (useToolCloseTransition).
+// The content column is the box this tool's card expands into, and collapses
+// back from (useToolMorph).
 const route = useRoute()
-const { close, style: closeStyle } = useToolCloseTransition(() => String(route.params.tool), () => root.value)
+const toolMorph = useToolMorph()
+const morphStyle = computed(() => (toolMorph.value === route.params.tool ? toolMorphStyle() : undefined))
 
 // Nuxt mounts a new page off-screen (detached) before swapping it in:
 // wait until it's actually in the document.
 let waitFrame = 0
+const warmToolsPage = useWarmToolsPage()
 onMounted(() => {
+  // Ready for closing, so its transition starts as soon as the cross is hit.
+  warmToolsPage()
+  preloadRouteComponents('/tools')
   const wait = () => {
     if (root.value?.isConnected) decipherPanel()
     else waitFrame = requestAnimationFrame(wait)
@@ -87,22 +92,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="tool-page">
-    <!-- Cover intros keep the tool's own panel mounted throughout: it shows
-         its entries emptied ("-") until Start, then fills them in. -->
-    <ToolIntro
-      v-if="intro && !intro.cover && !started"
-      :title="intro.title"
-      :description="intro.description"
-      :credits="intro.credits"
-      :band="intro.band"
-      :band-text="intro.bandText"
-    />
-    <slot v-else name="panel" :empty="!started" />
-
     <div
       v-if="intro && !started && !intro.cover"
       class="tool-page-content tool-page-start"
       :class="{ 'reading-mode': readingMode, 'mobile-index-open': mobileIndexOpen }"
+      :style="morphStyle"
     >
       <button type="button" class="tool-page-start-btn btn-fill text-label" :style="{ '--btn-fill': intro.start }" @click="start">
         Start
@@ -112,7 +106,7 @@ onBeforeUnmount(() => {
       v-else
       class="tool-page-content"
       :class="{ 'reading-mode': readingMode, scrollable: scrollable || !started, 'mobile-index-open': mobileIndexOpen }"
-      :style="closeStyle"
+      :style="morphStyle"
     >
       <div
         v-if="started"
@@ -133,10 +127,21 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
     </div>
+    <!-- Cover intros keep the tool's own panel mounted throughout: it shows
+         its entries emptied ("-") until Start, then fills them in. -->
+    <ToolIntro
+      v-if="intro && !intro.cover && !started"
+      :title="intro.title"
+      :description="intro.description"
+      :credits="intro.credits"
+      :band="intro.band"
+      :band-text="intro.bandText"
+    />
+    <slot v-else name="panel" :empty="!started" />
     <!-- Outside .tool-page-content on purpose: that column is transformed
          on mobile (its INDEX slide), which would make it the containing
          block for this fixed button instead of the viewport. -->
-    <ToolExitButton class="tool-page-exit" :accent="exit.accent" :text-color="exit.textColor" @click.capture="close" />
+    <ToolExitButton class="tool-page-exit" :accent="exit.accent" :text-color="exit.textColor" />
   </div>
 </template>
 
@@ -148,12 +153,12 @@ onBeforeUnmount(() => {
 .tool-page-content {
   /* Holds the fading cover (.tool-page-cover) over the content. */
   position: relative;
-  margin-left: 50vw;
+  margin-left: 50%;
   transition: margin-left 0.5s ease;
 }
 
 .tool-page-content.reading-mode {
-  margin-left: 25vw;
+  margin-left: 25%;
 }
 
 /* Exactly the room between the index bar and the footer either way; a
@@ -250,13 +255,13 @@ onBeforeUnmount(() => {
   z-index: 3;
 }
 
-/* No side-by-side split below 768px — same reasoning as app.vue's own
+/* No side-by-side split below 1150px — same reasoning as app.vue's own
    .app-content mobile override: the panel slot (InfoPanel.vue-based,
    same mobile media query) takes the full screen instead of a 50vw/25vw
    slice beside this, and the two slide vertically past each other (a
    visible scroll/slide, not an instant display swap) when the same
    mobile-index-open state toggles. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .tool-page-content,
   .tool-page-content.reading-mode {
     margin-left: 0;

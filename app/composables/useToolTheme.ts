@@ -41,7 +41,7 @@ export function useToolTheme() {
   const searchOrigin = useSearchOrigin()
   const theme = computed(() => {
     const path = route.path === '/search' ? searchOrigin.value?.split(/[?#]/)[0] : route.path
-    return TOOL_THEMES.find((t) => t.path === path) ?? null
+    return TOOL_THEMES.find((t) => path === t.path || path?.startsWith(`${t.path}/`)) ?? null
   })
 
   return {

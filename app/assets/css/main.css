@@ -315,7 +315,7 @@ body {
   line-height: 1.4;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .text-h1 {
     font-size: 34px;
   }
@@ -368,6 +368,116 @@ img.no-duotone {
    light theme's pale silver ones (OVERALL WEBSITE.png). */
 :root[data-theme='dark'] img:not(.no-duotone):not(:hover) {
   filter: url(#duotone-dark);
+}
+
+/* A guide card's visual drops the duotone with the whole card's hover, not
+   only when the pointer is on the image itself. */
+.guide-card:hover img,
+:root[data-theme='dark'] .guide-card:hover img:not(.no-duotone) {
+  filter: none;
+}
+
+/* Opening or leaving a tool (plugins/tool-view-transition.client.ts): the
+   browser's own cross-fade of the whole page, just slower and eased. */
+html.vt-tool-fade::view-transition-old(root),
+html.vt-tool-fade::view-transition-new(root) {
+  animation-duration: 0.9s;
+  animation-timing-function: ease-in-out;
+}
+
+/* Tool pages have no keywords panel, so this margin changes on the way in and
+   out. Its transition is for the reading mode toggle: here it would drag the
+   arriving page sideways under the fade. */
+html.vt-tool-fade .app-content {
+  transition: none;
+}
+
+/* Between the tools list and a tool: the clicked card's box expands into the
+   right panel, or the panel collapses back into it, its contents cross-fading.
+   The box's own move is the browser's; it clips the two snapshots, which keep
+   their size and stay put on the edge the box grows from
+   (data-tool-anchor, set by the plugin), so nothing stretches or drifts. */
+html.vt-tool-morph::view-transition-group(tool-panel) {
+  z-index: 2;
+  /* The card's snapshot only covers its own small box, and the page's is
+     half faded: without a backing, the cards underneath show through. On the
+     group, not the image pair, whose snapshots blend additively. */
+  background: var(--tool-morph-fill);
+  animation-duration: 0.9s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.25, 1);
+}
+
+html.vt-tool-morph::view-transition-image-pair(tool-panel) {
+  overflow: hidden;
+}
+
+html.vt-tool-morph::view-transition-old(tool-panel),
+html.vt-tool-morph::view-transition-new(tool-panel) {
+  animation-duration: 0.9s;
+  animation-timing-function: ease-in-out;
+}
+
+/* Closing is quicker, and hands over instead of cross-fading: the panel's
+   content is gone before the card's comes up, so the two never overlap. */
+html.vt-tool-closing::view-transition-group(*),
+html.vt-tool-closing::view-transition-old(root),
+html.vt-tool-closing::view-transition-new(root) {
+  animation-duration: 0.3s;
+}
+
+/* Quick off the mark, unlike opening's slow start. */
+html.vt-tool-closing::view-transition-group(tool-panel) {
+  animation-duration: 0.35s;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+html.vt-tool-closing::view-transition-old(tool-panel) {
+  animation-duration: 0.1s;
+  animation-timing-function: ease-out;
+}
+
+html.vt-tool-closing::view-transition-new(tool-panel) {
+  animation-delay: 0.1s;
+  animation-duration: 0.2s;
+  animation-timing-function: ease-out;
+}
+
+html[data-tool-anchor='middle']::view-transition-old(tool-panel),
+html[data-tool-anchor='middle']::view-transition-new(tool-panel) {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+html[data-tool-anchor='bottom']::view-transition-old(tool-panel),
+html[data-tool-anchor='bottom']::view-transition-new(tool-panel) {
+  top: auto;
+  bottom: 0;
+}
+
+/* The other cards hold still under the box instead of fading with the page. */
+html.vt-tool-morph .tools-list {
+  view-transition-name: tools-list-still;
+}
+
+html.vt-tool-morph::view-transition-old(tools-list-still),
+html.vt-tool-morph::view-transition-new(tools-list-still) {
+  animation: none;
+}
+
+/* For what only crawlers and screen readers need: a section page's <h1>, the
+   home page's summary. On the wrapper, display:contents leaves the page's own
+   layout as if the <h1> beside it weren't there. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.page-with-heading {
+  display: contents;
 }
 
 /*
@@ -492,6 +602,88 @@ html.vt-closing::view-transition-old(*.article-subtitle) {
 html.vt-closing::view-transition-new(*.article-title),
 html.vt-closing::view-transition-new(*.article-subtitle) {
   display: none;
+}
+
+/* Articles on the mobile layout (`vt-article`): the same morph, cleaner and
+   quicker for a small screen.
+   - The menu bars and footer stay above it, standing still: named so they get
+     their own layer, which the moving image and title pass under.
+   - One image, not two: the two crops cross-fading showed as a double image.
+   - The pages hand over instead of cross-fading, the old one gone before the
+     new one comes up, on a backing of the panel's color, so the other cards
+     never ghost through the article. */
+@media (max-width: 1150px) {
+  html.vt-article .mobile-chrome-backdrop {
+    view-transition-name: chrome-backdrop;
+    view-transition-class: site-chrome;
+  }
+
+  html.vt-article .site-nav {
+    view-transition-name: chrome-nav;
+    view-transition-class: site-chrome;
+  }
+
+  html.vt-article .index-bar {
+    view-transition-name: chrome-index-bar;
+    view-transition-class: site-chrome;
+  }
+
+  html.vt-article .index-bar-divider {
+    view-transition-name: chrome-index-divider;
+    view-transition-class: site-chrome;
+  }
+
+  html.vt-article .site-footer {
+    view-transition-name: chrome-footer;
+    view-transition-class: site-chrome;
+  }
+
+  html.vt-article::view-transition-group(*.site-chrome) {
+    z-index: 5;
+    animation: none;
+  }
+
+  html.vt-article::view-transition-old(*.site-chrome) {
+    display: none;
+  }
+
+  html.vt-article::view-transition-new(*.site-chrome) {
+    animation: none;
+  }
+
+  html.vt-article::view-transition-group(root),
+  html.vt-article::view-transition-group(*.article-image),
+  html.vt-article::view-transition-group(*.article-title),
+  html.vt-article::view-transition-group(*.article-subtitle) {
+    animation-duration: 0.5s;
+  }
+
+  /* The title and subtitle travel over the image, never behind it. */
+  html.vt-article::view-transition-group(*.article-title),
+  html.vt-article::view-transition-group(*.article-subtitle) {
+    z-index: 2;
+  }
+
+  html.vt-article::view-transition-old(*.article-image) {
+    display: none;
+  }
+
+  html.vt-article::view-transition-new(*.article-image) {
+    animation: none;
+  }
+
+  html.vt-article::view-transition-group(root) {
+    background: var(--color-brand-resources);
+  }
+
+  html.vt-article::view-transition-old(root) {
+    animation-duration: 0.15s;
+  }
+
+  html.vt-article::view-transition-new(root) {
+    animation-delay: 0.15s;
+    animation-duration: 0.2s;
+  }
 }
 
 /*

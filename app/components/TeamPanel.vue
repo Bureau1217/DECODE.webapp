@@ -72,7 +72,7 @@ onBeforeUnmount(() => {
         >
           <span class="team-panel-member"><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
           <div v-if="hoveredMember === `${ti}-${mi}`" class="team-panel-popup text-note">
-            <img v-if="member.picture" :src="member.picture" :alt="member.name" class="team-panel-popup-picture">
+            <img v-if="member.picture" loading="lazy" :src="member.picture" :alt="member.name" class="team-panel-popup-picture">
             <div class="team-panel-popup-text">
               <div class="team-panel-popup-title">{{ member.name }}</div>
               <div class="team-panel-popup-position text-small">{{ member.position || team.title }}</div>
@@ -270,7 +270,7 @@ onBeforeUnmount(() => {
 
 /* Mobile (script, onRowTap): opens inline under the name instead of
    floating over the rows below. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .team-panel li {
     flex-direction: column;
     align-items: stretch;

@@ -5,7 +5,7 @@
 // section list reuses the exact same array.
 const links = NAV_LINKS
 
-// Below 768px this row becomes a single "MENU" tab + truncated tagline
+// Below 1150px this row becomes a single "MENU" tab + truncated tagline
 // ticker (see .site-nav-mobile-row below) that opens MobileMenuOverlay.vue
 // instead — both rows always render, CSS picks which one shows, so there's
 // no hydration flash switching between them.
@@ -118,8 +118,8 @@ onUnmounted(() => {
       >
         <path :d="tabPath" stroke-linejoin="round" />
       </svg>
-      <!-- Splash -> guide: the tab the visitor lands on fills up from its
-           baseline once the row has warmed to brown (see the CSS). -->
+      <!-- Splash -> guide: the tab the visitor lands on fades to filled as
+           the draw-in comes to its end (see the CSS). -->
       <div v-if="introTransition && isActive(link.to) && tabPath" class="nav-tab-fill" aria-hidden="true">
         <svg :viewBox="`0 0 ${tabWidth} ${tabHeight}`" :width="tabWidth" :height="tabHeight" preserveAspectRatio="none">
           <path :d="tabPath" stroke-linejoin="round" />
@@ -131,7 +131,7 @@ onUnmounted(() => {
       </NuxtLink>
     </div>
 
-    <!-- Below 768px only (CSS) — ticker + single MENU tab in place of the
+    <!-- Below 1150px only (CSS) — ticker + single MENU tab in place of the
          4 tiled tabs above, which both always render so there's no
          hydration flash when the breakpoint flips. Scrolling marquee
          (doubled text + translateX loop), not static truncated text —
@@ -154,10 +154,11 @@ onUnmounted(() => {
         preserveAspectRatio="none"
         aria-hidden="true"
       >
-        <path :d="mobileTabPath" stroke-linejoin="round" />
+        <path :d="mobileTabPath" pathLength="1" stroke-linejoin="round" />
       </svg>
       <button type="button" class="nav-tab nav-tab-menu-btn" @click="mobileMenuOpen = !mobileMenuOpen">
-        {{ mobileMenuOpen ? 'Close' : 'Menu' }}
+        <DecipherText v-if="introTransition" :text="mobileMenuOpen ? 'Close' : 'Menu'" :delay="600" grow />
+        <template v-else>{{ mobileMenuOpen ? 'Close' : 'Menu' }}</template>
       </button>
     </div>
   </nav>
@@ -196,7 +197,7 @@ onUnmounted(() => {
    SiteFooter.vue's own .footer-tagline shows (desktop), constrained to
    the space left of the mobile MENU tab here instead of centered on the
    full viewport. Hidden on desktop (.nav-tab-wrap--mobile's own row only
-   shows below 768px, see the media query below) — both rows always
+   shows below 1150px, see the media query below) — both rows always
    render so there's no hydration flash when the breakpoint flips. */
 .site-nav-ticker {
   display: none;
@@ -253,7 +254,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .nav-tab-wrap--desktop {
     display: none;
   }
@@ -312,10 +313,25 @@ onUnmounted(() => {
   transition: color 0.15s ease;
 }
 
+/* Desktop's tabs are 25vw wide and 3.5vh tall, so the labels follow the
+   window down to always fit, to a floor of 12px. 20.6em is the longest label
+   ("TOOLS AGAINST DISINFORMATION", measured at 20.44em in this mono face with
+   its letter-spacing); 2.2vh is the tab's two diagonal shoulders; 12px keeps
+   it off them. The site's mobile breakpoint, 1150px, is set by that floor:
+   it's about where this label reaches 12px, so it always fits above it. */
+@media (min-width: 1151px) {
+  .nav-tab-wrap--desktop .nav-tab {
+    padding: 0;
+    font-size: max(12px, min(18px, calc((25vw - 2.2vh - 12px) / 20.6), 2.4vh));
+  }
+}
+
 /* Hover or current page — same filled treatment either way. */
-/* Draw-in (script, tabRiseDelay): see the comment there. Starting with
-   the clip's top at 100% leaves only the outline's bottom edge showing
-   (the -4px outsets keep the stroke itself unshaved) — the baseline. */
+/* Draw-in (script, tabRiseDelay): see the comment there. The clip starts
+   1px above the box's bottom so only the outline's bottom edge shows, the
+   baseline. The stroke is centred on that edge: a clip at exactly 100%
+   would shave its top half and thin the line until the tab starts rising.
+   The -4px outsets keep the rest of the stroke unshaved. */
 .site-nav.is-intro .nav-tab-wrap--desktop:not(:first-child) {
   animation: nav-tab-rise 0.9s cubic-bezier(0.3, 0, 0.15, 1) var(--tab-rise-delay) both;
 }
@@ -327,13 +343,13 @@ onUnmounted(() => {
 @keyframes nav-tab-first-no-base {
   from,
   to {
-    clip-path: inset(-4px -4px 1px -4px);
+    clip-path: inset(-4px -4px 1.5px -4px);
   }
 }
 
 @keyframes nav-tab-rise {
   from {
-    clip-path: inset(100% -4px -4px -4px);
+    clip-path: inset(calc(100% - 1px) -4px -4px -4px);
   }
 
   to {
@@ -355,6 +371,31 @@ onUnmounted(() => {
   }
 }
 
+/* Phone: the MENU tab traces its own outline (pathLength=1), its white fill
+   settling in as the stroke closes, same as the splash's top tab. */
+.site-nav.is-intro .nav-tab-wrap--mobile .nav-tab-shape path {
+  stroke-dasharray: 1;
+  animation:
+    nav-tab-trim 1.1s cubic-bezier(0.45, 0, 0.25, 1) 0.2s both,
+    nav-tab-warm 1.6s ease-in-out 0.2s both;
+}
+
+@keyframes nav-tab-trim {
+  from {
+    stroke-dashoffset: 1;
+    fill-opacity: 0;
+  }
+
+  70% {
+    fill-opacity: 0;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+    fill-opacity: 1;
+  }
+}
+
 @keyframes nav-tab-warm {
   from {
     stroke: var(--color-ink);
@@ -362,9 +403,9 @@ onUnmounted(() => {
 }
 
 /* The landing tab (template): its own outline stays unfilled during the
-   intro, and a filled copy above it rises out of the baseline, clipped
-   from the bottom up. Its label goes ink -> brown with the rest of the
-   row, then white as the fill passes under it. */
+   intro, and a filled copy above it fades in near the end (1.8s -> 2.5s,
+   inside useIntroTransition's 2.8s). Its label goes ink -> brown with the
+   rest of the row, then white along with that fade. */
 .site-nav.is-intro .nav-tab-wrap.active .nav-tab-shape path {
   fill: var(--color-surface);
 }
@@ -374,7 +415,7 @@ onUnmounted(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  animation: nav-tab-fill-rise 0.7s cubic-bezier(0.5, 0, 0.2, 1) 1.1s both;
+  animation: nav-tab-fill-fade 0.7s ease 1.8s both;
 }
 
 .nav-tab-fill svg {
@@ -389,38 +430,39 @@ onUnmounted(() => {
   vector-effect: non-scaling-stroke;
 }
 
-@keyframes nav-tab-fill-rise {
+@keyframes nav-tab-fill-fade {
   from {
-    clip-path: inset(100% -4px -4px -4px);
-  }
-
-  to {
-    clip-path: inset(-4px -4px -4px -4px);
+    opacity: 0;
   }
 }
 
 .site-nav.is-intro .nav-tab-wrap.active .nav-tab {
-  animation: nav-tab-label-land 1.6s ease-in-out 0.2s both;
+  animation: nav-tab-label-land 2.3s ease-in-out 0.2s both;
 }
 
+/* 70% of 2.3s is the 1.8s where the fill starts fading in. */
 @keyframes nav-tab-label-land {
   0% {
     color: var(--color-ink);
   }
 
-  55% {
+  70% {
     color: var(--color-brand);
   }
 
-  80%,
   100% {
     color: var(--color-on-fill);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav-tab-fill {
+  .nav-tab-fill,
+  .site-nav.is-intro .nav-tab-wrap--mobile .nav-tab-shape path {
     animation: none;
+  }
+
+  .site-nav.is-intro .nav-tab-wrap--mobile .nav-tab-shape path {
+    stroke-dasharray: none;
   }
 }
 

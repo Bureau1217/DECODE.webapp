@@ -43,15 +43,30 @@ export function canViewTransition() {
 // browser snapshots it. Call at setup; use the returned function later.
 function usePageViewTransition() {
   const nuxtApp = useNuxtApp()
-  return (navigate: () => Promise<unknown>) => document.startViewTransition(async () => {
-    const rendered = new Promise<void>((resolve) => {
-      const off = nuxtApp.hook('page:finish', () => { off(); resolve() })
-      setTimeout(resolve, 3000)
+  return (navigate: () => Promise<unknown>, rootClass?: string) => {
+    if (rootClass) document.documentElement.classList.add(rootClass)
+    const transition = document.startViewTransition(async () => {
+      const rendered = new Promise<void>((resolve) => {
+        const off = nuxtApp.hook('page:finish', () => { off(); resolve() })
+        setTimeout(resolve, 3000)
+      })
+      await navigate()
+      await rendered
+      await nextTick()
     })
-    await navigate()
-    await rendered
-    await nextTick()
-  })
+    if (rootClass) transition.finished.finally(() => document.documentElement.classList.remove(rootClass))
+    return transition
+  }
+}
+
+// Articles only, not resources: `vt-article` gives phones a cleaner morph
+// (main.css), and their close is twice as quick there.
+function articleClass(path: string) {
+  return path === '/guide' || path.startsWith('/guide/') ? 'vt-article' : undefined
+}
+
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 1150px)').matches
 }
 
 // Card side. `style(part)` goes on each shared element; the names are
@@ -74,7 +89,7 @@ export function useCardTransition(id: () => string, to: () => string) {
     clicked.value = true
     opening.value = true
     nextTick(() => {
-      start(() => navigateTo(to())).finished.finally(() => { opening.value = false })
+      start(() => navigateTo(to()), articleClass(to())).finished.finally(() => { opening.value = false })
     })
   }
 
@@ -117,16 +132,17 @@ export function useDetailTransition(id: () => string, closeTo: string, bodySelec
   function close(event: MouseEvent) {
     if (!canViewTransition() || event.metaKey || event.ctrlKey || closing.value) return
     event.preventDefault()
-    for (const el of root.value?.querySelectorAll<HTMLElement>(bodySelector) ?? []) scrambleOut(el, TEXT_OUT_MS)
-    setTimeout(() => { closing.value = true }, LINES_OUT_AT)
+    const pace = articleClass(closeTo) && isMobileLayout() ? 0.5 : 1
+    for (const el of root.value?.querySelectorAll<HTMLElement>(bodySelector) ?? []) scrambleOut(el, TEXT_OUT_MS * pace)
+    setTimeout(() => { closing.value = true }, LINES_OUT_AT * pace)
     setTimeout(() => {
       closingId.value = id()
       document.documentElement.classList.add('vt-closing')
-      start(() => navigateTo(closeTo)).finished.finally(() => {
+      start(() => navigateTo(closeTo), articleClass(closeTo)).finished.finally(() => {
         document.documentElement.classList.remove('vt-closing')
         closingId.value = null
       })
-    }, MORPH_AT)
+    }, MORPH_AT * pace)
   }
 
   return {
@@ -139,45 +155,11 @@ export function useDetailTransition(id: () => string, closeTo: string, bodySelec
   }
 }
 
-// Tool page -> /tools (TemplateToolPageLayout.vue's exit cross): the same
-// close as a detail page's — its text scrambles away, then the tool's
-// content column shrinks back into its own card (ToolCard.vue), the two
-// sharing one cropped, never-stretched morph. The slug of the tool
-// closing, meanwhile.
-export const useToolClosing = () => useState<string | null>('tool-closing', () => null)
+// The slug of the tool whose card and right panel are sharing a box, while
+// going between the tools list and that tool
+// (plugins/tool-view-transition.client.ts).
+export const useToolMorph = () => useState<string | null>('tool-morph', () => null)
 
-export function toolCardStyle(slug: string) {
-  return sharedStyle(`tool-${slug}`, 'image')
-}
-
-export function useToolCloseTransition(slug: () => string, textRoot: () => HTMLElement | null | undefined) {
-  const toolClosing = useToolClosing()
-  const start = usePageViewTransition()
-  const closing = ref(false)
-  const TEXT_OUT_MS = 600
-  const MORPH_AT = 650
-
-  function close(event: MouseEvent) {
-    if (!canViewTransition() || event.metaKey || event.ctrlKey || closing.value) return
-    event.preventDefault()
-    closing.value = true
-    // Every text on screen, not just a body: a tool page is all panels.
-    const root = textRoot()
-    const leaves = [...root?.querySelectorAll<HTMLElement>('*') ?? []].filter((el) =>
-      [...el.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.nodeValue?.trim())
-      && el.getBoundingClientRect().top < window.innerHeight)
-    for (const el of leaves.slice(0, 200)) scrambleOut(el, TEXT_OUT_MS)
-    setTimeout(() => {
-      toolClosing.value = slug()
-      nextTick(() => {
-        start(() => navigateTo('/tools')).finished.finally(() => { toolClosing.value = null })
-      })
-    }, MORPH_AT)
-  }
-
-  return {
-    close,
-    // The content column's share of the morph, once it's closing.
-    style: computed(() => (toolClosing.value === slug() ? toolCardStyle(slug()) : undefined)),
-  }
+export function toolMorphStyle() {
+  return { viewTransitionName: 'tool-panel' }
 }

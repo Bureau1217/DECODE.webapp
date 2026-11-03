@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const page = await useKirbyPage('page:tools', "page('tools')", 'tools')
+const page = await useToolsPage()
 
 usePageSeo({
   title: () => cmsText(page.value, 'title') ?? 'Tools against disinformation',
