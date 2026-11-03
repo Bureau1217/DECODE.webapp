@@ -36,7 +36,7 @@ defineProps<{
    wrong spot) — useHoverTooltip.ts's own mobile positioning already
    clamps `left` against this same cap, but the box itself still needs to
    shrink on anything narrower than ~336px. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .hover-tooltip {
     width: min(320px, calc(100vw - 16px));
   }

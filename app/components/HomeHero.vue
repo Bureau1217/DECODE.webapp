@@ -353,7 +353,7 @@ const HEADLINE_MS = 900
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .home-hero {
     display: none;
   }

@@ -405,7 +405,7 @@ const steps = [
 /* Search-results/plugin-mockup stack full-width instead of sitting side
    by side (60/40) — too narrow a strip at phone width for either half to
    stay legible next to the other. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .src-demo-body {
     flex-direction: column;
   }

@@ -37,7 +37,7 @@ defineProps<{
    (TemplateDefault.vue) also bleed closer to the edges instead of the
    desktop's generous 10-20% frame. Shared by TemplateDefault/
    TemplateRessource/TemplateAbout, all 3 consumers of this shell. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .detail-body {
     padding: 28px 6% 0;
   }

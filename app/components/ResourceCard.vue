@@ -134,7 +134,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
    type sit together as one block centered in the card, not spread over
    the desktop's 3-row grid; authors cut to a single line with an
    ellipsis. min-height:0 and overflow:hidden hold the ratio regardless. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .resource-card {
     aspect-ratio: 20 / 21;
     min-height: 0;

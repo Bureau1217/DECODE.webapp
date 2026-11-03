@@ -110,7 +110,7 @@ function isTabActive(key: string) {
   max-width: 260px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .filter-options {
     max-width: 100%;
   }

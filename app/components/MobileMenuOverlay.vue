@@ -317,10 +317,10 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 }
 
 /* Belt-and-braces — the MENU tab that opens this is itself display:none
-   above 768px (SiteNav.vue), so mobileMenuOpen can't normally go true on
+   above 1150px (SiteNav.vue), so mobileMenuOpen can't normally go true on
    desktop, but this keeps a stray resize/devtools toggle from leaving a
    full-width overlay stuck over the desktop split-pane layout. */
-@media (min-width: 769px) {
+@media (min-width: 1151px) {
   .mobile-menu-overlay {
     display: none;
   }

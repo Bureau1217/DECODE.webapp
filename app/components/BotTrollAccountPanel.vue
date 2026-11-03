@@ -417,7 +417,7 @@ function placeholderGradient(seed: string) {
    wraps onto its own line above the account arrows, minmax(0, 1fr)
    tracks and overflow-wrap stop a long value (a handle, a geotag) from
    widening its column, and the 3 verdicts stack full width. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .bt-account {
     width: 100%;
     max-width: 100vw;

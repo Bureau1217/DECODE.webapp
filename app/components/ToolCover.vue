@@ -95,7 +95,7 @@ defineEmits<{
 
 /* The content column itself is the fixed full-screen box on mobile
    (TemplateToolPageLayout.vue), so this just fills it. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .tool-cover {
     height: 100%;
   }

@@ -194,7 +194,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
    injected via ::before so the template itself doesn't need per-field
    markup just for this breakpoint). The header row (column labels) is
    redundant once every row carries its own labels, so it's hidden. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .src-row--header {
     display: none;
   }

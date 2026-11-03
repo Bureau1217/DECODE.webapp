@@ -172,7 +172,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
   background: var(--color-surface);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .bt-criterion {
     flex-wrap: wrap;
     cursor: pointer;

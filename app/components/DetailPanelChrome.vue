@@ -169,7 +169,7 @@ defineProps<{
   text-decoration: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .detail-panel-nav {
     padding: 8px 14px 12px;
   }

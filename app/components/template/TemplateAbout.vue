@@ -162,7 +162,7 @@ const activeIndex = ref(0)
    state, covered by InfoPanel.vue's own mobile media query) — this is a
    reasonable responsive extrapolation, not a pixel match: the fixed
    padding:14px 60px tabs would overflow/clip at phone width otherwise. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   /* Title at an opened resource's own title size (TemplateRessource.vue,
      48px); subtitle at a heading-2 size (1.5em of the 16px base). */
   .about-detail-subtitle {
