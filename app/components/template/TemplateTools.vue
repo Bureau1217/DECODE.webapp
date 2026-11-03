@@ -18,9 +18,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <article class="tools-list">
-    <ToolCard v-for="(tool, index) in page.tools?.slice(0, 3)" :key="tool.id" :item="tool" :index="index" />
-  </article>
+  <div class="page-with-heading">
+    <h1 class="visually-hidden">{{ page.title }}</h1>
+    <article class="tools-list">
+      <ToolCard v-for="(tool, index) in page.tools?.slice(0, 3)" :key="tool.id" :item="tool" :index="index" />
+    </article>
+  </div>
 </template>
 
 <style scoped>
@@ -42,7 +45,7 @@ onUnmounted(() => {
    full-width cards (ToolCard.vue's own mobile layout, matching
    GuideCard.vue's), divided by thin lines instead of the desktop's 1px
    background-reveal gap. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .tools-list {
     gap: 0;
     height: auto;

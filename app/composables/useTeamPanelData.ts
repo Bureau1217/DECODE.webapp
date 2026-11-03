@@ -36,7 +36,7 @@ export async function useTeamPanelData() {
       query: "page('about')",
       select: {
         teams: 'page.content.teams.toBlocks.toArray',
-        images: { query: 'page.images', select: { uuid: 'file.uuid', url: true } },
+        images: { query: 'page.images', select: { uuid: 'file.uuid', url: "file.thumb('web-small').url" } },
       },
     })
     byLanguage.value = { ...byLanguage.value, [lang]: result }

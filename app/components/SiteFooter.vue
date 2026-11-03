@@ -10,17 +10,24 @@ const introHidden = computed(() => ['logo', 'build', 'tab'].includes(splashIntro
 // else, matching the brand accent used by the nav/index bar/splash CTA).
 const showSplash = useSplashVisible()
 
+// Splash -> home: fades to brown along with SiteNav's row (same timing as
+// its nav-tab-warm) instead of snapping when the splash goes.
+const introTransition = useIntroTransition()
+
 // A custom tool page's own accent, not the usual brown, while it's open
 // — same reskin as SiteNav.vue/SiteIndexBar.vue.
 const { theme, isThemed } = useToolTheme()
 
-// CMS content language (useLanguage.ts) — refetches every page's KQL data
-// in place rather than reloading, so the current route/scroll stays put.
+// CMS content language (useLanguage.ts): each language has its own URL, so
+// these are real links, which also tells crawlers the other version exists.
 const language = useLanguage()
-async function setLanguage(value: Language) {
-  if (language.value === value) return
-  language.value = value
-  await refreshNuxtData()
+const route = useRoute()
+function languageHref(value: Language) {
+  return pathInLanguage(route.fullPath, value)
+}
+// Remembered for the bare home page only (server/middleware/language.ts).
+function rememberLanguage(value: Language) {
+  document.cookie = `decode-lang=${value}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
 }
 
 const colorMode = useColorMode()
@@ -32,31 +39,34 @@ function toggleColorMode() {
 <template>
   <footer
     class="site-footer"
-    :class="{ 'is-branded': !showSplash, 'is-tool-themed': isThemed, 'is-intro-hidden': introHidden }"
+    :class="{ 'is-branded': !showSplash, 'is-tool-themed': isThemed, 'is-intro-hidden': introHidden, 'is-intro': introTransition }"
     :style="{ '--local-accent': theme?.chromeText, '--local-chrome': theme?.chromeAccent }"
   >
-    <!-- The Investigation Guide is home. -->
-    <NuxtLink to="/guide" class="footer-brand">DE.CO.DE</NuxtLink>
+    <!-- The home page, for search engines too. Within a visit it leads straight
+         on to the guide (pages/index.vue). -->
+    <NuxtLink to="/" class="footer-brand">DE.CO.DE</NuxtLink>
     <span class="footer-tagline text-small">
       {{ SITE_TAGLINE }}
     </span>
 
     <div class="footer-controls">
       <span class="footer-lang text-small">
-        <button
-          type="button"
+        <a
+          :href="languageHref('en')"
+          hreflang="en"
           class="footer-lang-option"
           :class="{ 'is-active': language === 'en' }"
-          :aria-pressed="language === 'en'"
-          @click="setLanguage('en')"
-        >ENG</button>
-        <button
-          type="button"
+          :aria-current="language === 'en' ? 'true' : undefined"
+          @click="rememberLanguage('en')"
+        >ENG</a>
+        <a
+          :href="languageHref('fr')"
+          hreflang="fr"
           class="footer-lang-option"
           :class="{ 'is-active': language === 'fr' }"
-          :aria-pressed="language === 'fr'"
-          @click="setLanguage('fr')"
-        >FR</button>
+          :aria-current="language === 'fr' ? 'true' : undefined"
+          @click="rememberLanguage('fr')"
+        >FR</a>
       </span>
       <button
         type="button"
@@ -103,6 +113,42 @@ function toggleColorMode() {
 
 .is-tool-themed {
   color: var(--local-accent);
+}
+
+/* Same duration, easing and delay as SiteNav.vue's nav-tab-warm. */
+.site-footer.is-branded.is-intro {
+  animation: footer-warm 1.6s ease-in-out 0.2s both;
+}
+
+.site-footer.is-branded.is-intro .footer-dark-mode-dot {
+  animation: footer-dot-warm 1.6s ease-in-out 0.2s both;
+}
+
+@keyframes footer-warm {
+  from {
+    color: var(--color-ink);
+  }
+}
+
+@keyframes footer-dot-warm {
+  from {
+    --dot-dark: #000;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-footer.is-branded.is-intro,
+  .site-footer.is-branded.is-intro .footer-dark-mode-dot {
+    animation: none;
+  }
+}
+
+/* Registered so footer-dot-warm can interpolate it: an unregistered custom
+   property would flip at the animation's midpoint. */
+@property --dot-dark {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #000;
 }
 
 .footer-brand {
@@ -157,6 +203,7 @@ function toggleColorMode() {
   font-family: inherit;
   font-size: inherit;
   color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -211,7 +258,7 @@ function toggleColorMode() {
 /* Moved to the top ticker (SiteNav.vue's own mobile row) — keeping both
    would collide with .footer-brand/.footer-controls at this width, and
    every mobile maquette's footer only ever shows brand + lang/dark-mode. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .footer-tagline {
     display: none;
   }

@@ -26,7 +26,21 @@ const props = defineProps<{
 // CMS has no credits for this tool yet.
 const credits = computed(() => props.page.credits || 'Léa Dubois, Hugo Martin & Chloé Rousseau')
 
-const selectedCampaign = ref<CampaignWithReceivers | null>(null)
+// A campaign's own URL (/tools/campaigns-map/<slug>) opens straight on it, past
+// the entrance screen, with its details in the server-rendered panel. From
+// there on the selection and the URL follow each other.
+const route = useRoute()
+const router = useRouter()
+const campaignFromRoute = () => props.page.campaigns.find((c) => c.slug === route.params.campaign) ?? null
+const selectedCampaign = ref<CampaignWithReceivers | null>(campaignFromRoute())
+const openedOnCampaign = !!selectedCampaign.value
+watch(selectedCampaign, (campaign) => {
+  const path = campaign ? `/tools/${route.params.tool}/${campaign.slug}` : `/tools/${route.params.tool}`
+  if (path !== route.path) router.replace(path)
+})
+watch(() => route.params.campaign, () => {
+  if (route.path.startsWith(`/tools/${route.params.tool}`)) selectedCampaign.value = campaignFromRoute()
+})
 
 // Start opens on a campaign, a different one picked at random each visit.
 function selectRandomCampaign() {
@@ -47,7 +61,7 @@ const readingMode = useReadingMode()
     :reading-mode="readingMode"
     :scrollable="false"
     :exit="{ accent: 'var(--tool-campaigns-accent)', textColor: 'var(--tool-campaigns-accent-deep)' }"
-    :intro="{
+    :intro="openedOnCampaign ? null : {
       title: props.page.title,
       description: props.page.description,
       credits,
@@ -61,6 +75,16 @@ const readingMode = useReadingMode()
   >
     <template #panel="{ empty }">
       <CampaignInfoPanel :campaign="selectedCampaign" :tool="{ ...page, credits }" :empty="empty" />
+      <!-- The map's markers aren't links, so this is how crawlers (and screen
+           readers) reach each campaign. -->
+      <nav class="visually-hidden" :aria-label="props.page.title">
+        <h1 v-if="selectedCampaign">{{ selectedCampaign.title }}</h1>
+        <ul>
+          <li v-for="campaign in props.page.campaigns" :key="campaign.slug">
+            <NuxtLink :to="`/tools/${route.params.tool}/${campaign.slug}`">{{ campaign.title }}</NuxtLink>
+          </li>
+        </ul>
+      </nav>
     </template>
     <template #content>
       <DisinfoMap v-model:campaign="selectedCampaign" :campaigns="props.page.campaigns" />

@@ -21,6 +21,11 @@ const segments = Array.isArray(route.params.slug) ? route.params.slug : []
 const id = assertSafeKirbyId(segments.join('/'))
 
 const page = await useKirbyPageAnyTemplate(`resources:${id}`, `page('${id}')`)
+// Only resources live here: any other CMS page would be a duplicate of itself.
+if (!templateComponents[page.value?.template as string]) {
+  throw createError({ statusCode: 404, statusMessage: 'Page non trouvée' })
+}
+useBreadcrumbJsonLd(() => [['Resources', '/resources'], [cmsText(page.value, 'title') ?? id, route.path]])
 
 usePageSeo({
   title: () => cmsText(page.value, 'title'),

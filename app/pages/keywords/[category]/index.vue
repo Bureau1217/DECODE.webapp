@@ -5,7 +5,7 @@
 const route = useRoute()
 const category = assertSafeKirbyId(String(route.params.category))
 
-const page = await useKirbyPage(`keywords:${category}`, `page('${category}')`, 'tags')
+const page = await useKirbyPage(`keywords:${category}`, `page('${category}')`, 'tags', { exact: true })
 
 usePageSeo({ title: () => cmsText(page.value, 'title') })
 </script>

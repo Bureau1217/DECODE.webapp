@@ -37,15 +37,19 @@ const highlighted = useHighlightedKeywords()
 onUnmounted(() => {
   highlighted.value = null
 })
+const language = useLanguage()
 </script>
 
 <template>
   <!-- 12 fixed slots (4 rows of 3), same "fixed grid, not everything the
        CMS has" approach as the guide grid — more items just don't show
        here yet rather than growing the page unboundedly. -->
-  <article class="resources-grid">
-    <ResourceCard v-for="item in items?.slice(0, 12)" :key="item.id" :item="item" />
-  </article>
+  <div class="page-with-heading">
+    <h1 class="visually-hidden">{{ language === 'fr' ? 'Ressources' : 'Resources' }}</h1>
+    <article class="resources-grid">
+      <ResourceCard v-for="item in items?.slice(0, 12)" :key="item.id" :item="item" />
+    </article>
+  </div>
 </template>
 
 <style scoped>
@@ -73,7 +77,7 @@ onUnmounted(() => {
    the first-column border-removal rule needs a matching nth-child(2n+1)
    override, or a 3rd/5th/... card (no longer actually first-column at 2
    columns) would wrongly keep losing its left border. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   /* minmax(0, 1fr), not a bare 1fr — a grid track's implicit min-width is
      auto (its content's own min intrinsic width) unless told otherwise,
      which can force a column wider than an even 50/50 split if any card's

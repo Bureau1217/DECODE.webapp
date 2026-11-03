@@ -11,7 +11,7 @@ export interface CategoryWithTags {
     slug: string
     id: string
     description?: string
-    image?: { url: string, alt?: string }[]
+    image?: { url: string, thumb: string, alt?: string, width?: number, height?: number }[]
   }[]
 }
 
@@ -46,7 +46,7 @@ export async function useKeywordsPanelCategories() {
             // in visual mode (SiteIndexBar's Index/Visual toggle) only.
             image: {
               query: 'page.content.image.toFiles',
-              select: { url: true, alt: true },
+              select: { url: "file.thumb('web').url", thumb: "file.thumb('web-small').url", alt: true, width: 'file.width', height: 'file.height' },
             },
           },
         },

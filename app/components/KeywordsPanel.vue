@@ -60,28 +60,26 @@ function onRowLeave() {
   hoveredTagId.value = null
   previewImage.value = null
 }
+function onLabelClick(event: MouseEvent) {
+  if (isMobile.value) event.preventDefault()
+}
 function onRowTap(tagId: string) {
   if (isMobile.value) hoveredTagId.value = hoveredTagId.value === tagId ? null : tagId
 }
 
-// Splash -> home draw-in (useIntroTransition): every row's rule draws
-// itself left to right, top to bottom (rowDelay staggers by position in
-// the whole panel), and each category band appears as an outline first,
-// then fills in with its color. Labels decipher as their own rule
+// Splash -> home draw-in (useIntroTransition): every rule draws itself left
+// to right, top to bottom, bands and rows sharing one stagger in reading
+// order, so a band's rule starts one interval after the row above it. Each
+// band then fills in with its color. Labels decipher as their own rule
 // reaches them (DecipherText's delay), each word growing from a few
 // letters to its full length (`grow`).
 const introTransition = useIntroTransition()
-const rowIndex = computed(() => {
-  const map = new Map<string, number>()
-  for (const category of categories.value ?? []) for (const tag of category.tags) map.set(tag.id, map.size)
-  return map
-})
-function rowDelaySeconds(tagId: string) {
-  return 0.3 + (rowIndex.value.get(tagId) ?? 0) * 0.03
+function ruleDelaySeconds(id: string) {
+  return 0.3 + (textOrder.value.get(id) ?? 0) * 0.03
 }
-function bandDelaySeconds(categoryIndex: number) {
-  return 0.3 + categoryIndex * 0.12
-}
+
+// No hover on the rows for a moment after the draw-in (useIntroHoverLock).
+const hoverLocked = useIntroHoverLock()
 
 // SiteIndexBar's own "Reading mode" toggle — shrinks this panel from
 // half the viewport to a quarter; app.vue's own .app-content margin-left
@@ -91,6 +89,10 @@ const readingMode = useReadingMode()
 // SiteIndexBar's own Index/Visual toggle — Visual expands each row to
 // show that tag's own images below its title.
 const displayMode = useDisplayMode()
+// The rows' thumbnails only exist once Visual has been opened: collapsed, they'd
+// still download, for all 30 rows, on every page showing this panel.
+const visualOpened = ref(displayMode.value === 'visual')
+watch(displayMode, (mode) => { if (mode === 'visual') visualOpened.value = true })
 
 // Visual mode, desktop: hovering a keyword's row opens its first image,
 // in full color, at its own size and ratio in the middle of the keywords
@@ -111,31 +113,35 @@ function isRelated(tagId: string) {
 </script>
 
 <template>
-  <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition }" :reading-mode="readingMode">
-    <template v-for="(category, ci) in categories" :key="category.id">
-      <h3 class="text-label" :style="{ '--band-delay': `${bandDelaySeconds(ci)}s` }">
-        <DecipherText :text="category.title" :delay="introTransition ? Math.round(bandDelaySeconds(ci) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" />
+  <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }" :reading-mode="readingMode">
+    <template v-for="category in categories" :key="category.id">
+      <h3 class="text-label" :style="{ '--band-delay': `${ruleDelaySeconds(category.id)}s` }">
+        <NuxtLink :to="`/keywords/${category.id}`" class="keywords-panel-band-link"><DecipherText :text="category.title" :delay="introTransition ? Math.round((ruleDelaySeconds(category.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" /></NuxtLink>
       </h3>
       <ul>
         <li
           v-for="tag in category.tags"
           :key="tag.id"
           :class="{ dimmed: isDimmed(tag.id), related: isRelated(tag.id) }"
-          :style="{ '--row-delay': `${rowDelaySeconds(tag.id)}s` }"
+          :style="{ '--row-delay': `${ruleDelaySeconds(tag.id)}s` }"
           @mouseenter="onRowEnter(tag)"
           @mouseleave="onRowLeave"
           @click="onRowTap(tag.id)"
         >
           <div class="keywords-panel-row">
-            <!-- Hover (tap on mobile) only — definition popup below, not a link. -->
-            <span class="keywords-panel-label"><DecipherText :text="tag.title" :delay="introTransition ? Math.round((rowDelaySeconds(tag.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(tag.id) ?? 0)" /></span>
+            <!-- Hover shows the definition below, a click opens the keyword's
+                 page. On mobile a tap opens the definition (onLabelClick). -->
+            <NuxtLink :to="`/keywords/${tag.id}`" class="keywords-panel-label" @click="onLabelClick"><DecipherText :text="tag.title" :delay="introTransition ? Math.round((ruleDelaySeconds(tag.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(tag.id) ?? 0)" /></NuxtLink>
           </div>
           <div class="keywords-panel-images-outer" :class="{ expanded: displayMode === 'visual' }">
             <div class="keywords-panel-images">
               <img
-                v-for="(img, i) in tag.image"
+                v-for="(img, i) in visualOpened ? tag.image : []"
                 :key="i"
-                :src="img.url"
+                loading="lazy"
+                :src="img.thumb"
+                :width="img.width"
+                :height="img.height"
                 :alt="img.alt || tag.title"
                 @mouseenter="onImageEnter(tag, i)"
                 @mouseleave="onImageLeave(tag)"
@@ -189,34 +195,34 @@ function isRelated(tagId: string) {
   border-bottom: 1px solid var(--color-border-strong);
 }
 
-/* Draw-in (script, rowDelay): each band's top and bottom rules trace in
-   from the left (::before/::after, standing in for its own border), with
-   the label in the band color; then the band fills and the label turns
-   on-fill. */
+/* Draw-in (script, ruleDelaySeconds): a band's bottom rule traces in from
+   the left (::after, standing in for its own border, in that border's
+   color), with the label in the band color; then the band fills and the
+   label turns on-fill. It draws no top rule: its top edge is the rule of
+   the row above, or the index bar for the first band, as in the final
+   layout. A second rule there would sit doubled against that one. */
 .keywords-panel.is-intro h3 {
   position: relative;
   border-bottom-color: transparent;
   animation: keywords-band-fill 1.4s ease var(--band-delay) both;
 }
 
-.keywords-panel.is-intro h3::before,
 .keywords-panel.is-intro h3::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
+  bottom: -1px;
   height: 1px;
-  background: var(--color-brand-resources);
+  background: var(--color-border-strong);
   transform-origin: left;
   animation: keywords-rule-draw 0.7s cubic-bezier(0.45, 0, 0.25, 1) var(--band-delay) both;
 }
 
-.keywords-panel.is-intro h3::before {
-  top: 0;
-}
-
-.keywords-panel.is-intro h3::after {
-  bottom: -1px;
+@media (hover: hover) {
+  .keywords-panel.is-hover-locked li {
+    pointer-events: none;
+  }
 }
 
 @keyframes keywords-band-fill {
@@ -481,12 +487,17 @@ function isRelated(tagId: string) {
   width: 100%;
   padding: 4px 10px;
   color: var(--color-ink);
-  cursor: default;
+  text-decoration: none;
+}
+
+.keywords-panel-band-link {
+  color: inherit;
+  text-decoration: none;
 }
 
 /* Mobile (script, onRowTap): the definition opens inline under the row's
    title instead of floating over the rows below it. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .keywords-panel li {
     cursor: pointer;
   }

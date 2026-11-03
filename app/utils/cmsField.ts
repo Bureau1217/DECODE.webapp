@@ -12,6 +12,7 @@ export function cmsText(page: unknown, field: string): string | undefined {
 export function cmsImage(page: unknown, field: string): string | undefined {
   const value = (page as Record<string, unknown> | null | undefined)?.[field]
   const file = Array.isArray(value) ? value[0] : value
-  const url = (file as { url?: unknown } | null | undefined)?.url
+  const { og, url } = (file ?? {}) as { og?: unknown, url?: unknown }
+  if (typeof og === 'string') return og
   return typeof url === 'string' ? url : undefined
 }

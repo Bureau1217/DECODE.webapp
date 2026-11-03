@@ -4,6 +4,8 @@
 // state, so only a reload resets it. Once it's gone the Investigation Guide
 // is home, so '/' itself just leads there.
 const splashDismissed = useState('splash-dismissed', () => false)
+// Arriving here from inside the site (the footer logo) isn't a page load.
+if (import.meta.client && !useNuxtApp().isHydrating) splashDismissed.value = true
 
 // Shared with app.vue, which hides the site nav while this is true.
 const showSplash = useSplashVisible()
@@ -32,31 +34,53 @@ onMounted(() => {
 // the guide grid already see it when they mount, and play their draw-in
 // once.
 const introTransition = useIntroTransition()
+const introHoverLock = useIntroHoverLock()
 const INTRO_MS = 2800
+const HOVER_LOCK_AFTER_MS = 2000
 const nuxtApp = useNuxtApp()
 
 function dismissSplash() {
   splashDismissed.value = true
   introTransition.value = true
+  introHoverLock.value = true
   // The splash holds its outro's last frame until /guide has its data, so
   // the chrome and the guide grid draw in together in one frame. Replacing
   // the history entry: the browser's back button doesn't return to '/'.
   const off = nuxtApp.hook('page:finish', () => {
     off()
     setTimeout(() => { introTransition.value = false }, INTRO_MS)
+    setTimeout(() => { introHoverLock.value = false }, INTRO_MS + HOVER_LOCK_AFTER_MS)
   })
   navigateTo('/guide', { replace: true })
 }
 
-// The splash is client-only (layout measured from the viewport), so without
-// this the server-rendered '/' had ~no text and no link at all — the nav is
-// hidden while the splash is up (app.vue). This block is in the HTML from the
-// first byte: the page's one <h1>, what the site is, and plain links into the
-// four sections. Visually hidden (the splash already shows the same things),
-// not display:none, so screen readers get it too — the splash itself has no
-// readable structure.
+// The splash itself is server-rendered, so its text and links (the article
+// titles, the guide button) are in the HTML. This adds what it doesn't show: the
+// page's one <h1>, and links into the four sections, since the nav is hidden
+// while the splash is up (app.vue). Visually hidden, not display:none, so screen
+// readers get it too.
 const language = useLanguage()
-const homeDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en)
+const seoUrl = useSeoUrl()
+useJsonLd('organization', () => ({
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${seoUrl('/')}#organization`,
+      name: 'DE.CO.DE',
+      url: seoUrl('/'),
+      logo: new URL('/apple-touch-icon.png', seoUrl('/')).href,
+      description: SITE_DESCRIPTION[language.value] ?? SITE_DESCRIPTION.en,
+      parentOrganization: { '@type': 'CollegeOrUniversity', name: 'Geneva Graduate Institute', url: 'https://www.graduateinstitute.ch/' },
+    },
+    {
+      '@type': 'WebSite',
+      name: 'DE.CO.DE',
+      url: seoUrl('/'),
+      inLanguage: language.value,
+      publisher: { '@id': `${seoUrl('/')}#organization` },
+    },
+  ],
+}))
 </script>
 
 <template>
@@ -65,7 +89,6 @@ const homeDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_
   <div class="home-page">
     <div class="home-summary">
       <h1>DE.CO.DE</h1>
-      <p>{{ homeDescription }}</p>
       <nav aria-label="Sections">
         <ul>
           <li v-for="link in NAV_LINKS" :key="link.to">
@@ -75,13 +98,7 @@ const homeDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_
       </nav>
     </div>
 
-    <ClientOnly>
-      <Splash v-if="showSplash" @continue="dismissSplash" />
-
-      <template #fallback>
-        <div class="loading" />
-      </template>
-    </ClientOnly>
+    <Splash v-if="showSplash" @continue="dismissSplash" />
   </div>
 </template>
 

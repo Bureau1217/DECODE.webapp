@@ -15,6 +15,8 @@ const categories = await useKirbyCollection<Category>(
   { title: true, slug: true, id: true },
 )
 
+const language = useLanguage()
+
 usePageSeo({
   title: 'Keywords',
   description: 'The DE.CO.DE keywords: themes, concepts, platforms and questions linking the guide, the tools and the resources.',
@@ -23,6 +25,7 @@ usePageSeo({
 
 <template>
   <article>
+    <h1 class="visually-hidden">{{ language === 'fr' ? 'Mots-clés' : 'Keywords' }}</h1>
     <ul>
       <li v-for="category in categories" :key="category.id">
         <NuxtLink :to="`/keywords/${category.id}`">{{ category.title }}</NuxtLink>

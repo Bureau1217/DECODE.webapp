@@ -41,7 +41,13 @@ function run() {
   stop = firstRun && props.from !== undefined ? morph(root.value, props.from) : decipher(root.value, { grow: props.grow, growMax: props.growMax })
   firstRun = false
 }
-onMounted(() => {
+// The server sends the text once, as plain text: the letter-by-letter copy
+// below is only for the animation, and in the HTML it read to search engines
+// as the title written twice. It's swapped in on mount, before the first paint.
+const animated = ref(false)
+onMounted(async () => {
+  animated.value = true
+  await nextTick()
   if (!props.delay) return run()
   delayTimer = setTimeout(() => {
     waiting.value = false
@@ -57,12 +63,15 @@ onBeforeUnmount(() => {
 
 <template>
   <span ref="root" class="decipher-text" :style="waiting ? { visibility: 'hidden' } : undefined">
-    <span class="decipher-sr">{{ text }}</span>
-    <span :key="text" aria-hidden="true">
-      <template v-for="(word, w) in words" :key="w">
-        <template v-if="word.space">{{ word.part }}</template>
-        <span v-else class="decipher-word"><span v-for="(char, c) in word.chars" :key="c" class="decipher-char">{{ char }}</span></span>
-      </template>
-    </span>
+    <template v-if="animated">
+      <span class="decipher-sr">{{ text }}</span>
+      <span :key="text" aria-hidden="true">
+        <template v-for="(word, w) in words" :key="w">
+          <template v-if="word.space">{{ word.part }}</template>
+          <span v-else class="decipher-word"><span v-for="(char, c) in word.chars" :key="c" class="decipher-char">{{ char }}</span></span>
+        </template>
+      </span>
+    </template>
+    <template v-else>{{ text }}</template>
   </span>
 </template>

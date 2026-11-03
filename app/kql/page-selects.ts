@@ -32,16 +32,29 @@ const summary = {
 // content field called `image`; with no files that's `null`, and
 // `.toFile` on it is a hard KQL error, not an empty result).
 
+/**
+ * An image: sized for the screen (`url`, a thumb preset from DECODE.cms's config,
+ * never the editor's original upload), for link previews (`og`, a JPEG, which
+ * every network reads), plus its proportions for width/height attributes.
+ */
+export const imageSelect = {
+  url: "file.thumb('web').url",
+  og: "file.thumb('og').url",
+  alt: true,
+  width: 'file.width',
+  height: 'file.height',
+}
+
 /** A single-file relation field, resolved to its public URL. */
 const fileUrl = (field: string) => ({
   query: `page.content.${field}.toFile`,
-  select: { url: true, alt: true },
+  select: imageSelect,
 })
 
 /** A multi-file relation field, resolved to public URLs. */
 const filesUrls = (field: string) => ({
   query: `page.content.${field}.toFiles`,
-  select: { url: true, alt: true },
+  select: imageSelect,
 })
 
 /** A `pages` relation field (editor-picked links, not structural children). */
@@ -114,6 +127,7 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     header_image: fileUrl('header_image'),
     page_image_preview: fileUrl('page_image_preview'),
     content: 'page.content.content.toBlocks.toArray',
+    modified: "page.modified('c')",
     // Structural children (template: default), not a relation field.
     subpages: {
       query: "page.children.filterBy('intendedTemplate', 'default')",

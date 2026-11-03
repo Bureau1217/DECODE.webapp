@@ -7,12 +7,42 @@ const route = useRoute()
 const segments = Array.isArray(route.params.slug) ? route.params.slug : []
 const id = assertSafeKirbyId(segments.join('/'))
 
-const page = await useKirbyPage(`guide:${id}`, `page('${id}')`, 'default')
+const page = await useKirbyPage(`guide:${id}`, `page('${id}')`, 'default', { exact: true })
+
+// The article's own opening text: says far more than its short subtitle.
+const description = computed(() => {
+  const blocks = (page.value.content ?? []) as { type?: string, isHidden?: boolean, content?: { text?: string } }[]
+  const opening = blocks.find((block) => !block.isHidden && block.type === 'text' && block.content?.text)
+  return opening?.content?.text ?? cmsText(page.value, 'header_subtitle')
+})
+const image = () => cmsImage(page.value, 'page_image_preview') ?? cmsImage(page.value, 'header_image')
 
 usePageSeo({
   title: () => cmsText(page.value, 'title'),
-  description: () => cmsText(page.value, 'header_subtitle'),
-  image: () => cmsImage(page.value, 'page_image_preview') ?? cmsImage(page.value, 'header_image'),
+  description,
+  image,
+})
+
+const seoUrl = useSeoUrl()
+const language = useLanguage()
+useJsonLd('article', () => ({
+  '@type': 'Article',
+  headline: cmsText(page.value, 'title'),
+  description: toMetaDescription(description.value),
+  image: image(),
+  dateModified: cmsText(page.value, 'modified'),
+  inLanguage: language.value,
+  mainEntityOfPage: seoUrl(route.path),
+  author: { '@type': 'Organization', name: 'DE.CO.DE', url: seoUrl('/') },
+  publisher: { '@type': 'Organization', name: 'DE.CO.DE', url: seoUrl('/') },
+}))
+useBreadcrumbJsonLd(() => {
+  const parents = segments.slice(0, -1)
+  return [
+    ['Investigation Guide', '/guide'],
+    ...parents.map((_, i): [string, string] => [parents[i]!.replace(/-/g, ' '), `/guide/${parents.slice(0, i + 1).join('/')}`]),
+    [cmsText(page.value, 'title') ?? id, route.path],
+  ]
 })
 
 // Same flat, intendedTemplate:'default' list guide/index.vue's own grid
