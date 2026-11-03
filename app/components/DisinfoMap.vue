@@ -36,6 +36,7 @@ const activeFilter = ref<{ type: 'emitter' | 'platform' | 'period', value: strin
 const mapContainer = ref<HTMLDivElement | null>(null)
 let map: import('mapbox-gl').Map | null = null
 let mapboxgl: typeof import('mapbox-gl').default | null = null
+let resizeObserver: ResizeObserver | null = null
 
 interface EmitterMarkerEntry {
   marker: import('mapbox-gl').Marker
@@ -170,7 +171,18 @@ watch(activeFilter, () => {
 
 onMounted(async () => {
   const config = useRuntimeConfig()
-  mapboxgl = (await import('mapbox-gl')).default
+  // The CSP build, not the default one: the default build stringifies its own
+  // worker code into a blob, but Vite rewrites the `import()` calls inside it
+  // to use `import.meta`, a syntax error in a classic worker. So the map only
+  // breaks in production builds. The CSP worker is a standalone file; `?raw`
+  // keeps it as an untouched string (`?url` would let the dev server inject
+  // an `import` into it, breaking the worker in dev instead).
+  const [{ default: mapboxModule }, { default: workerSource }] = await Promise.all([
+    import('mapbox-gl/dist/mapbox-gl-csp.js'),
+    import('mapbox-gl/dist/mapbox-gl-csp-worker.js?raw'),
+  ])
+  mapboxgl = mapboxModule
+  mapboxgl.workerUrl = URL.createObjectURL(new Blob([workerSource], { type: 'text/javascript' }))
   mapboxgl.accessToken = config.public.mapboxToken
 
   // A blank custom style (no Mapbox-hosted basemap) — background +
@@ -338,12 +350,12 @@ onMounted(async () => {
   // content's margin-left (TemplateCampaignsMap.vue), the canvas is left
   // at its old pixel size even though the container element has already
   // grown/shrunk. Watch the container directly and nudge Mapbox to match.
-  const resizeObserver = new ResizeObserver(() => map?.resize())
+  resizeObserver = new ResizeObserver(() => map?.resize())
   resizeObserver.observe(mapContainer.value!)
-  onBeforeUnmount(() => resizeObserver.disconnect())
 })
 
 onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
   map?.remove()
   map = null
 })
@@ -381,7 +393,7 @@ onBeforeUnmount(() => {
    stretched across its top — right inset clears the exit cross
    (TemplateToolPageLayout.vue: 14px inset + 28px box), and the open
    options list is capped and scrolls so it never swallows the map. */
-@media (max-width: 768px) {
+@media (max-width: 1150px) {
   .map-filters-overlay {
     top: 10px;
     left: 10px;
