@@ -42,10 +42,13 @@ useHead({
           { rel: 'alternate', hreflang: 'x-default', href: urlIn('en') },
         ]
       : []),
-    // Follows the site's own light/dark toggle, not just the system's.
-    { rel: 'icon', type: 'image/svg+xml', href: colorMode.value === 'dark' ? '/favicon-dark.svg' : '/favicon.svg' },
-    { rel: 'icon', href: '/favicon.ico', sizes: '32x32' },
-    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    // Follows the site's own light/dark toggle, not just the system's. The one
+    // icon link: given a second, a browser may keep that one whatever the theme
+    // (/favicon.ico is still there for those that ask for it by name).
+    // ?v: browsers keep favicons in a cache of their own that a reload doesn't
+    // clear, so bump it whenever the icons change.
+    { rel: 'icon', type: 'image/png', href: `${colorMode.value === 'dark' ? '/favicon-dark.png' : '/favicon.png'}?v=6`, sizes: '192x192' },
+    { rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=6' },
   ],
 })
 // The preview for a shared link: a page with its own image overrides it
@@ -350,7 +353,9 @@ body {
    both fixed now, so this is the only thing left accounting for their
    combined height. */
 .app-content.has-nav {
-  padding-top: 8.5vh;
+  /* A margin, not padding: this element scrolls, and its scrollbar should start
+     under the nav, not run behind it. */
+  margin-top: 8.5vh;
 }
 
 .mobile-chrome-backdrop {
@@ -388,7 +393,7 @@ body {
     /* `bottom` below already clears the footer: the base rule's margin on
        top of it left an empty strip above the footer. */
     margin-bottom: 0;
-    padding-top: 0;
+    margin-top: 0;
     position: fixed;
     top: 8.5vh;
     bottom: var(--footer-height);

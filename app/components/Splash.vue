@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { decipherFrom, decipherIn, scrambleOut } from '~/utils/decipher'
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
+import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, resizeMass, stampMass } from '~/utils/splashShape'
 
 // Decorative intro screen — fails soft (empty state, no thrown error) if
 // the CMS call doesn't come back, since this isn't core content.
@@ -24,6 +25,10 @@ interface SiteInfo {
 
 const emit = defineEmits<{ continue: [] }>()
 
+// Which composition: the images in a band through the middle, behind the headline,
+// or (?splash=shelf) the headline up top and the images on a shelf along the bottom.
+const shelfLayout = useRoute().query.splash === 'shelf'
+
 // Warm the keywords panel's data while the splash is up — see
 // useKeywordsPanelCategories. Not awaited: the splash doesn't need it.
 const keywordsLoading = useKeywordsPanelCategories().catch(() => {})
@@ -40,7 +45,11 @@ const keywordCategories = computed<CategoryWithTags[] | undefined>(() => keyword
 const conceptLabels = computed(() => keywordCategories.value?.find((c) => c.slug === 'concepts')?.tags.map((t) => t.title) ?? [])
 function imageLabel(index: number, alt?: string) {
   const concepts = conceptLabels.value
-  return concepts.length ? concepts[index % concepts.length] : alt?.split(' ')[0]
+  const label = concepts.length ? concepts[index % concepts.length] : alt?.split(' ')[0]
+  if (!label || !shelfLayout) return label
+  // Numbered like its color: the same three as the chapters (imageBadgeColor).
+  const n = images.value?.length || 1
+  return `0${(index % n) % BADGE_COLORS.length + 1} ${label}`
 }
 
 // BADGE_COLORS itself comes from app/utils/badgeColors.ts (Nuxt
@@ -63,10 +72,6 @@ function sentenceOffset(index: number) {
   return `${side * Math.min(LINE_SHIFT_EM * fontSize, room)}px`
 }
 
-// Below 1150px the same desktop composition is drawn smaller (computeGrid
-// sets this): the country shapes shrink by it. 1 on desktop.
-const mobileScale = ref(1)
-
 // "Reveal mask" behind the display headline — ONE blocky, orthogonal,
 // irregular white silhouette spanning all three lines together (not a
 // separate frame per line), like a low-res redaction layer being peeled
@@ -81,16 +86,6 @@ const mobileScale = ref(1)
 // over a letter. Deterministic (seeded) so the pattern doesn't reshuffle
 // on every re-render — only a resize (new measured layout) or a new seed
 // (the headline cycle, nextHeadline) changes it.
-function mulberry32(seed: number) {
-  let state = seed | 0
-  return function random() {
-    state = (state + 0x6d2b79f5) | 0
-    let t = Math.imul(state ^ (state >>> 15), 1 | state)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
-
 // Plain numbers, not CSS px strings — these feed an SVG <mask> (x/y/
 // width/height attributes), not inline element styles. See
 // .sentence-masked / #splash-headline-mask (template, CSS) for why: the
@@ -122,13 +117,14 @@ interface LineBox {
 // different display font would want these re-tuned to its own
 // proportions the same way.
 const BITE_CHANCE = 0.48 // fraction of draws (on a biteable edge) that bite inward at all
-const BITE_MIN = 15 // px, shallowest bite
-const BITE_MAX = 23 // px, deepest bite
+const BITE_MIN = 6 // px, shallowest bite (less room above the letters at this line height)
+const BITE_MAX = 14 // px, deepest bite
 const FLUSH_CHANCE = 0.48 // of the non-biting draws, fraction that stay flush (0px) rather than extend
 const EXTEND_MIN = 18 // px, smallest outward extension
 const EXTEND_MAX = 40 // px, largest outward extension — capped: the background shouldn't bulge out too far
 const SEGMENTS_PER_EDGE = 4 // top/bottom jumps per line — tuned live via the Reveal Mask Tuner artifact
 const MASK_SEED = 42
+const MASK_SNAP = 24 // px at full size: the smallest step in the silhouette
 
 interface ParagraphMask {
   // Behind the text — the readable backing. Always includes one safety
@@ -222,7 +218,7 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): Para
 }
 
 // Dark mode only: a darkened satellite view of Europe under the grid
-// (and under the country shapes). One Mapbox Static Images request (the
+// One Mapbox Static Images request (the
 // same public token as the tools' maps), fetched only when dark mode is
 // on, with its logo and attribution left off the image.
 const colorMode = useColorMode()
@@ -261,8 +257,10 @@ function setSentenceRef(el: Element | null, index: number) {
 // so a shorter one doesn't move the subtitle under it.
 const HEADLINE_MAX_FONT_SIZE = 120
 const HEADLINE_MAX_FONT_SIZE_MOBILE = 0.13 // of the viewport's width
-const HEADLINE_MAX_HEIGHT = 0.62 // of the splash's height
-const HEADLINE_MAX_HEIGHT_MOBILE = 0.42
+const HEADLINE_MAX_HEIGHT = shelfLayout ? 0.4 : 0.62 // of the splash's height
+const HEADLINE_CLEARANCE = 84 // px kept free above and below the headline and subtitle
+const HEADLINE_MAX_HEIGHT_MOBILE = shelfLayout ? 0.3 : 0.42
+const HEADLINE_LINE_HEIGHT = 0.84
 const headlineFontSize = ref(HEADLINE_MAX_FONT_SIZE)
 const headlineMaxWidth = ref(0)
 const lineWidthsEm = ref<number[][]>([])
@@ -277,12 +275,16 @@ function fitHeadlines() {
 
   const isMobile = window.innerWidth <= 1150
   const widestEm = Math.max(0, ...lineWidthsEm.value.flat())
-  const maxHeight = splashEl.value.getBoundingClientRect().height * (isMobile ? HEADLINE_MAX_HEIGHT_MOBILE : HEADLINE_MAX_HEIGHT)
+  const splashHeight = splashEl.value.getBoundingClientRect().height
+  // On a short window, also what's left once the subtitle and the room for the
+  // top tab and the button are taken, so nothing runs into them.
+  const subtitleHeight = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')?.offsetHeight ?? 0
+  const maxHeight = Math.min(splashHeight * (isMobile ? HEADLINE_MAX_HEIGHT_MOBILE : HEADLINE_MAX_HEIGHT), splashHeight - subtitleHeight - HEADLINE_CLEARANCE * 2)
   headlineMaxWidth.value = window.innerWidth * (1 - HEADLINE_SIDE_MARGIN * 2)
   headlineFontSize.value = Math.min(
     isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
     widestEm ? headlineMaxWidth.value / widestEm : Infinity,
-    maxHeight / headlineMaxLines.value,
+    maxHeight / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT),
   )
 }
 
@@ -291,7 +293,8 @@ const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
 const maskSeed = ref(MASK_SEED)
 function buildSentenceMasks() {
   const masked = maskedEl.value
-  if (!masked) return
+  // Leaving: the frame is closing (closeFrame), whatever the letters do.
+  if (!masked || leaving.value) return
   // Mask coordinates start at .sentence-masked's own corner. A line can be
   // empty for a moment while a headline with more lines deciphers in.
   const origin = masked.getBoundingClientRect()
@@ -301,7 +304,63 @@ function buildSentenceMasks() {
     .filter((rect): rect is DOMRect => !!rect?.width)
     .map((rect) => ({ left: rect.left - origin.left, top: rect.top - origin.top, width: rect.width, height: rect.height }))
   if (!lines.length) return
-  paragraphMask.value = buildParagraphMask(lines, headlineFontSize.value / HEADLINE_MAX_FONT_SIZE, maskSeed.value)
+  const mask = buildParagraphMask(lines, headlineFontSize.value / HEADLINE_MAX_FONT_SIZE, maskSeed.value)
+  // Every edge on a coarse grid of screen pixels. Edges that nearly line up then
+  // line up exactly, so the silhouette only has real steps, never a tiny jog, and
+  // two pieces meeting leave no half-transparent seam for the outline to show
+  // through. The backing snaps outward, so it always covers the letters; a bite's
+  // inner edge snaps back towards the outside, so it never cuts deeper.
+  const grid = Math.max(8, Math.round(MASK_SNAP * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
+  const down = (value: number) => Math.floor(value / grid) * grid
+  const up = (value: number) => Math.ceil(value / grid) * grid
+  const outward = (rect: MaskRect): MaskRect => {
+    const left = down(origin.left + rect.left)
+    const top = down(origin.top + rect.top)
+    return {
+      left: left - origin.left,
+      top: top - origin.top,
+      width: up(origin.left + rect.left + rect.width) - left,
+      height: up(origin.top + rect.top + rect.height) - top,
+    }
+  }
+  const lineTop = lines[0]!.top
+  const bite = (rect: MaskRect): MaskRect => {
+    const left = Math.round((origin.left + rect.left) / grid) * grid
+    const right = Math.round((origin.left + rect.left + rect.width) / grid) * grid
+    // From the outside in: past the edge of the backing, to the snapped depth.
+    const fromTop = rect.top <= lineTop + 1 || rect.top < lines[lines.length - 1]!.top
+    const top = fromTop ? origin.top + rect.top - 80 : up(origin.top + rect.top)
+    const bottom = fromTop ? down(origin.top + rect.top + rect.height) : origin.top + rect.top + rect.height + 80
+    return { left: left - origin.left, top: top - origin.top, width: right - left, height: Math.max(0, bottom - top) }
+  }
+  maskLines = lines
+  paragraphMask.value = { base: mask.base.map(outward), bites: mask.bites.map(bite) }
+}
+
+// Leaving: the frame closes onto each line's own centre line, slow then fast, the
+// way the images in the band do (.is-leaving .splash-image-wrapper). The outline
+// follows it, since it's drawn off the same shape.
+const FRAME_OUT_MS = 1100
+let maskLines: LineBox[] = []
+function closeFrame() {
+  const start = paragraphMask.value
+  const centers = maskLines.map((line) => line.top + line.height / 2)
+  const nearest = (rect: MaskRect) => {
+    const middle = rect.top + rect.height / 2
+    return centers.reduce((best, center) => (Math.abs(center - middle) < Math.abs(best - middle) ? center : best), centers[0] ?? middle)
+  }
+  const close = (rect: MaskRect, keep: number) => {
+    const center = nearest(rect)
+    return { ...rect, top: center + (rect.top - center) * keep, height: rect.height * keep }
+  }
+  const began = performance.now()
+  const step = () => {
+    const t = Math.min(1, (performance.now() - began) / FRAME_OUT_MS)
+    const keep = 1 - t * t * t
+    paragraphMask.value = { base: start.base.map((rect) => close(rect, keep)), bites: start.bites.map((rect) => close(rect, keep)) }
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
 }
 
 // Rebuilt whenever a line changes width — as its letters decipher, or the
@@ -350,6 +409,8 @@ const scrollingImages = computed(() => [...(images.value ?? []), ...(images.valu
 // height the percentage is simply ignored, so every image rendered at
 // its full natural size — one `will-change: filter` paint context's
 // bounding box away from matching the label at all.
+// The shelf layout's band height: keep in sync with .splash.is-shelf .splash-images.
+const SHELF_BAND_VH = 34
 const HEIGHT_VARIANTS = [1, 0.45, 0.8, 0.35, 0.95, 0.55, 0.7, 0.4]
 function imageHeight(index: number) {
   const n = images.value?.length || 1
@@ -357,7 +418,7 @@ function imageHeight(index: number) {
   // imagesBandHeight starts at 0 until computeGrid's first measurement on
   // mount — the CSS band height (44vh) until then, which server and browser
   // agree on, unlike anything read off the window.
-  return imagesBandHeight.value ? `${variant * imagesBandHeight.value}px` : `${variant * 44}vh`
+  return imagesBandHeight.value ? `${variant * imagesBandHeight.value}px` : `${variant * (shelfLayout ? SHELF_BAND_VH : 44)}vh`
 }
 function imageBadgeColor(index: number) {
   const n = images.value?.length || 1
@@ -385,54 +446,6 @@ const { data: articleTitles } = await useAsyncData('splash:article-titles', () =
     select: { title: true, id: true },
   }),
 )
-
-// Pixel-art country silhouettes (DECODE.cms/content/splash_screen, copied
-// into public/splash/ — no content.txt there, so not a real Kirby page to
-// query). Positioned as percentages of the *grid itself* (.splash-countries
-// below reuses gridStyle's own top/left/right/bottom), each centered on
-// its coordinate (translate(-50%,-50%), applied in the template alongside
-// rotate/scale below).
-//
-// Four knobs per icon, each independently easy to tweak:
-//   top/left  — position, % of the grid
-//   width     — base size in px (its own aspect ratio sets the height)
-//   rotate    — degrees, clockwise, default 0
-//   scale     — multiplier on top of width, default 1 (e.g. 1.2 = 20% bigger)
-// rotate/scale default to 0/1 for every icon below (no visual change from
-// before) — set either on a specific entry to adjust just that icon.
-//
-// The scrolling image band covers a tall middle slice of the grid (roughly
-// 21–79% of its height, measured live) and spans its full width, so no x
-// position escapes it — only a top or bottom *strip*, clear of that
-// vertical range, does. All nine therefore live in the top strip (≤~20%)
-// or bottom strip (≥~76%), sized so even the largest doesn't reach into
-// the band, and never above it in z-order (.splash-countries is rendered
-// *before* .splash-images below — equal z-index, so DOM order puts the
-// images on top, not these). Horizontal spread (24–80%) stays clear of the
-// corner titles' own boxes (roughly the outer 0–17%/83–100% on each side).
-// Note: rotating/scaling an icon can push its corners outside these
-// margins (most visibly at the band boundary) — recheck after a big
-// change.
-interface CountryIcon {
-  src: string
-  top: string
-  left: string
-  width: number
-  rotate?: number
-  scale?: number
-}
-
-const COUNTRY_ICONS: CountryIcon[] = [
-  { src: '/splash/pe.svg', top: '84.4%', left: '48.2%', width: 60, rotate: 0, scale: 1 },
-  { src: '/splash/group-43.svg', top: '25.6%', left: '82.8%', width: 110, rotate: 0, scale: 1.75 },
-  { src: '/splash/ca.svg', top: '19.8%', left: '3.8%', width: 100, rotate: 96, scale: 1.75 },
-  { src: '/splash/cd.svg', top: '23.1%', left: '65.5%', width: 65, rotate: 0, scale: 1.2 },
-  { src: '/splash/variant2.svg', top: '25.1%', left: '96.3%', width: 40, rotate: 0, scale: 1.25 },
-  { src: '/splash/group-42.svg', top: '73.7%', left: '88.5%', width: 110, rotate: -65, scale: 1.75 },
-  { src: '/splash/br.svg', top: '72.3%', left: '8.5%', width: 100, rotate: 0, scale: 1.8 },
-  { src: '/splash/ml.svg', top: '20.7%', left: '34.6%', width: 80, rotate: 0, scale: 1 },
-  { src: '/splash/group-45.svg', top: '89%', left: '80%', width: 55, rotate: 0, scale: 1 },
-]
 
 // Each one sits near a different corner of the grid, but with its own
 // offsets rather than a mirrored, uniform 4-up layout ("laid differently").
@@ -585,7 +598,6 @@ function computeGrid() {
   // height is `100vh - var(--footer-height)`, not the full viewport.
   const { width: boxW, height: boxH } = splashEl.value.getBoundingClientRect()
   const isMobile = window.innerWidth <= 1150
-  mobileScale.value = isMobile ? 0.35 : 1
 
   // The tab's own sizing is specified against the *viewport*, not the
   // splash box (which is already a few vh short, for the footer) — and
@@ -666,7 +678,7 @@ function computeGrid() {
 // KeywordsPanel). Every text block scrambles its letters while they
 // vanish one by one in place (scrambleOut), their white/colored boxes
 // fading at the very end; images are masked away onto their centre line
-// and the country shapes fade away.
+// and the pixel masses fade away.
 // The grid goes first: every line,
 // vertical and horizontal, retracts into its own centre at once, slow
 // then fast, fading out before it finishes — gone before the text and
@@ -686,7 +698,7 @@ const OUTRO_MS = 1900
 //     the subtitle glides down to its own spot (MOVE_MS).
 //  3. There its colors snap to their final black-on-white, and the splash
 //     builds itself (BUILD_AT): grid lines grow out of their centres,
-//     images unmask from their centre line, country shapes fade in, the
+//     images unmask from their centre line, pixel masses fade in, the
 //     corner titles/badges, CTA and image labels decipher.
 //  4. The headline arrives last (HEADLINE_AT), deciphering from a couple
 //     of letters per word, its white backing mask re-measured as it grows.
@@ -728,6 +740,7 @@ const introClass = computed(() => (['logo', 'build', 'tab'].includes(splashIntro
 function buildIn() {
   splashIntro.value = 'build'
   logoVisible.value = false
+  constructShapes()
   for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.corner-title, .corner-badge, .splash-cta, .image-label') ?? []) {
     decipherIn(el)
   }
@@ -745,11 +758,206 @@ function headlineIn() {
   buildSentenceMasks()
 }
 
-// Headline cycle: each headline holds HEADLINE_HOLD_MS, then turns
+// The pixel masses behind the headline, one per chapter (in its badge color), on
+// a grid across the whole splash. They never move as a whole: at each headline
+// change, in step with its letters, each morphs cell by cell into a new mass. Each
+// keeps to its own corner of the grid, above or below the image band so it isn't
+// hidden by it, and they share no corner, so they spread out and never overlap.
+// There's one more corner than masses: every few changes, one of them travels to
+// it, usually from the corner nearest it. The rest of the time they stay put and
+// each new mass is close to the last in place and size, so nothing jumps far.
+const SHAPE_FULL_CELL = 0.016 // of the window's height: the size of a cell
+const SHAPE_FULL_CELL_MOBILE = 0.0085
+const SHAPE_GRID_PAD = 3 // cells past the screen's sides and bottom, so no outline shows on its edge
+const SHAPE_EDGE_MARGIN = 30 // px clear under the top tab's line, and above the footer
+// How each theme behaves. Light keeps attention on the headline: bigger masses
+// that barely change, one at a time and slowly, each new one the last with its
+// noise shifted a little (evolve). Dark is livelier: all three at once, in step
+// with the letters, new masses each time, smaller so the videos read as windows.
+const SHAPE_MOTION = {
+  light: { bandTuck: 7, titleTuck: 9, sizeMin: 0.8, drift: 0.06, travelEvery: 12, travelNearest: 1, morphMs: 5000, steps: 25, oneAtATime: true, evolve: 0.4, holdMs: 6000, frameGap: 240 },
+  dark: { bandTuck: 3, titleTuck: 4, sizeMin: 0.55, drift: 0.25, travelEvery: 3, travelNearest: 0.75, morphMs: 1400, steps: 18, oneAtATime: false, evolve: 0, holdMs: 4000, frameGap: 70 },
+}
+// Dark mode: what fills each mass, through the duotone (.splash-shape-video).
+const SHAPE_VIDEOS = ['/videos/splash-1.mp4', '/videos/splash-2.mp4', '/videos/splash-3.mp4']
+const SHAPE_CORNERS = [
+  { right: false, bottom: false },
+  { right: true, bottom: false },
+  { right: true, bottom: true },
+  { right: false, bottom: true },
+]
+interface ShapeState {
+  corner: number
+  seed: number | null // null: the drawn silhouette
+  width: number // shares of the corner's area, then of what's left of it
+  height: number
+  slackX: number
+  slackY: number
+  phase: number // how far its noise has shifted (light mode's evolve)
+}
+const shapeStates: ShapeState[] = [
+  { corner: 2, seed: 73, width: 0.8, height: 0.9, slackX: 0.3, slackY: 0.2, phase: 0 },
+  { corner: 0, seed: null, width: 0.95, height: 1, slackX: 0, slackY: 0, phase: 0 },
+  { corner: 1, seed: 41, width: 0.75, height: 0.85, slackX: 0.2, slackY: 0.4, phase: 0 },
+]
+const shapeGrid = ref({ cell: 0, cols: 0, rows: 0, pad: 0 })
+const shapeViews = ref<{ fill: string, outline: string, video: Record<string, string> }[]>([])
+let shapeCells: Set<number>[] = []
+let shapeRound = 0
+let shapeTimer: ReturnType<typeof setTimeout> | undefined
+
+const shapeMotion = () => SHAPE_MOTION[colorMode.value === 'dark' ? 'dark' : 'light']
+const shapeDrift = (share: number, min: number) => Math.min(1, Math.max(min, share + (Math.random() * 2 - 1) * shapeMotion().drift))
+
+function shapeFirstRow() {
+  return Math.ceil((tabTop.value + tabHeight.value + SHAPE_EDGE_MARGIN) / shapeGrid.value.cell)
+}
+
+// A corner's area in cells: between the top tab or the screen's bottom and the
+// image band, and between the screen's side and the headline.
+function shapeArea(corner: number) {
+  const { cell, pad } = shapeGrid.value
+  const splash = splashEl.value!
+  const origin = splash.getBoundingClientRect()
+  const band = imagesEl.value?.getBoundingClientRect()
+  const bandTop = band ? band.top - origin.top : origin.height * 0.28
+  const bandBottom = band ? band.bottom - origin.top : origin.height * 0.72
+  const halfTitle = Math.max(0, ...lineWidthsEm.value.flat()) * headlineFontSize.value / 2
+  const halfScreen = origin.width / 2
+  const width = Math.max(origin.width * 0.3, Math.min(halfScreen - 2 * cell, halfScreen - halfTitle + shapeMotion().titleTuck * cell))
+  const { right, bottom } = SHAPE_CORNERS[corner]!
+  const top = bottom ? bandBottom - shapeMotion().bandTuck * cell : (tabTop.value + tabHeight.value + SHAPE_EDGE_MARGIN)
+  const end = bottom ? origin.height - SHAPE_EDGE_MARGIN : bandTop + shapeMotion().bandTuck * cell
+  return {
+    left: Math.round((right ? origin.width - width : 0) / cell) + pad,
+    top: Math.ceil(top / cell),
+    cols: Math.floor(width / cell),
+    rows: Math.floor(end / cell) - Math.ceil(top / cell),
+    right,
+    bottom,
+  }
+}
+
+function shapeTarget(state: ShapeState) {
+  const { cols, rows, pad, cell } = shapeGrid.value
+  const area = shapeArea(state.corner)
+  const width = Math.max(6, Math.round(area.cols * state.width))
+  const height = Math.max(6, Math.round(area.rows * state.height))
+  const spareX = Math.round((area.cols - width) * state.slackX)
+  const spareY = Math.round((area.rows - height) * state.slackY)
+  // Towards the screen's corner, the slack opening towards the headline.
+  const left = area.right ? area.left + area.cols - width - spareX : area.left + spareX
+  const top = area.bottom ? area.top + area.rows - height - spareY : area.top + spareY
+  const mass = state.seed === null ? resizeMass(SHAPE_DRAWN, width, height) : generateMass(state.seed, width, height, state.phase)
+  return {
+    left,
+    top,
+    cells: stampMass(mass, left, top, cols, rows, shapeFirstRow()),
+    video: {
+      left: `${left * cell}px`,
+      top: `${top * cell}px`,
+      width: `${width * cell}px`,
+      height: `${height * cell}px`,
+    },
+    pad,
+  }
+}
+
+// Lays them out as they stand: on load, and whenever the window changes size.
+function buildShapes() {
+  clearTimeout(shapeTimer)
+  const splash = splashEl.value
+  if (!splash || !sentencesEl.value) return
+  const { width, height } = splash.getBoundingClientRect()
+  const cell = Math.max(5, Math.round(window.innerHeight * (window.innerWidth <= 1150 ? SHAPE_FULL_CELL_MOBILE : SHAPE_FULL_CELL)))
+  const pad = SHAPE_GRID_PAD
+  shapeGrid.value = { cell, pad, cols: Math.ceil(width / cell) + pad * 2, rows: Math.ceil(height / cell) + pad }
+  const targets = shapeStates.map(shapeTarget)
+  // First visit: nothing yet, until the splash builds itself (constructShapes).
+  const waiting = splashIntro.value === 'logo'
+  shapeCells = targets.map((target) => (waiting ? new Set<number>() : target.cells))
+  shapeViews.value = targets.map((target, index) => ({ ...cellPaths(shapeCells[index]!), video: target.video }))
+}
+
+// The splash building itself: each mass grows cell by cell out of nothing, along
+// with the images unmasking and the grid drawing.
+const SHAPE_BUILD_MS = 1800
+const SHAPE_BUILD_STEPS = 24
+function runShapeSteps(plans: { steps: ReturnType<typeof morphSteps>, next: number }[], ms: number, count: number) {
+  let step = 0
+  const tick = () => {
+    step++
+    shapeViews.value = shapeViews.value.map((view, index) => {
+      const plan = plans[index]!
+      if (!plan.steps.length) return view
+      const cells = shapeCells[index]!
+      while (plan.next < plan.steps.length && (step === count || plan.steps[plan.next]!.time < step / count)) {
+        const change = plan.steps[plan.next]!
+        if (change.add) cells.add(change.key)
+        else cells.delete(change.key)
+        plan.next++
+      }
+      return { ...view, ...cellPaths(cells) }
+    })
+    if (step < count) shapeTimer = setTimeout(tick, ms / count)
+  }
+  tick()
+}
+function constructShapes() {
+  clearTimeout(shapeTimer)
+  if (!shapeCells.length) return
+  const plans = shapeStates.map((state, index) => ({
+    steps: morphSteps(shapeCells[index]!, shapeTarget(state).cells, 0, -1, 17 + index),
+    next: 0,
+  }))
+  runShapeSteps(plans, SHAPE_BUILD_MS, SHAPE_BUILD_STEPS)
+}
+
+// Starts with the headline's letters. In dark mode all three change, over exactly
+// the letters' time; in light mode only one, in turn, over most of the hold.
+function morphShapes() {
+  clearTimeout(shapeTimer)
+  if (!shapeCells.length) return
+  const motion = shapeMotion()
+  shapeRound++
+  const free = SHAPE_CORNERS.findIndex((_, corner) => !shapeStates.some((state) => state.corner === corner))
+  // Corners run round the screen, so the one up or down from the free one is
+  // across the short side, and the diagonal is never used.
+  const freeCorner = SHAPE_CORNERS[free]!
+  const neighbor = (sameSide: boolean) => shapeStates.findIndex((state) => {
+    const corner = SHAPE_CORNERS[state.corner]!
+    return sameSide
+      ? corner.right === freeCorner.right && corner.bottom !== freeCorner.bottom
+      : corner.right !== freeCorner.right && corner.bottom === freeCorner.bottom
+  })
+  const traveler = shapeRound % motion.travelEvery === 0 ? neighbor(Math.random() < motion.travelNearest) : -1
+  const turn = traveler >= 0 ? traveler : shapeRound % shapeStates.length
+  const plans = shapeStates.map((state, index) => {
+    if (motion.oneAtATime && index !== turn) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
+    const before = shapeTarget(state)
+    if (index === traveler) state.corner = free
+    // The drawn silhouette has no noise to shift: its first change is a new mass.
+    if (motion.evolve && index !== traveler && state.seed !== null) state.phase += motion.evolve
+    else state.seed = Math.floor(Math.random() * 1e6)
+    state.width = shapeDrift(state.width, motion.sizeMin)
+    state.height = shapeDrift(state.height, motion.sizeMin)
+    state.slackX = shapeDrift(state.slackX, 0)
+    state.slackY = shapeDrift(state.slackY, 0)
+    const after = shapeTarget(state)
+    return {
+      steps: morphSteps(shapeCells[index]!, after.cells, after.left - before.left, after.top - before.top, shapeRound * 31 + index),
+      next: 0,
+      video: after.video,
+    }
+  })
+  shapeViews.value = shapeViews.value.map((view, index) => ({ ...view, video: plans[index]!.video ?? view.video }))
+  runShapeSteps(plans, motion.morphMs, motion.steps)
+}
+
+// Headline cycle: each headline holds (SHAPE_MOTION's holdMs), then turns
 // straight into the next one letter by letter (decipherFrom) — never
 // through an empty or half-empty headline — the white backing mask
 // following the lines' widths as they change.
-const HEADLINE_HOLD_MS = 4000
 const HEADLINE_MORPH_MS = 1400
 let headlineTimer: ReturnType<typeof setTimeout> | undefined
 let morphStops: (() => void)[] = []
@@ -761,7 +969,8 @@ function shuffleFrame(finalSeed: number) {
   frameTimers.forEach(clearTimeout)
   frameTimers = []
   let t = 0
-  let gap = 70
+  // Light mode's frame jumps less often: see SHAPE_MOTION.
+  let gap = shapeMotion().frameGap
   while (t + gap < HEADLINE_MORPH_MS - 100) {
     t += gap
     frameTimers.push(setTimeout(() => {
@@ -785,15 +994,17 @@ async function nextHeadline() {
   if (leaving.value) return
   morphStops = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])]
     .map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS))
+  morphShapes()
   buildSentenceMasks()
-  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + HEADLINE_HOLD_MS)
+  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
 function startHeadlineCycle() {
   clearTimeout(headlineTimer)
   if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  headlineTimer = setTimeout(nextHeadline, HEADLINE_HOLD_MS)
+  headlineTimer = setTimeout(nextHeadline, shapeMotion().holdMs)
 }
 function stopHeadlineCycle() {
+  clearTimeout(shapeTimer)
   clearTimeout(headlineTimer)
   morphStops.forEach((stop) => stop())
   morphStops = []
@@ -831,15 +1042,6 @@ function playIntro() {
   })
 }
 
-function countryStyle(icon: CountryIcon) {
-  return {
-    top: icon.top,
-    left: icon.left,
-    width: `${icon.width * mobileScale.value}px`,
-    transform: `translate(-50%, -50%) rotate(${icon.rotate ?? 0}deg) scale(${icon.scale ?? 1})`,
-  }
-}
-
 const TEXT_OUT_MS = 1300
 const leaving = ref(false)
 
@@ -862,6 +1064,7 @@ function leave() {
     return
   }
   leaving.value = true
+  closeFrame()
   introSeen.value = '1'
   for (const el of splashEl.value.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box, .corner-title, .corner-badge, .splash-cta, .splash-tab-ticker-track, .image-label')) {
     scrambleOut(el, TEXT_OUT_MS)
@@ -870,17 +1073,32 @@ function leave() {
 }
 
 // A real link (for crawlers, and to open in a new tab), but a plain click plays
-// the exit first.
+// the exit first, then the guide's draw-in (dismissSplash). In the capture phase
+// (@click.capture): by the bubble phase the link has already navigated.
 function enterGuide(event: MouseEvent) {
   if (event.metaKey || event.ctrlKey || event.shiftKey) return
   event.preventDefault()
   leave()
 }
 
+// Shelf layout: the button follows the subtitle, rather than the grid's bottom
+// line. Offsets, not a measured box: the subtitle is moved by a transform while
+// it's next to the logo, and this is where it ends up.
+const SHELF_CTA_GAP = 22
+function placeShelfCta() {
+  if (!shelfLayout || !splashEl.value) return
+  const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')
+  const cta = splashEl.value.querySelector<HTMLElement>('.splash-cta')
+  if (!subtitle || !cta) return
+  ctaStyle.value = { top: `${subtitle.offsetTop + subtitle.offsetHeight + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
+}
+
 function handleResize() {
   computeGrid()
   fitHeadlines()
   nextTick(buildSentenceMasks)
+  nextTick(placeShelfCta)
+  nextTick(buildShapes)
 }
 
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
@@ -895,6 +1113,9 @@ onMounted(() => {
   // after this first measurement, the lines' widths shift and the fit and
   // the mask no longer match. Re-measure once it's actually settled.
   document.fonts?.ready?.then(handleResize)
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (const video of splashEl.value?.querySelectorAll('video') ?? []) video.pause()
+  }
 })
 
 onUnmounted(() => {
@@ -912,12 +1133,13 @@ onUnmounted(() => {
     class="splash"
     :class="[{
       'is-leaving': leaving,
+      'is-shelf': shelfLayout,
+      'is-returning': returning,
+      'is-measured': measured,
       'intro-subtitle-shown': subtitleShown,
       'intro-subtitle-moving': subtitleMoving,
       'intro-headline-shown': headlineShown,
       'intro-logo-up': logoVisible,
-      'is-returning': returning,
-      'is-measured': measured,
     }, introClass]"
     :style="{ '--subtitle-lift': `${subtitleLift}px` }"
   >
@@ -1057,19 +1279,31 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Deliberately *before* .splash-images in the DOM — same z-index (1),
-         so render order breaks the tie in the images' favor: these sit
-         behind the scrolling band, never above it. Reuses gridStyle's own
-         bounds, so percentage positions inside are guaranteed relative to
-         the grid, not the viewport. -->
-    <div class="splash-countries" :style="gridStyle" aria-hidden="true">
-      <img
-        v-for="icon in COUNTRY_ICONS"
-        :key="icon.src"
-        :src="icon.src"
-        class="splash-country no-duotone"
-        :style="countryStyle(icon)"
+    <!-- Over the grid, under the image band and the headline:
+         same z-index as those, so DOM order sets it. Placed by buildShapes,
+         at least SHAPE_EDGE_MARGIN from the top tab's line and the footer. -->
+    <div class="splash-shapes" aria-hidden="true">
+      <div
+        v-for="(view, index) in shapeViews"
+        :key="index"
+        class="splash-shape"
+        :style="{ left: `${-shapeGrid.pad * shapeGrid.cell}px`, width: `${shapeGrid.cols * shapeGrid.cell}px`, height: `${shapeGrid.rows * shapeGrid.cell}px` }"
       >
+        <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`">
+          <defs>
+            <clipPath :id="`splash-shape-clip-${index}`">
+              <path :d="view.fill" :transform="`scale(${shapeGrid.cell})`" />
+            </clipPath>
+          </defs>
+          <path class="splash-shape-fill" :d="view.fill" />
+        </svg>
+        <div v-if="colorMode === 'dark'" class="splash-shape-video" :style="{ clipPath: `url(#splash-shape-clip-${index})` }">
+          <video :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
+        </div>
+        <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`">
+          <path class="splash-shape-outline" :d="view.outline" :stroke="BADGE_COLORS[index]" />
+        </svg>
+      </div>
     </div>
 
     <!-- Behind .splash-info (lower z-index) — a background layer, not a
@@ -1098,7 +1332,7 @@ onUnmounted(() => {
         v-if="headlineWords.length"
         ref="sentencesEl"
         class="splash-sentences"
-        :style="{ fontSize: `${headlineFontSize}px`, minHeight: `${headlineMaxLines}em` }"
+        :style="{ fontSize: `${headlineFontSize}px`, lineHeight: HEADLINE_LINE_HEIGHT, minHeight: `${headlineMaxLines * HEADLINE_LINE_HEIGHT}em` }"
       >
         <!-- Both the white backing (.sentence-fill) and the text itself
              live inside this one wrapper, which has an SVG mask
@@ -1128,6 +1362,7 @@ onUnmounted(() => {
             <rect
               v-for="(rect, ri) in paragraphMask.base"
               :key="`b${ri}`"
+              shape-rendering="crispEdges"
               fill="#fff"
               :x="rect.left"
               :y="rect.top"
@@ -1137,6 +1372,7 @@ onUnmounted(() => {
             <rect
               v-for="(rect, bi) in paragraphMask.bites"
               :key="`n${bi}`"
+              shape-rendering="crispEdges"
               fill="#000"
               :x="rect.left"
               :y="rect.top"
@@ -1157,7 +1393,7 @@ onUnmounted(() => {
     <!-- Its own element (not inside .splash-info, which is centered on the
          full viewport) so its vertical position can be pinned to the
          grid's bottom line instead. -->
-    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="ctaStyle" @click="enterGuide">
+    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="ctaStyle" @click.capture="enterGuide">
       Enter the investigation guide
     </NuxtLink>
 
@@ -1384,8 +1620,8 @@ onUnmounted(() => {
    their own boxes (headline/subtitle white backing, CTA fill, badges)
    fade once the letters are nearly all gone. Each image is masked away
    by a clip closing in from its top and bottom onto its own centre line
-   (the picture itself never scales or deforms), slow then fast. Country
-   shapes simply fade away. */
+   (the picture itself never scales or deforms), slow then fast. The pixel
+   masses simply fade away. */
 .splash-info,
 .splash-corner,
 .splash-cta,
@@ -1402,7 +1638,20 @@ onUnmounted(() => {
   clip-path: inset(50% 0 50% 0);
 }
 
-.splash.is-leaving .splash-info,
+.splash.is-leaving .splash-info {
+  pointer-events: none;
+}
+
+/* Closes the way the images do, and the headline's frame (closeFrame). */
+.splash-subtitle-box {
+  clip-path: inset(0 -2px 0 -2px);
+  transition: clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
+.splash.is-leaving .splash-subtitle-box {
+  clip-path: inset(50% -2px 50% -2px);
+}
+
 .splash.is-leaving .splash-corner,
 .splash.is-leaving .splash-cta,
 .splash.is-leaving .splash-tab-ticker {
@@ -1410,14 +1659,59 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.splash-countries {
+.splash-shapes {
   transition: opacity 0.8s ease;
 }
 
+.splash-shapes {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.splash-shape {
+  position: absolute;
+  top: 0;
+}
+
+.splash-shape svg,
+.splash-shape-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Sized to the mass it's filling (script, shapeVideoBox), gliding to the next one
+   as the cells around it change: only ever seen through them. */
+.splash-shape-video video {
+  position: absolute;
+  display: block;
+  object-fit: cover;
+  transition: left 1s ease, top 1s ease, width 1s ease, height 1s ease;
+  filter: url(#duotone-dark);
+}
+
+.splash-shape-fill {
+  fill: var(--color-surface);
+  shape-rendering: crispEdges;
+}
+
+.splash-shape-outline {
+  fill: none;
+  stroke-width: 2px;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+  shape-rendering: crispEdges;
+}
+
 /* Under the grid (same box, earlier in the DOM, same z-index) and the
-   country shapes. In dark mode's gray duotone (#splash-satellite-duotone)
+   pixel masses. In dark mode's gray duotone (#splash-satellite-duotone)
    so it reads as a texture behind the page, not a photo; fades in as the splash builds,
-   out with the countries on exit. */
+   out with the masses on exit. */
 .splash-satellite {
   position: absolute;
   z-index: 0;
@@ -1444,7 +1738,7 @@ onUnmounted(() => {
   transition-duration: 0.8s;
 }
 
-.splash.is-leaving .splash-countries {
+.splash.is-leaving .splash-shapes {
   opacity: 0;
 }
 
@@ -1492,7 +1786,6 @@ onUnmounted(() => {
   transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s;
 }
 
-.splash.intro-logo .splash-countries,
 .splash.intro-logo .splash-corner,
 .splash.intro-logo .splash-cta {
   opacity: 0;
@@ -1593,6 +1886,14 @@ onUnmounted(() => {
   justify-content: center;
   text-align: center;
   padding: 1rem;
+  /* One outline around the headline's masked backing and the subtitle's box
+     together, holes included: shadows follow the mask, which a border can't.
+     Each one builds on the last, so corners close. */
+  filter:
+    drop-shadow(1px 0 0 var(--color-ink))
+    drop-shadow(-1px 0 0 var(--color-ink))
+    drop-shadow(0 1px 0 var(--color-ink))
+    drop-shadow(0 -1px 0 var(--color-ink));
 }
 
 .splash-subtitle {
@@ -1610,7 +1911,7 @@ onUnmounted(() => {
      so the box hugs exactly the three lines of text inside it. */
   display: inline-block;
   background: var(--color-surface);
-  padding: 12px;
+  padding: 20px 28px;
   /* Line breaks come from the CMS (subtitleLines): a line only wraps further
      if it doesn't fit the screen. */
   max-width: 90vw;
@@ -1640,6 +1941,9 @@ onUnmounted(() => {
    stay inside it on any viewport rather than an independent percentage
    guess that only happens to fit at one size. */
 .splash-corner {
+  /* Hidden for now, still in the HTML as links to the three chapters. Remove
+     this line to bring them back. */
+  display: none;
   position: absolute;
   z-index: 2;
   text-align: center;
@@ -1682,25 +1986,6 @@ onUnmounted(() => {
   color: var(--color-ink);
 }
 
-/* Pixel-art country silhouettes (public/splash/*.svg), scattered like
-   markers on a map. This wrapper reuses gridStyle's own top/left/right/
-   bottom, so the percentage positions on each icon below are relative to
-   the grid's actual drawn area, not the viewport — keeping the 12–88%
-   coordinate range (COUNTRY_ICONS) safely inside it regardless of
-   viewport size. */
-.splash-countries {
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-}
-
-.splash-country {
-  /* transform (translate/rotate/scale) is per-icon, set inline from
-     COUNTRY_ICONS (script) — not fixed here. */
-  position: absolute;
-  height: auto;
-}
-
 /* Display text — Archivo bold (700), same family/weight as the footer
    brand (see main.css for the import) — a free stand-in for Extraset's
    Plakat, a commercial font (Anton was tried first but reads as too
@@ -1719,7 +2004,6 @@ onUnmounted(() => {
   width: 100%;
   font-family: var(--font-display);
   font-weight: 700;
-  line-height: 1;
   text-transform: uppercase;
 }
 
@@ -1834,6 +2118,24 @@ onUnmounted(() => {
   will-change: filter;
 }
 
+/* The shelf layout (script, shelfLayout): the headline up top, the images
+   standing along the bottom on one baseline. */
+.splash.is-shelf .splash-info {
+  justify-content: flex-start;
+  padding-top: 11vh;
+}
+
+.splash.is-shelf .splash-images {
+  top: auto;
+  bottom: 3vh;
+  height: 34vh;
+  transform: none;
+}
+
+.splash.is-shelf .splash-images-track {
+  align-items: flex-end;
+}
+
 .splash-images-track img.is-hovered {
   filter: none !important;
 }
@@ -1864,7 +2166,7 @@ onUnmounted(() => {
 
 /* Below 1150px: the same composition as desktop, drawn smaller — minus
    the four corner article titles, too much at phone width. The tab, grid
-   and country sizes come from computeGrid's own mobile branch (script);
+   and sizes come from computeGrid's own mobile branch (script);
    the headline mask follows the smaller font on its own (it's measured). */
 @media (max-width: 1150px) {
   .splash {
@@ -1881,7 +2183,7 @@ onUnmounted(() => {
   }
 
   .splash-subtitle-box {
-    padding: 8px;
+    padding: 12px 14px;
     /* Smaller than text-label on a phone: the splash's own art sizing. */
     font-size: 9pt;
   }

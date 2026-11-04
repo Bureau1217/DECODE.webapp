@@ -56,7 +56,7 @@ defineEmits<{
 /* Same fixed 32vh header as TemplateRessource.vue: the title centered in
    it both ways whatever its line count, credits hanging below it. */
 .tool-cover-header {
-  height: 32vh;
+  height: max(32vh, 220px);
   display: grid;
   grid-template-rows: 1fr auto 1fr;
   justify-items: center;

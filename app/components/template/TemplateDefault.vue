@@ -30,6 +30,7 @@ const props = defineProps<{
   badgeColor: string
   prevTo?: string | null
   nextTo?: string | null
+  relatedResources?: { title: string, to: string, external: boolean }[]
 }>()
 
 // Only 'text' blocks are rendered — citation/cta/gallery/resources blocks
@@ -43,8 +44,23 @@ const textBlocks = computed(() => (props.page.content ?? []).filter((b) => b.typ
 const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
 const language = useLanguage()
-const subpages = computed(() => props.page.subpages?.slice(0, 4) ?? [])
-const subpagesLabel = computed(() => (language.value === 'fr' ? 'Dans cet article' : 'In this article'))
+// The divider's right half, 2 by 2: this article's own case studies, or on a
+// page without any (a case study itself), its related resources.
+const dividerLinks = computed(() => {
+  const subpages = props.page.subpages ?? []
+  const fr = language.value === 'fr'
+  return subpages.length
+    ? {
+        label: fr ? 'Dans cet article' : 'In this article',
+        items: subpages.slice(0, 4).map((sub) => ({ title: sub.title, to: `/guide/${sub.id}`, external: false })),
+      }
+    : { label: fr ? 'Ressources liées' : 'Related resources', items: props.relatedResources ?? [] }
+})
+
+// A case study closes back to the article it belongs to, a plain step back;
+// only an article morphs into its card on the guide.
+const parentId = computed(() => props.page.id.split('/').slice(0, -1).join('/'))
+const closeTo = computed(() => (parentId.value ? `/guide/${parentId.value}` : '/guide'))
 
 // Opened from / closed back into its guide card: see useSharedTransition.
 const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeArticle, style: sharedPart } = useDetailTransition(
@@ -55,7 +71,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 </script>
 
 <template>
-  <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-on-fill)" close-to="/guide" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="closeArticle">
+  <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-on-fill)" :close-to="closeTo" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="parentId ? undefined : closeArticle">
     <article ref="articleEl" class="article-detail" :class="`detail-lines-${drawState}`">
       <div v-if="page.header_image" class="article-detail-cover">
         <img :src="page.header_image.url" :width="page.header_image.width" :height="page.header_image.height" :alt="page.header_image.alt || page.title" :style="sharedPart('image')">
@@ -85,13 +101,19 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
           </template>
         </div>
         <div class="article-detail-divider-vertical detail-draw-vertical" />
-        <!-- This article's own case studies, 2 by 2. -->
-        <nav v-if="subpages.length" class="article-detail-divider-half article-detail-subpages detail-draw-fade" :aria-label="subpagesLabel">
-          <h2 class="article-detail-divider-label text-small">{{ subpagesLabel }}</h2>
+        <nav v-if="dividerLinks.items.length" class="article-detail-divider-half article-detail-subpages detail-draw-fade" :aria-label="dividerLinks.label">
+          <h2 class="article-detail-divider-label text-small">{{ dividerLinks.label }}</h2>
           <ul>
-            <li v-for="sub in subpages" :key="sub.id">
-              <NuxtLink :to="`/guide/${sub.id}`" class="text-note">
-                <span>{{ sub.title }}</span>
+            <li v-for="item in dividerLinks.items" :key="item.to">
+              <NuxtLink
+                :to="item.to"
+                :external="item.external"
+                :target="item.external ? '_blank' : undefined"
+                :rel="item.external ? 'noopener' : undefined"
+                :title="item.title"
+                class="text-note"
+              >
+                <span class="article-detail-subpage-title">{{ item.title }}</span>
                 <span class="article-detail-subpage-arrow" aria-hidden="true">→</span>
               </NuxtLink>
             </li>
@@ -200,6 +222,17 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 }
 
 .article-detail-subpages li {
+  min-width: 0;
+  border-bottom: 1px solid var(--color-on-fill);
+}
+
+/* Alone, it has no neighbour to leave room for. */
+.article-detail-subpages li:only-child {
+  grid-column: 1 / -1;
+}
+
+/* Every entry between two lines: the rows below share the one above's. */
+.article-detail-subpages li:nth-child(-n + 2) {
   border-top: 1px solid var(--color-on-fill);
 }
 
@@ -208,14 +241,20 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  height: 100%;
-  box-sizing: border-box;
   padding: 5px 0 7px;
   color: inherit;
   text-decoration: none;
 }
 
-.article-detail-subpages a:hover span:first-child {
+/* One line, cut with an ellipsis: the full title shows on hover (title). */
+.article-detail-subpage-title {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.article-detail-subpages a:hover .article-detail-subpage-title {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;

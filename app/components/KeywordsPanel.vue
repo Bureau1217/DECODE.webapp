@@ -39,11 +39,30 @@ const isMobile = useIsMobile()
 function showPreview(tag: CategoryWithTags['tags'][number], index: number) {
   const img = tag.image?.[index]
   if (displayMode.value !== 'visual' || !img) return false
-  previewImage.value = { url: img.url, alt: img.alt || tag.title, title: tag.title, description: tag.description }
+  previewImage.value = { url: img.url, width: img.width, height: img.height, alt: img.alt || tag.title, title: tag.title, description: tag.description }
+  nextTick(fitPreview)
   return true
 }
-function onRowEnter(tag: CategoryWithTags['tags'][number]) {
+// Where the row's definition goes in Index mode (.keywords-panel-popup): on the
+// row's top line, the middle half of the panel. Moved up only if it would run
+// under the footer. The image's size is known up front (its width and height
+// attributes), so it takes its place at once, even while it's still loading.
+const previewPlace = ref<Record<string, string>>({})
+const previewFrame = ref<HTMLElement | null>(null)
+let previewTop = 0
+function placePreview(row: HTMLElement) {
+  const { left, top, width } = row.getBoundingClientRect()
+  previewTop = top - 1
+  previewPlace.value = { left: `${left + width * 0.25}px`, width: `${width * 0.5}px`, top: `${previewTop}px` }
+}
+function fitPreview() {
+  const footerTop = document.querySelector('.site-footer')?.getBoundingClientRect().top ?? window.innerHeight
+  const height = previewFrame.value?.offsetHeight ?? 0
+  previewPlace.value = { ...previewPlace.value, top: `${Math.max(0, Math.min(previewTop, footerTop - height - 8))}px` }
+}
+function onRowEnter(tag: CategoryWithTags['tags'][number], event: MouseEvent) {
   if (isMobile.value) return
+  placePreview(event.currentTarget as HTMLElement)
   if (showPreview(tag, 0)) return
   hoveredTagId.value = tag.id
 }
@@ -98,7 +117,7 @@ watch(displayMode, (mode) => { if (mode === 'visual') visualOpened.value = true 
 // in full color, at its own size and ratio in the middle of the keywords
 // panel (capped to it), with the keyword's definition pinned to its
 // top-left corner in place of the usual row popup.
-const previewImage = ref<{ url: string, alt: string, title: string, description?: string } | null>(null)
+const previewImage = ref<{ url: string, width?: number, height?: number, alt: string, title: string, description?: string } | null>(null)
 watch(displayMode, () => { previewImage.value = null })
 
 // Set by guide/index.vue on card hover (shared state — this panel is a
@@ -124,7 +143,7 @@ function isRelated(tagId: string) {
           :key="tag.id"
           :class="{ dimmed: isDimmed(tag.id), related: isRelated(tag.id) }"
           :style="{ '--row-delay': `${ruleDelaySeconds(tag.id)}s` }"
-          @mouseenter="onRowEnter(tag)"
+          @mouseenter="onRowEnter(tag, $event)"
           @mouseleave="onRowLeave"
           @click="onRowTap(tag.id)"
         >
@@ -158,9 +177,9 @@ function isRelated(tagId: string) {
     </template>
   </InfoPanel>
   <Teleport to="body">
-    <div v-if="previewImage" class="keywords-image-preview" :class="{ 'reading-mode': readingMode }" aria-hidden="true">
-      <figure class="keywords-image-preview-frame">
-        <img :src="previewImage.url" :alt="previewImage.alt" class="no-duotone">
+    <div v-if="previewImage" class="keywords-image-preview" :style="previewPlace" aria-hidden="true">
+      <figure ref="previewFrame" class="keywords-image-preview-frame">
+        <img :src="previewImage.url" :width="previewImage.width" :height="previewImage.height" :alt="previewImage.alt" class="no-duotone">
         <figcaption class="keywords-image-preview-label text-note">
           <div class="keywords-panel-popup-title">{{ previewImage.title }}</div>
           <!-- eslint-disable-next-line vue/no-v-html -->
@@ -362,56 +381,33 @@ function isRelated(tagId: string) {
   filter: url(#duotone-dark);
 }
 
-/* Centered over the keywords panel itself (same box: under the nav and
-   index bar, above the footer, 50vw or 25vw wide in reading mode), never
-   catching the pointer, so the row underneath keeps its hover. The image
-   shows at its own pixel size, only scaled down (ratio kept) to fit
-   within 90% of the panel's width and 56% of the viewport's height. */
+/* Where the row's definition sits in Index mode (.keywords-panel-popup, and
+   placed by placePreview), in the same box, with the image above the definition.
+   Never catches the pointer, so the row underneath keeps its hover. */
 .keywords-image-preview {
   position: fixed;
-  top: 8.5vh;
-  bottom: var(--footer-height);
-  left: 0;
-  width: 50vw;
   z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   pointer-events: none;
 }
 
-.keywords-image-preview.reading-mode {
-  width: 25vw;
-}
-
 .keywords-image-preview-frame {
-  position: relative;
   margin: 0;
-  max-width: 90%;
-  display: flex;
+  background: var(--color-surface);
+  border: 1px solid var(--color-brand);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .keywords-image-preview-frame img {
   display: block;
-  max-width: 100%;
-  max-height: 56vh;
-  width: auto;
+  width: 100%;
   height: auto;
-  object-fit: contain;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  max-height: 42vh;
+  object-fit: cover;
 }
 
-/* The keyword's definition, in the row popup's own box (below), pinned
-   to the image's top-left corner. */
 .keywords-image-preview-label {
-  position: absolute;
-  top: 0;
-  left: 0;
   box-sizing: border-box;
-  width: min(300px, 70%);
   padding: 8px 10px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-brand);
   color: var(--color-brand);
 }
 

@@ -471,6 +471,12 @@ onUnmounted(() => {
   fill: var(--color-chrome);
 }
 
+/* The landing tab: when the intro ends its filled copy goes at once, so this has
+   to be filled at once too. Fading in from white, it flashed. */
+.nav-tab-wrap--desktop.active .nav-tab-shape path {
+  transition: none;
+}
+
 .nav-tab-wrap:hover .nav-tab,
 .nav-tab-wrap.active .nav-tab {
   color: var(--color-on-fill);

@@ -76,7 +76,7 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
      (which hang below it, in the bottom 1fr, without nudging it). The
      divider band below never moves either. Was padding-top + natural
      height, which shifted everything by however many lines wrapped. */
-  height: 32vh;
+  height: max(32vh, 220px);
   display: grid;
   grid-template-rows: 1fr auto 1fr;
   justify-items: center;

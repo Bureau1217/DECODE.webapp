@@ -21,7 +21,7 @@ onUnmounted(() => {
   <div class="page-with-heading">
     <h1 class="visually-hidden">{{ page.title }}</h1>
     <article class="tools-list">
-      <ToolCard v-for="(tool, index) in page.tools?.slice(0, 3)" :key="tool.id" :item="tool" :index="index" />
+      <ToolCard v-for="(tool, index) in page.tools" :key="tool.id" :item="tool" :index="index" />
     </article>
   </div>
 </template>
@@ -37,7 +37,8 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 1px;
   background: var(--color-grid-line);
-  height: calc(100vh - 8.5vh - var(--footer-height));
+  /* Three that exactly fill the screen, footer included; only a 4th tool scrolls. */
+  min-height: calc(100vh - 8.5vh - var(--footer-height));
 }
 
 /* Content-driven height, not a fixed viewport-height box — same
@@ -53,6 +54,7 @@ onUnmounted(() => {
 
   .tools-list :deep(.tool-card) {
     min-height: 0;
+    height: auto;
     border-bottom: 1px solid rgba(255, 255, 255, 0.35);
   }
 

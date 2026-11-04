@@ -33,22 +33,6 @@ const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 // Expands into its tool page's right panel, and collapses back (useToolMorph).
 const toolMorph = useToolMorph()
 const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMorphStyle() : undefined))
-
-// Positional, not CMS data — which cards get the small country badge, and
-// which country, at its own size and spot (not derived from anything,
-// just visual variety): 0 big and pushed out past the top-right corner,
-// 1 smaller and further in from the right edge, both over the card and
-// cropped by its edges; 2 behind its image, peeking out above and beside
-// it.
-const COUNTRY_BY_INDEX: Record<number, 'CA' | 'PE' | 'BR'> = { 0: 'CA', 1: 'PE', 2: 'BR' }
-const country = computed(() => COUNTRY_BY_INDEX[props.index])
-const COUNTRY_STYLE_BY_INDEX: Record<number, Record<string, string>> = {
-  0: { width: '260px', height: '260px', top: '-90px', right: '-90px' },
-  1: { width: '110px', height: '110px', top: '-6px', right: '24px' },
-  2: { width: '170px', height: '170px', top: '-70px', left: 'calc(40% - 150px)' },
-}
-const countryStyle = computed(() => COUNTRY_STYLE_BY_INDEX[props.index])
-const countryBehindImage = computed(() => props.index === 2)
 </script>
 
 <template>
@@ -70,22 +54,14 @@ const countryBehindImage = computed(() => props.index === 2)
         {{ item.subtitle }}
       </BadgeChip>
     </div>
-    <!-- Over the card's top edge, partly past it — .tool-card's
-         overflow:hidden crops it there on purpose. -->
-    <CountryIcon
-      v-if="country"
-      :code="country"
-      class="tool-card-country"
-      :class="{ 'is-behind': countryBehindImage }"
-      :style="countryStyle"
-    />
   </NuxtLink>
 </template>
 
 <style scoped>
 .tool-card {
   position: relative;
-  flex: 1 1 0;
+  flex: none;
+  height: calc((100vh - 8.5vh - var(--footer-height) - 2px) / 3);
   min-height: 0;
   display: flex;
   background: var(--color-card);
@@ -118,18 +94,6 @@ const countryBehindImage = computed(() => props.index === 2)
   height: 100%;
   object-fit: cover;
   display: block;
-}
-
-/* Size/position set inline per card (countryStyle). Above the image
-   (z-index 1) — or below it (.is-behind), showing only where the image
-   doesn't cover it. */
-.tool-card-country {
-  position: absolute;
-  z-index: 2;
-}
-
-.tool-card-country.is-behind {
-  z-index: 0;
 }
 
 /* justify-content:flex-end (not center) bottom-aligns the text block
@@ -218,7 +182,7 @@ const countryBehindImage = computed(() => props.index === 2)
     align-items: center;
     justify-content: center;
     width: 100%;
-    height: 20px;
+    min-height: 24px;
     margin: 6px 0 0;
     padding: 0;
   }
@@ -231,23 +195,6 @@ const countryBehindImage = computed(() => props.index === 2)
     margin-top: 11px;
     aspect-ratio: 2.6 / 1;
     padding: 0;
-  }
-
-  /* Fills the wide landscape box (aspect-ratio set on the wrap, above). */
-  .tool-card-image-wrap img {
-    width: 100%;
-    height: 100%;
-  }
-
-  /* The corner-badge country icons assume a wide desktop card — scaled
-     down rather than hidden, so the card still reads as "about a place"
-     at this width without the icon swamping it. */
-  .tool-card-country {
-    width: 90px !important;
-    height: 90px !important;
-    top: -30px !important;
-    right: -30px !important;
-    left: auto !important;
   }
 }
 </style>

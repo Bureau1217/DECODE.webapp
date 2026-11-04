@@ -131,7 +131,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     align-items: center;
     justify-content: center;
     width: 100%;
-    height: 20px;
+    min-height: 24px;
     margin: 6px 0 0;
     padding: 0;
   }

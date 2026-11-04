@@ -54,7 +54,7 @@ usePageSeo({
   <h1 class="visually-hidden">{{ language === 'fr' ? 'Guide d\'enquête' : 'Investigation Guide' }}</h1>
   <article class="guide-grid" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }">
     <GuideCard
-      v-for="(item, index) in articles?.slice(0, 4)"
+      v-for="(item, index) in articles"
       :key="item.id"
       :item="item"
       :index="index"
@@ -67,7 +67,11 @@ usePageSeo({
 .guide-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  /* Two rows that exactly fill the screen, footer included; only a 5th article and
+     on adds rows, and so scrolling. */
+  --guide-row: calc((100vh - 8.5vh - var(--footer-height) - 1px) / 2);
+  grid-template-rows: repeat(2, var(--guide-row));
+  grid-auto-rows: var(--guide-row);
   gap: 1px;
   background: var(--color-grid-line);
   /* Fills exactly the space between SiteNav/SiteIndexBar (8.5vh, top) and
@@ -77,7 +81,6 @@ usePageSeo({
      hiding whatever fell in that strip (e.g. the 4th card's own title)
      with no way to scroll it into view, unlike the keywords panel beside
      it, which actually can scroll behind the footer by design. */
-  height: calc(100vh - 8.5vh - var(--footer-height));
 }
 
 /* Splash -> guide (script). The cross itself is the grid's background
@@ -163,6 +166,7 @@ usePageSeo({
   .guide-grid {
     grid-template-columns: none;
     grid-template-rows: none;
+    grid-auto-rows: auto;
     display: flex;
     flex-direction: column;
     gap: 0;

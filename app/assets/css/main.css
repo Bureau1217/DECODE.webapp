@@ -7,14 +7,14 @@
    reads as the brand mark, not just another line of body copy). Stands in
    for Extraset's Plakat, a commercial font not available to embed here
    (Anton and Archivo Black were tried first — too condensed / too heavy).
-   EB Garamond (https://fonts.google.com/specimen/EB+Garamond): regular
+   Cormorant Garamond (https://fonts.google.com/specimen/Cormorant+Garamond): regular
    and italic 400/700 — guide article cards' title/secondary-title, same
    family Splash.vue's corner titles reference (those rely on the
    visitor's own system Garamond, unloaded; this is the first place that
    family is actually fetched). The article/resource detail panels' own
    big body text (TemplateDefault.vue, TemplateRessource.vue) uses plain
    Arial/Helvetica — no webfont needed for that one. */
-@import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400&family=Archivo:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75,500;100,400;100,500&family=Archivo:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
 
 /* Minimal reset — the default UA stylesheet's body margin (~8px) throws
    off any `height: 100vh` section (e.g. the splash screen), clipping a
@@ -145,7 +145,7 @@ body {
   /* Fonts — see the @import at the top of this file for what each family
      is used for. */
   --font-mono: 'Martian Mono', monospace;
-  --font-serif: 'EB Garamond', Garamond, serif;
+  --font-serif: 'Cormorant Garamond', Garamond, serif;
   --font-display: 'Archivo', sans-serif;
 }
 
@@ -220,8 +220,8 @@ body {
  * Serif headings: h1 detail-page titles, h2 card titles and big panel
  * lines, h3 list titles. Archivo display: the site name as a title.
  * Mono UI: label (bands, index bar, every button), small (eyebrows,
- * tags), row (panel rows), caption (metadata, dense tables). Serif
- * chips: chip (italic, card subtitles), tag (capitals, resource types).
+ * tags), row (panel rows), caption (metadata, dense tables), chip (card
+ * subtitles). Serif tag: capitals, resource types.
  * Arial reading text: body (article/resource/about copy), note (hover
  * popups and tooltips).
  */
@@ -254,11 +254,14 @@ body {
 }
 
 .text-chip {
-  font-family: var(--font-serif);
-  font-weight: 400;
-  font-style: italic;
-  font-size: 12pt;
-  line-height: 1.25;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  /* Its condensed cut: in capitals, the regular one is too wide for a card. */
+  font-stretch: condensed;
+  font-size: calc(10pt - 2px);
+  line-height: 1.5;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .text-tag {
