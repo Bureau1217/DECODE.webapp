@@ -8,7 +8,6 @@
 const { data } = await useTeamPanelData()
 
 const teams = computed(() => {
-  const imageUrls = new Map((data.value?.images ?? []).map((img) => [img.uuid, img.url]))
   return (data.value?.teams ?? [])
     .filter((b) => b.type === 'team' && !b.isHidden && b.content?.title)
     .map((b) => ({
@@ -16,16 +15,14 @@ const teams = computed(() => {
       members: (b.content!.members ?? [])
         .map((m) => ({
           name: [m.first_name, m.last_name].filter(Boolean).join(' '),
-          position: m.position || '',
           bio: m.short_bio || '',
-          picture: m.picture?.[0] ? imageUrls.get(m.picture[0]) : undefined,
         }))
         .filter((m) => m.name),
     }))
 })
 
-// Same popup as KeywordsPanel.vue's definitions: a hovered member's
-// position, photo and short bio over the row's own unused white space;
+// Same popup as KeywordsPanel.vue's definitions: a hovered member's short
+// bio over the row's own unused white space, when they have one;
 // tap to open/close on mobile, where there's no hover.
 const hoveredMember = ref<string | null>(null)
 const isMobile = useIsMobile()
@@ -39,9 +36,8 @@ function onRowTap(key: string) {
   if (isMobile.value) hoveredMember.value = hoveredMember.value === key ? null : key
 }
 
-// Same reading-mode width toggle as KeywordsPanel.vue — kept consistent
-// sitewide even though this panel has no visual-mode (member photos)
-// equivalent yet.
+// Same reading-mode width toggle as KeywordsPanel.vue, kept consistent
+// sitewide. This panel has no visual mode (SiteIndexBar grays it out).
 const readingMode = useReadingMode()
 
 // Panel hand-off with KeywordsPanel (usePanelMorph): texts in reading
@@ -71,14 +67,10 @@ onBeforeUnmount(() => {
           @click="onRowTap(`${ti}-${mi}`)"
         >
           <span class="team-panel-member"><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
-          <div v-if="hoveredMember === `${ti}-${mi}`" class="team-panel-popup text-note">
-            <img v-if="member.picture" loading="lazy" :src="member.picture" :alt="member.name" class="team-panel-popup-picture">
-            <div class="team-panel-popup-text">
-              <div class="team-panel-popup-title">{{ member.name }}</div>
-              <div class="team-panel-popup-position text-small">{{ member.position || team.title }}</div>
-              <!-- eslint-disable-next-line vue/no-v-html -->
-              <div v-if="member.bio" class="team-panel-popup-bio" v-html="member.bio" />
-            </div>
+          <div v-if="member.bio && hoveredMember === `${ti}-${mi}`" class="team-panel-popup text-note">
+            <div class="team-panel-popup-title">{{ member.name }}</div>
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div class="team-panel-popup-bio" v-html="member.bio" />
           </div>
         </li>
       </ul>
@@ -90,7 +82,7 @@ onBeforeUnmount(() => {
       <!-- Arrives after the teams: the label deciphers once their names
            have mostly settled, then the logo rises in under it. -->
       <p class="team-panel-partner-label text-small"><DecipherText text="A project by" :delay="700" /></p>
-      <a href="https://www.graduateinstitute.ch/democracy" target="_blank" rel="noopener">
+      <a href="https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons" target="_blank" rel="noopener">
         <img src="/logos/ahcd.png" alt="Albert Hirschman Centre on Democracy" class="no-duotone">
       </a>
     </div>
@@ -145,8 +137,7 @@ onBeforeUnmount(() => {
 }
 
 /* Same box as KeywordsPanel.vue's .keywords-panel-popup (half the row's
-   width, centered, its top edge on the row's own divider), with the
-   member's photo beside the text when the CMS has one. */
+   width, centered, its top edge on the row's own divider). */
 .team-panel-popup {
   position: absolute;
   top: -1px;
@@ -154,9 +145,6 @@ onBeforeUnmount(() => {
   width: 50%;
   z-index: 3;
   box-sizing: border-box;
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
   padding: 8px 10px;
   background: var(--color-surface);
   border: 1px solid var(--color-brand);
@@ -164,23 +152,8 @@ onBeforeUnmount(() => {
   color: var(--color-brand);
 }
 
-.team-panel-popup-picture {
-  flex-shrink: 0;
-  width: 72px;
-  aspect-ratio: 4 / 5;
-  object-fit: cover;
-}
-
-.team-panel-popup-text {
-  min-width: 0;
-}
-
 .team-panel-popup-title {
   font-weight: 700;
-}
-
-.team-panel-popup-position {
-  margin-top: 2px;
 }
 
 .team-panel-popup-bio {

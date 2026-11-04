@@ -5,6 +5,9 @@
 // GuideCard.vue, ToolCard.vue and TemplateDefault.vue's own subtitle.
 defineProps<{
   color: string
+  // Black mono capitals, going white on its deep shade on hover (its own, or the
+  // card it's in: GuideCard.vue).
+  caps?: boolean
 }>()
 
 // Always one line: a label too long for its card's width takes a smaller size.
@@ -37,7 +40,7 @@ onUnmounted(() => resize?.disconnect())
 </script>
 
 <template>
-  <span ref="chip" class="badge-chip text-chip" :style="{ backgroundColor: color }">
+  <span ref="chip" class="badge-chip" :class="caps ? 'is-caps' : 'text-chip'" :style="{ backgroundColor: color, '--chip-deep': deepBadgeColor(color) }">
     <slot />
   </span>
 </template>
@@ -48,5 +51,21 @@ onUnmounted(() => resize?.disconnect())
   padding: 1px 6px;
   color: var(--color-on-pastel);
   white-space: nowrap;
+}
+
+.badge-chip.is-caps {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.6;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* !important: the color is set inline. */
+.badge-chip.is-caps:hover {
+  background-color: var(--chip-deep) !important;
+  color: #fff;
 }
 </style>

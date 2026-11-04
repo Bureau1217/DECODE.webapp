@@ -22,11 +22,17 @@ const props = defineProps<{
 }>()
 
 const badgeColor = computed(() => toolColorFor(props.index))
+// A photo in the site's duotone, like a guide card (main.css).
+const TOOL_VISUALS = [
+  { url: '/tool-visuals/map.jpg', width: 900, height: 839 },
+  { url: '/tool-visuals/extension.jpg', width: 675, height: 900 },
+  { url: '/tool-visuals/bot.jpg', width: 900, height: 675 },
+]
+const visual = computed(() => TOOL_VISUALS[props.index % TOOL_VISUALS.length]!)
 // Tools 2 and 3 (purple #cdb4ea, teal #b4eae1) are too pale for the
-// white eyebrow/title once the card fills with them on hover — and the
-// subtitle chip, the same color, would vanish into the card. Those two
-// invert on hover instead (.tool-card.is-pale, below); tool 1's coral
-// keeps white text.
+// white eyebrow/title once the card fills with them on hover: those two
+// take dark text instead (.tool-card.is-pale, below); tool 1's coral keeps
+// white text.
 const isPale = computed(() => props.index % BADGE_COLORS.length !== 0)
 const { onHover, onLeave } = useArticleCardHighlight(computed(() => props.item))
 
@@ -45,12 +51,12 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
     @mouseleave="onLeave"
   >
     <div class="tool-card-image-wrap">
-      <img v-if="item.image" class="no-duotone" :src="item.image.url" :width="item.image.width" :height="item.image.height" :alt="item.image.alt || item.title">
+      <img :src="visual.url" :width="visual.width" :height="visual.height" :alt="item.title">
     </div>
     <div class="tool-card-body">
       <span class="tool-card-eyebrow text-small">Tool {{ index + 1 }}</span>
       <h2 class="tool-card-title text-h2">{{ item.title }}</h2>
-      <BadgeChip v-if="item.subtitle" class="tool-card-subtitle" :color="badgeColor">
+      <BadgeChip v-if="item.subtitle" class="tool-card-subtitle" caps :color="badgeColor">
         {{ item.subtitle }}
       </BadgeChip>
     </div>
@@ -86,9 +92,6 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
   overflow: hidden;
 }
 
-/* Cover images stay full color (img.no-duotone, main.css) — the duotone
-   treatment reads as archival/editorial, which doesn't suit a product
-   screenshot the way it suits a photo in the guide. */
 .tool-card-image-wrap img {
   width: 100%;
   height: 100%;
@@ -124,18 +127,17 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
   text-align: left;
 }
 
-/* Pale accents (tools 2/3): dark text on the pale fill, and the subtitle
-   chip flips to dark with the accent as its text — the inverse of its
-   resting pastel-chip-with-ink-text. */
+/* Pale accents (tools 2/3): dark text on the pale fill. */
 .tool-card.is-pale:hover .tool-card-eyebrow,
 .tool-card.is-pale:hover .tool-card-title {
   color: var(--color-on-pastel);
 }
 
-/* !important: BadgeChip sets its own background inline. */
-.tool-card.is-pale:hover .tool-card-subtitle {
-  background-color: var(--color-on-pastel) !important;
-  color: var(--card-accent);
+/* Same as a guide card's chip (GuideCard.vue). !important: BadgeChip sets its
+   own color inline. */
+.tool-card:hover .tool-card-subtitle {
+  background-color: var(--chip-deep) !important;
+  color: #fff;
 }
 
 .tool-card-eyebrow,

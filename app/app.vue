@@ -69,8 +69,8 @@ useSeoMeta({
   twitterCard: 'summary_large_image',
 })
 
-// Always visible (KeywordsPanel, below) on these — not on /keywords/*
-// itself or individual tool pages, which weren't asked for. Still gated
+// Always visible (KeywordsPanel, below) on these — not on the /keywords
+// lists or individual tool pages, which weren't asked for. Still gated
 // on !showSplash too: '/' matches this list, but shouldn't show the panel
 // until the splash itself is dismissed. /guide and /resources are prefix
 // matches (not just the exact list/index route) — an article or resource
@@ -81,6 +81,8 @@ const KEYWORDS_PANEL_PREFIX_ROUTES = ['/guide', '/resources']
 const showKeywordsPanel = computed(() => {
   if (showSplash.value) return false
   if (KEYWORDS_PANEL_EXACT_ROUTES.includes(route.path)) return true
+  // A keyword opens beside the panel, like a resource (/keywords/concepts/x).
+  if (/^\/keywords\/[^/]+\/[^/]+/.test(route.path)) return true
   return KEYWORDS_PANEL_PREFIX_ROUTES.some((p) => route.path === p || route.path.startsWith(`${p}/`))
 })
 

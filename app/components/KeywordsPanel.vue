@@ -135,7 +135,7 @@ function isRelated(tagId: string) {
   <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }" :reading-mode="readingMode">
     <template v-for="category in categories" :key="category.id">
       <h3 class="text-label" :style="{ '--band-delay': `${ruleDelaySeconds(category.id)}s` }">
-        <NuxtLink :to="`/keywords/${category.id}`" class="keywords-panel-band-link"><DecipherText :text="category.title" :delay="introTransition ? Math.round((ruleDelaySeconds(category.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" /></NuxtLink>
+        <DecipherText :text="category.title" :delay="introTransition ? Math.round((ruleDelaySeconds(category.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" />
       </h3>
       <ul>
         <li
@@ -483,11 +483,6 @@ function isRelated(tagId: string) {
   width: 100%;
   padding: 4px 10px;
   color: var(--color-ink);
-  text-decoration: none;
-}
-
-.keywords-panel-band-link {
-  color: inherit;
   text-decoration: none;
 }
 

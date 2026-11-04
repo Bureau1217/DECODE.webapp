@@ -361,8 +361,9 @@ export function decipherIn(root: HTMLElement, { grow = true, growMax = 2, reveal
 // lands on its own letter at its own moment; positions past the end of
 // the shorter text appear or drop away. Like decipherIn, the text node
 // is swapped for temporary spans and put back afterwards, so Vue's own
-// render stays intact.
-export function decipherFrom(root: HTMLElement, from: string, duration = DURATION): () => void {
+// render stays intact. `ticks`: when the letters change, in ms from the start,
+// for anything that has to change with them (Splash.vue's headlines and frame).
+export function decipherFrom(root: HTMLElement, from: string, duration = DURATION, ticks?: number[]): () => void {
   const node = [...root.childNodes].find((n): n is Text => n.nodeType === Node.TEXT_NODE)
   const to = node?.nodeValue ?? ''
   if (!node || to === from || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {}
@@ -391,8 +392,10 @@ export function decipherFrom(root: HTMLElement, from: string, duration = DURATIO
     wrapper.replaceWith(node)
   }
 
+  const randomGap = () => MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP)
   const t0 = performance.now()
-  let timer = setTimeout(function tick() {
+  let timer: ReturnType<typeof setTimeout>
+  function tick() {
     const t = performance.now() - t0
     if (t >= duration) return restore()
     charEls.forEach((c, i) => {
@@ -404,8 +407,12 @@ export function decipherFrom(root: HTMLElement, from: string, duration = DURATIO
         c.textContent = pool[Math.floor(Math.random() * pool.length)] ?? ''
       }
     })
-    timer = setTimeout(tick, MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP))
-  }, MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP))
+    // Never past the end, however long the gaps: it still lands on time.
+    const next = ticks ? (ticks.find((at) => at > t) ?? duration) - t : randomGap()
+    timer = setTimeout(tick, Math.min(next, duration - t))
+  }
+  if (ticks?.[0] === 0) tick()
+  else timer = setTimeout(tick, ticks ? ticks[0] ?? duration : randomGap())
 
   return () => {
     clearTimeout(timer)

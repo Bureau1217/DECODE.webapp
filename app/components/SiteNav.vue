@@ -13,8 +13,11 @@ const mobileMenuOpen = useMobileMenuOpen()
 
 const route = useRoute()
 // Matches sub-routes too (e.g. /guide/some-article highlights
-// "Investigation Guide").
+// "Investigation Guide"). A keyword opens beside the page it came from
+// ([tag].vue), so that page's tab stays active.
+const keywordOrigin = useState('keyword-origin', () => '/guide')
 function isActive(to: string) {
+  if (/^\/keywords\/[^/]+\/[^/]+/.test(route.path)) return keywordOrigin.value.startsWith(to)
   return route.path.startsWith(to)
 }
 
@@ -314,15 +317,15 @@ onUnmounted(() => {
 }
 
 /* Desktop's tabs are 25vw wide and 3.5vh tall, so the labels follow the
-   window down to always fit, to a floor of 12px. 20.6em is the longest label
-   ("TOOLS AGAINST DISINFORMATION", measured at 20.44em in this mono face with
+   window down to always fit, to a floor of 12px. 18.1em is the longest label
+   ("TOOLS AGAINST DISINFORMATION", measured at 17.92em in this mono face with
    its letter-spacing); 2.2vh is the tab's two diagonal shoulders; 12px keeps
-   it off them. The site's mobile breakpoint, 1150px, is set by that floor:
-   it's about where this label reaches 12px, so it always fits above it. */
+   it off them. It stays above that floor all the way down to the site's mobile
+   breakpoint, 1150px, so it always fits. */
 @media (min-width: 1151px) {
   .nav-tab-wrap--desktop .nav-tab {
     padding: 0;
-    font-size: max(12px, min(18px, calc((25vw - 2.2vh - 12px) / 20.6), 2.4vh));
+    font-size: max(12px, min(18px, calc((25vw - 2.2vh - 12px) / 18.1), 2.4vh));
   }
 }
 

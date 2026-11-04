@@ -20,10 +20,13 @@ interface SiteInfo {
   title: string
   header_subtitle?: string
   sentences?: { sentence: string }[]
-  informations?: string
 }
 
 const emit = defineEmits<{ continue: [] }>()
+
+// The top-left tab.
+const TAB_TEXT = 'Graduate Institute - Albert Hirschman Centre on Democracy'
+const TAB_LINK = 'https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons'
 
 // Which composition: the images in a band through the middle, behind the headline,
 // or (?splash=shelf) the headline up top and the images on a shelf along the bottom.
@@ -161,7 +164,6 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): Para
   lines.forEach((line, lineIndex) => {
     if (!line.width || !line.height) return
     const isFirstLine = lineIndex === 0
-    const isLastLine = lineIndex === lines.length - 1
 
     // Safety net — guarantees full readability independent of whatever
     // the edge walk below picks.
@@ -177,7 +179,9 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): Para
       const w = segWidth + 1
 
       let topLevel = pickLevel(rand, isFirstLine, scale)
-      let bottomLevel = pickLevel(rand, isLastLine, scale)
+      // Never a bite under the last line: it would open a gap above the subtitle's
+      // box, which the outline would then draw a line along.
+      let bottomLevel = pickLevel(rand, false, scale)
       // If both edges of the same segment bite inward, clamp their
       // combined depth to under half the line height — a segment can
       // still lose real height off the top AND the bottom, just never
@@ -225,7 +229,7 @@ const colorMode = useColorMode()
 const satelliteUrl = computed(() => {
   if (colorMode.value !== 'dark') return null
   const token = useRuntimeConfig().public.mapboxToken
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/32,51,3.3,180/1280x900@2x?attribution=false&logo=false&access_token=${token}`
+  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/26,47,3.5,0/1280x600@2x?attribution=false&logo=false&access_token=${token}`
 })
 
 // The CMS headline list (site_infos.yml's "sentences"), which the splash
@@ -291,6 +295,16 @@ function fitHeadlines() {
 const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
 // Which silhouette the mask draws — each headline settles on its own.
 const maskSeed = ref(MASK_SEED)
+const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
+// The subtitle's box, a whole number of the frame's steps wide and centered, so
+// each of its sides is on the frame's grid.
+function fitSubtitleBox() {
+  const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
+  if (!box) return
+  box.style.width = ''
+  const grid = frameGrid()
+  box.style.width = `${Math.ceil(box.offsetWidth / (grid * 2)) * grid * 2}px`
+}
 function buildSentenceMasks() {
   const masked = maskedEl.value
   // Leaving: the frame is closing (closeFrame), whatever the letters do.
@@ -309,32 +323,56 @@ function buildSentenceMasks() {
   // line up exactly, so the silhouette only has real steps, never a tiny jog, and
   // two pieces meeting leave no half-transparent seam for the outline to show
   // through. The backing snaps outward, so it always covers the letters; a bite's
-  // inner edge snaps back towards the outside, so it never cuts deeper.
-  const grid = Math.max(8, Math.round(MASK_SNAP * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
-  const down = (value: number) => Math.floor(value / grid) * grid
-  const up = (value: number) => Math.ceil(value / grid) * grid
+  // inner edge snaps back towards the outside, so it never cuts deeper. The grid
+  // starts from the subtitle's box, sized to it too (fitSubtitleBox), so the frame
+  // meets that box on the same lines.
+  const grid = frameGrid()
+  const box = splashEl.value?.querySelector('.splash-subtitle-box')?.getBoundingClientRect()
+  const startX = box?.width ? Math.round((box.left + box.right) / 2) : 0
+  const startY = box?.width ? Math.round(box.top) : 0
+  const downX = (value: number) => startX + Math.floor((value - startX) / grid) * grid
+  const upX = (value: number) => startX + Math.ceil((value - startX) / grid) * grid
+  const nearX = (value: number) => startX + Math.round((value - startX) / grid) * grid
+  const downY = (value: number) => startY + Math.floor((value - startY) / grid) * grid
+  const upY = (value: number) => startY + Math.ceil((value - startY) / grid) * grid
   const outward = (rect: MaskRect): MaskRect => {
-    const left = down(origin.left + rect.left)
-    const top = down(origin.top + rect.top)
+    const left = downX(origin.left + rect.left)
+    const top = downY(origin.top + rect.top)
     return {
       left: left - origin.left,
       top: top - origin.top,
-      width: up(origin.left + rect.left + rect.width) - left,
-      height: up(origin.top + rect.top + rect.height) - top,
+      width: upX(origin.left + rect.left + rect.width) - left,
+      height: upY(origin.top + rect.top + rect.height) - top,
     }
   }
   const lineTop = lines[0]!.top
   const bite = (rect: MaskRect): MaskRect => {
-    const left = Math.round((origin.left + rect.left) / grid) * grid
-    const right = Math.round((origin.left + rect.left + rect.width) / grid) * grid
+    const left = nearX(origin.left + rect.left)
+    const right = nearX(origin.left + rect.left + rect.width)
     // From the outside in: past the edge of the backing, to the snapped depth.
     const fromTop = rect.top <= lineTop + 1 || rect.top < lines[lines.length - 1]!.top
-    const top = fromTop ? origin.top + rect.top - 80 : up(origin.top + rect.top)
-    const bottom = fromTop ? down(origin.top + rect.top + rect.height) : origin.top + rect.top + rect.height + 80
+    const top = fromTop ? origin.top + rect.top - 80 : upY(origin.top + rect.top)
+    const bottom = fromTop ? downY(origin.top + rect.top + rect.height) : origin.top + rect.top + rect.height + 80
     return { left: left - origin.left, top: top - origin.top, width: right - left, height: Math.max(0, bottom - top) }
   }
   maskLines = lines
-  paragraphMask.value = { base: mask.base.map(outward), bites: mask.bites.map(bite) }
+  const base = mask.base.map(outward)
+  // The frame always runs on into the subtitle's box, so nothing shows between
+  // them, however short the headline.
+  if (box?.width) {
+    const last = lines[lines.length - 1]!
+    const left = Math.max(origin.left + last.left, box.left)
+    const right = Math.min(origin.left + last.left + last.width, box.right)
+    if (right > left) {
+      base.push(outward({
+        left: left - origin.left,
+        top: last.top + last.height - 1,
+        width: right - left,
+        height: box.top + grid - origin.top - (last.top + last.height - 1),
+      }))
+    }
+  }
+  paragraphMask.value = { base, bites: mask.bites.map(bite) }
 }
 
 // Leaving: the frame closes onto each line's own centre line, slow then fast, the
@@ -464,9 +502,6 @@ const { data: info } = await useAsyncData('splash:info', () =>
       // `true` on a `structure` field returns its raw, unparsed YAML
       // string — `.toStructure` resolves it into actual row objects.
       sentences: 'page.content.sentences.toStructure',
-      // A `writer` field — HTML, typically just a single `<p>`. Stripped
-      // to plain text below (informationsText) for the tab's ticker.
-      informations: true,
     },
   }),
 )
@@ -474,11 +509,6 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 // `long_description` used to render here too, right under `header_subtitle`
 // — nearly the same sentence twice. Dropped so there's one paragraph, not
 // two near-duplicates.
-
-// Plain text for the folder-tab's scrolling ticker — `informations` comes
-// back as writer-field HTML (normally one `<p>...</p>`), not safe/useful
-// to drop into a marquee as-is.
-const informationsText = computed(() => (info.value?.informations ?? '').replace(/<[^>]+>/g, '').trim())
 
 // Cell size is recalculated (not a fixed 80px) so the grid — confined to
 // the splash section's own size minus the (now homogeneous — see
@@ -775,8 +805,8 @@ const SHAPE_EDGE_MARGIN = 30 // px clear under the top tab's line, and above the
 // noise shifted a little (evolve). Dark is livelier: all three at once, in step
 // with the letters, new masses each time, smaller so the videos read as windows.
 const SHAPE_MOTION = {
-  light: { bandTuck: 7, titleTuck: 9, sizeMin: 0.8, drift: 0.06, travelEvery: 12, travelNearest: 1, morphMs: 5000, steps: 25, oneAtATime: true, evolve: 0.4, holdMs: 6000, frameGap: 240 },
-  dark: { bandTuck: 3, titleTuck: 4, sizeMin: 0.55, drift: 0.25, travelEvery: 3, travelNearest: 0.75, morphMs: 1400, steps: 18, oneAtATime: false, evolve: 0, holdMs: 4000, frameGap: 70 },
+  light: { bandTuck: 7, titleTuck: 9, sizeMin: 0.8, drift: 0.06, travelEvery: 12, travelNearest: 1, morphMs: 5000, steps: 25, oneAtATime: true, evolve: 0.4, holdMs: 6000 },
+  dark: { bandTuck: 3, titleTuck: 4, sizeMin: 0.55, drift: 0.25, travelEvery: 3, travelNearest: 0.75, morphMs: 1400, steps: 18, oneAtATime: false, evolve: 0, holdMs: 4000 },
 }
 // Dark mode: what fills each mass, through the duotone (.splash-shape-video).
 const SHAPE_VIDEOS = ['/videos/splash-1.mp4', '/videos/splash-2.mp4', '/videos/splash-3.mp4']
@@ -959,43 +989,46 @@ function morphShapes() {
 // through an empty or half-empty headline — the white backing mask
 // following the lines' widths as they change.
 const HEADLINE_MORPH_MS = 1400
+// How long the letters hold between changes: slower to read than the site's other
+// deciphering text, over the same duration.
+const HEADLINE_LETTER_GAP = { min: 170, max: 270 }
+function headlineTicks() {
+  const ticks = [0]
+  let t = 0
+  for (;;) {
+    t += HEADLINE_LETTER_GAP.min + Math.random() * (HEADLINE_LETTER_GAP.max - HEADLINE_LETTER_GAP.min)
+    if (t >= HEADLINE_MORPH_MS) return ticks
+    ticks.push(t)
+  }
+}
 let headlineTimer: ReturnType<typeof setTimeout> | undefined
 let morphStops: (() => void)[] = []
-// The frame deciphers along with the letters: while they morph, the
-// mask jumps through other silhouettes at the same irregular rhythm,
-// further apart as it goes, and lands on the new headline's own one.
+// The frame changes at the very moments the letters do (ticks): it jumps through
+// other silhouettes, and lands on the new headline's own one with the last letter.
 let frameTimers: ReturnType<typeof setTimeout>[] = []
-function shuffleFrame(finalSeed: number) {
+function shuffleFrame(finalSeed: number, ticks: number[]) {
   frameTimers.forEach(clearTimeout)
   frameTimers = []
-  let t = 0
-  // Light mode's frame jumps less often: see SHAPE_MOTION.
-  let gap = shapeMotion().frameGap
-  while (t + gap < HEADLINE_MORPH_MS - 100) {
-    t += gap
-    frameTimers.push(setTimeout(() => {
-      maskSeed.value = Math.floor(Math.random() * 1e9)
-      buildSentenceMasks()
-    }, t))
-    gap *= 1.18
-  }
-  frameTimers.push(setTimeout(() => {
-    maskSeed.value = finalSeed
+  const jump = (seed: number) => {
+    maskSeed.value = seed
     buildSentenceMasks()
-  }, HEADLINE_MORPH_MS))
+  }
+  for (const at of ticks.slice(1)) frameTimers.push(setTimeout(() => jump(Math.floor(Math.random() * 1e9)), at))
+  frameTimers.push(setTimeout(() => jump(finalSeed), HEADLINE_MORPH_MS))
+  jump(Math.floor(Math.random() * 1e9))
 }
 
 async function nextHeadline() {
   if (leaving.value || !splashEl.value) return
   const previous = [...headlineWords.value]
   headlineIndex.value = (headlineIndex.value + 1) % headlines.value.length
-  shuffleFrame(MASK_SEED + headlineIndex.value * 7919)
   await nextTick()
   if (leaving.value) return
+  const ticks = headlineTicks()
   morphStops = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])]
-    .map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS))
+    .map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks))
   morphShapes()
-  buildSentenceMasks()
+  shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
 function startHeadlineCycle() {
@@ -1055,6 +1088,14 @@ const gridHorizontals = computed(() => {
   if (!g) return []
   return Array.from({ length: g.rows + 1 }, (_, k) => g.top + k * g.cellH)
 })
+const gridNumbers = computed(() => gridHorizontals.value
+  .filter((_, index) => index % 2 === 0)
+  .map((y, index) => ({
+    // The middle of the line: the grid's closing line sits a pixel higher, being
+    // its border, inside its box (.splash-grid).
+    y: y === grid.value?.bottom ? y - 0.5 : y + 0.5,
+    label: String(index + 1).padStart(2, '0'),
+  })))
 function leave() {
   if (leaving.value) return
   stopHeadlineCycle()
@@ -1096,7 +1137,10 @@ function placeShelfCta() {
 function handleResize() {
   computeGrid()
   fitHeadlines()
-  nextTick(buildSentenceMasks)
+  nextTick(() => {
+    fitSubtitleBox()
+    buildSentenceMasks()
+  })
   nextTick(placeShelfCta)
   nextTick(buildShapes)
 }
@@ -1174,13 +1218,12 @@ onUnmounted(() => {
       />
     </svg>
 
-    <!-- The tab's label (CMS `informations` field), fixed, not
+    <!-- The tab's label (TAB_TEXT), sliding, not
          scrolling. Kept inside the trapezoid's own *top-line* span
          (tabLeftInset/tabRightInset), not the full tabWidth bounding box —
          the shape is narrower near the top (the diagonal shoulders), with
          a further 2% padding on each side so the text never touches them. -->
     <div
-      v-if="informationsText"
       class="splash-tab-ticker"
       :style="{
         top: `${tabTop}px`,
@@ -1190,23 +1233,20 @@ onUnmounted(() => {
         paddingLeft: `${(tabWidth - tabLeftInset - tabRightInset) * 0.02}px`,
         paddingRight: `${(tabWidth - tabLeftInset - tabRightInset) * 0.02}px`,
       }"
-      aria-hidden="true"
     >
       <a
-        href="https://www.graduateinstitute.ch/"
+        :href="TAB_LINK"
         target="_blank"
         rel="noopener"
         class="splash-tab-ticker-link"
       >
       <div class="splash-tab-ticker-track text-small">
-        <span class="splash-tab-ticker-full">{{ informationsText }}</span>
-        <!-- Mobile: the institution's name alone, sliding past endlessly
-             — three copies (always enough to fill the tab), the loop jumps
-             back by exactly one of them. -->
-        <span class="splash-tab-ticker-short">
-          <span>GENEVA GRADUATE INSTITUTE</span>
-          <span aria-hidden="true">GENEVA GRADUATE INSTITUTE</span>
-          <span aria-hidden="true">GENEVA GRADUATE INSTITUTE</span>
+        <!-- Too long for the tab: it slides past endlessly — three copies (always
+             enough to fill the tab), the loop jumps back by exactly one of them. -->
+        <span class="splash-tab-ticker-slide">
+          <span>{{ TAB_TEXT }}</span>
+          <span aria-hidden="true">{{ TAB_TEXT }}</span>
+          <span aria-hidden="true">{{ TAB_TEXT }}</span>
         </span>
       </div>
       </a>
@@ -1214,9 +1254,9 @@ onUnmounted(() => {
 
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
       <!-- Dark mode's own gray duotone (app.vue's #duotone-dark: same
-           luma, same neutral grays), but not inverted and held to its
-           dark end — black lands on the page's own background, the
-           brightest land on a mid gray. -->
+           luma, same neutral grays), but not inverted: black lands on the
+           page's own background, and the land's mid tones are lifted so its
+           coasts and relief read as a map. -->
       <svg width="0" height="0" style="position: absolute">
         <filter id="splash-satellite-duotone" color-interpolation-filters="sRGB">
           <feColorMatrix
@@ -1227,9 +1267,9 @@ onUnmounted(() => {
                     0     0     0     1 0"
           />
           <feComponentTransfer>
-            <feFuncR type="table" tableValues="0.10980 0.55" />
-            <feFuncG type="table" tableValues="0.10980 0.55" />
-            <feFuncB type="table" tableValues="0.10980 0.55" />
+            <feFuncR type="table" tableValues="0.10980 0.2 0.5 0.78 0.92" />
+            <feFuncG type="table" tableValues="0.10980 0.2 0.5 0.78 0.92" />
+            <feFuncB type="table" tableValues="0.10980 0.2 0.5 0.78 0.92" />
           </feComponentTransfer>
         </filter>
       </svg>
@@ -1306,13 +1346,28 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Every second line of the grid, numbered in the margin to its left. Over the
+         pixel masses, under the image band: same z-index, so DOM order sets it. -->
+    <div v-if="grid" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
+      <span
+        v-for="(number, index) in gridNumbers"
+        :key="index"
+        :style="{ top: `${number.y}px` }"
+      >[{{ number.label }}]</span>
+    </div>
+
     <!-- Behind .splash-info (lower z-index) — a background layer, not a
          band confined to the margin strip, now that it's centered in the
          viewport like the text is. -->
     <div v-if="images?.length" ref="imagesEl" class="splash-images" aria-hidden="true">
       <div class="splash-images-track">
         <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper">
-          <span v-if="imageLabel(index, image.alt)" class="image-label text-small" :style="{ backgroundColor: imageBadgeColor(index) }">
+          <span
+            v-if="imageLabel(index, image.alt)"
+            class="image-label text-small"
+            :class="{ 'is-hovered': hoveredIndex === index }"
+            :style="{ backgroundColor: imageBadgeColor(index), '--chip-deep': deepBadgeColor(imageBadgeColor(index)!) }"
+          >
             {{ imageLabel(index, image.alt) }}
           </span>
           <img
@@ -1466,6 +1521,7 @@ onUnmounted(() => {
 /* Keeps the track's own line, cut or sliding, inside the tab. */
 .splash-tab-ticker-link .splash-tab-ticker-track {
   display: block;
+  font-size: 12pt;
 }
 
 .corner-link {
@@ -1474,39 +1530,21 @@ onUnmounted(() => {
   text-decoration: none;
 }
 
-/* A fixed line (the CMS's tab text, e.g. "A project by the Geneva
-   Graduate Institute") — no longer scrolling; cut with an ellipsis if a
-   narrow tab can't hold it. */
 .splash-tab-ticker-track {
+  width: 100%;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-.splash-tab-ticker-short {
-  display: none;
+.splash-tab-ticker-slide {
+  display: inline-flex;
+  animation: splash-tab-ticker-slide 24s linear infinite;
 }
 
-@media (max-width: 1150px) {
-  .splash-tab-ticker-full {
-    display: none;
-  }
-
-  .splash-tab-ticker-track {
-    width: 100%;
-    text-overflow: clip;
-  }
-
-  .splash-tab-ticker-short {
-    display: inline-flex;
-    animation: splash-tab-ticker-slide 9s linear infinite;
-  }
-
-  /* Gap after each copy, so the loop's seam spaces like the rest. */
-  .splash-tab-ticker-short span {
-    padding-right: 2.5em;
-  }
+/* Gap after each copy, so the loop's seam spaces like the rest. */
+.splash-tab-ticker-slide span {
+  padding-right: 2.5em;
 }
 
 @keyframes splash-tab-ticker-slide {
@@ -1515,8 +1553,8 @@ onUnmounted(() => {
   }
 }
 
-@media (max-width: 1150px) and (prefers-reduced-motion: reduce) {
-  .splash-tab-ticker-short {
+@media (prefers-reduced-motion: reduce) {
+  .splash-tab-ticker-slide {
     animation: none;
   }
 }
@@ -1663,6 +1701,42 @@ onUnmounted(() => {
   transition: opacity 0.8s ease;
 }
 
+.splash-grid-numbers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 8px;
+  line-height: 1;
+  color: var(--color-ink);
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+.splash-grid-numbers span {
+  position: absolute;
+  right: 7px;
+  opacity: 0.45;
+  /* Down to the digits themselves, so their middle is what sits on the line. */
+  text-box: trim-both cap alphabetic;
+  /* Its digits sit a touch lower than its capitals. */
+  transform: translateY(calc(-50% - 0.4px));
+}
+
+.splash.intro-logo .splash-grid-numbers,
+.splash.is-leaving .splash-grid-numbers {
+  opacity: 0;
+}
+
+/* No margin to sit in, at this width. */
+@media (max-width: 1150px) {
+  .splash-grid-numbers {
+    display: none;
+  }
+}
+
 .splash-shapes {
   position: absolute;
   inset: 0;
@@ -1725,7 +1799,7 @@ onUnmounted(() => {
   inset: 0;
   background: var(--satellite) center / cover no-repeat;
   filter: url(#splash-satellite-duotone);
-  opacity: 0.45;
+  opacity: 0.8;
 }
 
 .splash.intro-logo .splash-satellite {
@@ -1910,8 +1984,10 @@ onUnmounted(() => {
   /* White rectangle sized to the text, not the other way round — inline
      so the box hugs exactly the three lines of text inside it. */
   display: inline-block;
+  box-sizing: border-box;
   background: var(--color-surface);
   padding: 20px 28px;
+  font-size: 14pt;
   /* Line breaks come from the CMS (subtitleLines): a line only wraps further
      if it doesn't fit the screen. */
   max-width: 90vw;
@@ -2146,10 +2222,21 @@ onUnmounted(() => {
   left: 0;
   z-index: 1;
   padding: 2px 6px;
-  /* Black on its pastel chip in both themes (dark mode's own ink is
-     near-white, unreadable on these light colors). */
+  /* Same as the subtitle chips (BadgeChip.vue, is-caps): black on its pastel
+     color in both themes. */
+  font-weight: 500;
+  font-size: 14px;
   color: var(--color-on-pastel);
   white-space: nowrap;
+  /* Passes through to the image, whose hover drives the label's. */
+  pointer-events: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* !important: the color is set inline. */
+.image-label.is-hovered {
+  background-color: var(--chip-deep) !important;
+  color: #fff;
 }
 
 @keyframes splash-scroll {

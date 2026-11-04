@@ -8,6 +8,14 @@ export function badgeColorFor(index: number) {
   return BADGE_COLORS[index % BADGE_COLORS.length]
 }
 
+// The same three, deep enough for white text: the tool pages' own deep shades
+// (main.css), with Bot/Troll's -signal teal, its -accent-deep being too pale.
+const DEEP_BADGE_COLORS = ['#e2654f', '#2a7d70', '#8a5fc7']
+
+export function deepBadgeColor(color: string) {
+  return DEEP_BADGE_COLORS[BADGE_COLORS.indexOf(color)] ?? color
+}
+
 // Tools follow their own tool colors, not the plain badge cycle: tool 2
 // (DE.CO.DE Extension) is purple and tool 3 (Bot / Troll Detector) teal —
 // the same accents their own pages use (--tool-sourcerel-accent,

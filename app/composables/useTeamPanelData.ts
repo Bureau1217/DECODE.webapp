@@ -5,11 +5,7 @@
 export interface TeamMember {
   first_name?: string
   last_name?: string
-  position?: string
   short_bio?: string
-  // team.yml's "Photo" (fields/image.yml): file UUIDs (`file://…`) of the
-  // about page's own images — resolved against `images` below.
-  picture?: string[]
 }
 
 export interface TeamBlock {
@@ -20,7 +16,6 @@ export interface TeamBlock {
 
 export interface TeamPanelData {
   teams?: TeamBlock[]
-  images?: { uuid: string, url: string }[]
 }
 
 // Kept in app state (per language), not useAsyncData: Nuxt drops async
@@ -36,7 +31,6 @@ export async function useTeamPanelData() {
       query: "page('about')",
       select: {
         teams: 'page.content.teams.toBlocks.toArray',
-        images: { query: 'page.images', select: { uuid: 'file.uuid', url: "file.thumb('web-small').url" } },
       },
     })
     byLanguage.value = { ...byLanguage.value, [lang]: result }

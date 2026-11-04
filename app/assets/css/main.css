@@ -7,14 +7,87 @@
    reads as the brand mark, not just another line of body copy). Stands in
    for Extraset's Plakat, a commercial font not available to embed here
    (Anton and Archivo Black were tried first — too condensed / too heavy).
-   Cormorant Garamond (https://fonts.google.com/specimen/Cormorant+Garamond): regular
-   and italic 400/700 — guide article cards' title/secondary-title, same
-   family Splash.vue's corner titles reference (those rely on the
-   visitor's own system Garamond, unloaded; this is the first place that
-   family is actually fetched). The article/resource detail panels' own
-   big body text (TemplateDefault.vue, TemplateRessource.vue) uses plain
-   Arial/Helvetica — no webfont needed for that one. */
-@import url('https://fonts.googleapis.com/css2?family=Martian+Mono:wdth,wght@75,500;100,400;100,500&family=Archivo:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap');
+   The article/resource detail panels' own big body text (TemplateDefault.vue,
+   TemplateRessource.vue) uses plain Arial/Helvetica — no webfont needed for
+   that one. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;700&display=swap');
+
+/* Ortica Linear, Collletttivo's open-source serif (SIL OFL, licence beside the
+   file): guide article cards' titles and the other --font-serif text. */
+@font-face {
+  font-family: 'Ortica Linear';
+  src: url('/fonts/OrticaLinear-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ABC Areal, Dinamo's free fonts. Their licence forbids public repositories, and
+   this one is public: the files are gitignored, and uploaded to the server's
+   public/fonts by hand. Without them the site falls back to Arial and monospace. */
+@font-face {
+  font-family: 'ABC Areal';
+  src: url('/fonts/ABCAreal-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal';
+  src: url('/fonts/ABCAreal-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal';
+  src: url('/fonts/ABCAreal-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal';
+  src: url('/fonts/ABCAreal-RegularItalic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal Mono';
+  src: url('/fonts/ABCArealMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal Mono';
+  src: url('/fonts/ABCArealMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal Mono';
+  src: url('/fonts/ABCArealMono-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'ABC Areal Mono';
+  src: url('/fonts/ABCArealMono-RegularItalic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
 
 /* Minimal reset — the default UA stylesheet's body margin (~8px) throws
    off any `height: 100vh` section (e.g. the splash screen), clipping a
@@ -144,8 +217,9 @@ body {
 
   /* Fonts — see the @import at the top of this file for what each family
      is used for. */
-  --font-mono: 'Martian Mono', monospace;
-  --font-serif: 'Cormorant Garamond', Garamond, serif;
+  --font-mono: 'ABC Areal Mono', monospace;
+  --font-text: 'ABC Areal', Arial, Helvetica, sans-serif;
+  --font-serif: 'Ortica Linear', Garamond, serif;
   --font-display: 'Archivo', sans-serif;
 }
 
@@ -256,8 +330,6 @@ body {
 .text-chip {
   font-family: var(--font-mono);
   font-weight: 500;
-  /* Its condensed cut: in capitals, the regular one is too wide for a card. */
-  font-stretch: condensed;
   font-size: calc(10pt - 2px);
   line-height: 1.5;
   text-transform: uppercase;
@@ -305,14 +377,14 @@ body {
 }
 
 .text-body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-text);
   font-weight: 400;
   font-size: 26px;
   line-height: 1.4;
 }
 
 .text-note {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-text);
   font-weight: 400;
   font-size: 12pt;
   line-height: 1.4;
@@ -373,10 +445,12 @@ img.no-duotone {
   filter: url(#duotone-dark);
 }
 
-/* A guide card's visual drops the duotone with the whole card's hover, not
-   only when the pointer is on the image itself. */
+/* A guide or tool card's visual drops the duotone with the whole card's hover,
+   not only when the pointer is on the image itself. */
 .guide-card:hover img,
-:root[data-theme='dark'] .guide-card:hover img:not(.no-duotone) {
+.tool-card:hover img,
+:root[data-theme='dark'] .guide-card:hover img:not(.no-duotone),
+:root[data-theme='dark'] .tool-card:hover img:not(.no-duotone) {
   filter: none;
 }
 

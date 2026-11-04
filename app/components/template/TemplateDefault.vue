@@ -82,7 +82,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
           <template v-if="openedFromCard">{{ page.title }}</template>
           <DecipherText v-else :text="page.title" />
         </h1>
-        <BadgeChip v-if="page.header_subtitle" class="article-detail-subtitle" :color="badgeColor" :style="sharedPart('subtitle')">
+        <BadgeChip v-if="page.header_subtitle" class="article-detail-subtitle" caps :color="badgeColor" :style="sharedPart('subtitle')">
           {{ page.header_subtitle }}
         </BadgeChip>
       </header>
@@ -113,8 +113,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
                 :title="item.title"
                 class="text-note"
               >
-                <span class="article-detail-subpage-title">{{ item.title }}</span>
-                <span class="article-detail-subpage-arrow" aria-hidden="true">→</span>
+                {{ item.title }}
               </NuxtLink>
             </li>
           </ul>
@@ -209,8 +208,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   min-height: 10vh;
 }
 
-/* Index rows, like the keywords panel's: a rule above each, the whole row
-   clickable, the arrow saying it leads somewhere. */
+/* Plain links, underlined, 2 by 2. */
 .article-detail-subpages ul {
   list-style: none;
   margin: 0;
@@ -218,12 +216,11 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   width: 100%;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 16px;
+  gap: 6px 16px;
 }
 
 .article-detail-subpages li {
   min-width: 0;
-  border-bottom: 1px solid var(--color-on-fill);
 }
 
 /* Alone, it has no neighbour to leave room for. */
@@ -231,42 +228,21 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   grid-column: 1 / -1;
 }
 
-/* Every entry between two lines: the rows below share the one above's. */
-.article-detail-subpages li:nth-child(-n + 2) {
-  border-top: 1px solid var(--color-on-fill);
-}
-
-.article-detail-subpages a {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 0 7px;
-  color: inherit;
-  text-decoration: none;
-}
-
 /* One line, cut with an ellipsis: the full title shows on hover (title). */
-.article-detail-subpage-title {
-  min-width: 0;
+.article-detail-subpages a {
+  display: block;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-.article-detail-subpages a:hover .article-detail-subpage-title {
+  color: inherit;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
+  transition: opacity 0.15s ease;
 }
 
-.article-detail-subpage-arrow {
-  flex-shrink: 0;
-  transition: transform 0.15s ease;
-}
-
-.article-detail-subpages a:hover .article-detail-subpage-arrow {
-  transform: translateX(3px);
+.article-detail-subpages a:hover {
+  opacity: 0.65;
 }
 
 /* Same look as Splash.vue's own .splash-cta (its one CTA button) — square

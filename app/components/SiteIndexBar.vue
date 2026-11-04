@@ -36,10 +36,12 @@ const isSearchPage = computed(() => route.path === '/search')
 // brown — each tool page gets its own exit button (TemplateToolPageLayout.
 // vue, top-right corner) rather than this bar.
 const { theme, isThemed } = useToolTheme()
-// A tool's own page has no keywords panel to show visually — there the
-// toggle stays in place but grayed out and disabled, rather than
-// vanishing from the bar. The /tools list itself keeps it.
+// A tool's own page has no keywords panel to show visually, nor has About (its
+// panel is the team) — there the toggle stays in place but grayed out and
+// disabled, rather than vanishing from the bar, and Index is the one selected.
+// The /tools list itself keeps it.
 const isToolsSection = computed(() => route.path.startsWith('/tools/'))
+const noVisualMode = computed(() => isToolsSection.value || isAboutPage.value)
 // The Investigation Guide in dark mode: the middle rule in the same brown
 // as this bar's own divider, instead of vanishing into the dark page.
 const isGuidePage = computed(() => route.path === '/guide' || route.path.startsWith('/guide/'))
@@ -88,7 +90,7 @@ const introTransition = useIntroTransition()
       <button
         type="button"
         class="text-label index-bar-item index-bar-index"
-        :class="{ active: isMobile ? mobileIndexOpen : displayMode === 'index' }"
+        :class="{ active: isMobile ? mobileIndexOpen : noVisualMode || displayMode === 'index' }"
         @click="onIndexClick"
       >
         <span class="index-bar-dot" aria-hidden="true" />
@@ -97,8 +99,8 @@ const introTransition = useIntroTransition()
       <button
         type="button"
         class="text-label index-bar-item index-bar-visual"
-        :class="{ active: !isToolsSection && displayMode === 'visual' }"
-        :disabled="isToolsSection"
+        :class="{ active: !noVisualMode && displayMode === 'visual' }"
+        :disabled="noVisualMode"
         @click="displayMode = 'visual'"
       >
         <span class="index-bar-dot" aria-hidden="true" />
@@ -231,7 +233,7 @@ const introTransition = useIntroTransition()
   cursor: pointer;
 }
 
-/* Visual on /tools (script, isToolsSection): nothing to switch to. */
+/* Visual on a tool's page or About (script, noVisualMode): nothing to switch to. */
 .index-bar-item:disabled {
   opacity: 0.4;
   cursor: default;

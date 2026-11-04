@@ -36,7 +36,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     <h2 class="guide-card-title text-h2" :style="sharedPart('title')">{{ item.title }}</h2>
     <!-- Under the title, same order as on the opened article
          (TemplateDefault.vue), so the opening morph never crosses them. -->
-    <BadgeChip v-if="item.header_subtitle" class="guide-card-subtitle" :color="badgeColor" :style="sharedPart('subtitle')">
+    <BadgeChip v-if="item.header_subtitle" class="guide-card-subtitle" caps :color="badgeColor" :style="sharedPart('subtitle')">
       {{ item.header_subtitle }}
     </BadgeChip>
   </NuxtLink>
@@ -91,6 +91,12 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 .guide-card-subtitle {
   margin: 6px 0 0;
   text-align: center;
+}
+
+/* !important: BadgeChip sets its own color inline. */
+.guide-card:hover .guide-card-subtitle {
+  background-color: var(--chip-deep) !important;
+  color: #fff;
 }
 
 .guide-card-title {

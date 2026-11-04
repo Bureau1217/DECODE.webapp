@@ -205,7 +205,7 @@ const steps = [
   /* Its own small type, not the body's 26px. */
   font-size: 10pt;
   line-height: normal;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-text);
   background: var(--color-surface);
 }
 

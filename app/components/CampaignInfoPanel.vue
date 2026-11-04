@@ -187,8 +187,8 @@ const display = computed(() => {
 }
 
 /* Tool name (intro state only) — same family, size and weight as the
-   "Idea by" h3 next to it (Martian Mono, 12pt, regular); not the EB
-   Garamond serif reserved for an actual campaign's name below. */
+   "Idea by" h3 next to it (Martian Mono, 12pt, regular); not the
+   serif reserved for an actual campaign's name below. */
 .campaign-panel li.campaign-panel-tool-title-row {
   padding: 16px 10px;
   color: var(--color-ink);
