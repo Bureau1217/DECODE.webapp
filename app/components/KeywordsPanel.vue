@@ -39,7 +39,7 @@ const isMobile = useIsMobile()
 function showPreview(tag: CategoryWithTags['tags'][number], index: number) {
   const img = tag.image?.[index]
   if (displayMode.value !== 'visual' || !img) return false
-  previewImage.value = { url: img.url, width: img.width, height: img.height, alt: img.alt || tag.title, title: tag.title, description: tag.description }
+  previewImage.value = { url: img.url, width: img.width, height: img.height, alt: cleanAlt(img.alt, tag.title), title: tag.title, description: tag.description }
   nextTick(fitPreview)
   return true
 }
@@ -62,10 +62,28 @@ function fitPreview() {
 }
 function onRowEnter(tag: CategoryWithTags['tags'][number], event: MouseEvent) {
   if (isMobile.value) return
-  placePreview(event.currentTarget as HTMLElement)
+  enterRow(tag, event.currentTarget as HTMLElement)
+}
+// Low in the panel, a definition opens upwards: it would run under the footer.
+const popupAbove = ref(false)
+function enterRow(tag: CategoryWithTags['tags'][number], row: HTMLElement) {
+  placePreview(row)
+  popupAbove.value = row.getBoundingClientRect().top > window.innerHeight * 0.6
   if (showPreview(tag, 0)) return
   hoveredTagId.value = tag.id
 }
+// A mention of the keyword in a text is under the pointer (useKeywordTerms): the
+// same as hovering its row, brought into view if the panel has scrolled past it.
+const hoveredTerm = useHoveredTerm()
+watch(hoveredTerm, (id) => {
+  if (isMobile.value) return
+  if (!id) return onRowLeave()
+  const tag = (categories.value ?? []).flatMap((category) => category.tags).find((item) => item.id === id)
+  const row = document.querySelector<HTMLElement>(`.keywords-panel li[data-keyword="${CSS.escape(id)}"]`)
+  if (!tag || !row) return
+  row.scrollIntoView({ block: 'nearest' })
+  enterRow(tag, row)
+})
 // The row itself always previews its first image; hovering one of its
 // thumbnails previews that one instead, back to the first on leaving it.
 function onImageEnter(tag: CategoryWithTags['tags'][number], index: number) {
@@ -141,7 +159,8 @@ function isRelated(tagId: string) {
         <li
           v-for="tag in category.tags"
           :key="tag.id"
-          :class="{ dimmed: isDimmed(tag.id), related: isRelated(tag.id) }"
+          :class="{ dimmed: isDimmed(tag.id), related: isRelated(tag.id) || hoveredTerm === tag.id }"
+          :data-keyword="tag.id"
           :style="{ '--row-delay': `${ruleDelaySeconds(tag.id)}s` }"
           @mouseenter="onRowEnter(tag, $event)"
           @mouseleave="onRowLeave"
@@ -161,13 +180,13 @@ function isRelated(tagId: string) {
                 :src="img.thumb"
                 :width="img.width"
                 :height="img.height"
-                :alt="img.alt || tag.title"
+                :alt="cleanAlt(img.alt, tag.title)"
                 @mouseenter="onImageEnter(tag, i)"
                 @mouseleave="onImageLeave(tag)"
               >
             </div>
           </div>
-          <div v-if="hoveredTagId === tag.id && tag.description" class="keywords-panel-popup text-note">
+          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]">
             <div class="keywords-panel-popup-title">{{ tag.title }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="keywords-panel-popup-definition" v-html="tag.description" />
@@ -437,6 +456,11 @@ function isRelated(tagId: string) {
   color: var(--color-brand);
 }
 
+.keywords-panel-popup.is-above {
+  top: auto;
+  bottom: -1px;
+}
+
 .keywords-panel-popup-title {
   margin-bottom: 4px;
   font-weight: 700;
@@ -497,7 +521,8 @@ function isRelated(tagId: string) {
     cursor: pointer;
   }
 
-  .keywords-panel-popup {
+  .keywords-panel-popup,
+  .keywords-panel-popup.is-above {
     position: static;
     width: auto;
     margin: 0 10px 10px;

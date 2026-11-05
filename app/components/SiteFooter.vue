@@ -152,8 +152,8 @@ function toggleColorMode() {
 }
 
 .footer-brand {
-  font-family: var(--font-display);
-  font-weight: 800;
+  font-family: var(--font-text);
+  font-weight: 700;
   /* The only footer text that gets the +2pt bump — default browser
      text-size (~12pt, no --text-* var covers this one) + 2. */
   font-size: 18pt;

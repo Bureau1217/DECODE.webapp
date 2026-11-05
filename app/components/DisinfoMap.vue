@@ -195,10 +195,11 @@ onMounted(async () => {
     center: [10, 25],
     zoom: 1.5,
     projection: 'mercator',
-    // No "(i)" attribution control — paired with the CSS below that also
-    // hides the Mapbox wordmark logo control (always added regardless of
-    // this option), for a fully chrome-free map per the design reference.
+    // No "(i)" attribution control: the map draws none of Mapbox's own data.
+    // Its logo stays, at its own size: Mapbox's terms don't allow restyling it.
     attributionControl: false,
+    // No performance statistics sent to Mapbox.
+    performanceMetricsCollection: false,
   })
 
   map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right')
@@ -380,6 +381,9 @@ onBeforeUnmount(() => {
   inset: 0;
   width: 100%;
   height: 100%;
+  /* The ocean's color past the top of the world, where Mapbox draws nothing:
+     a tall map zoomed out shows it (the 'background' layer below). */
+  background: #fbd9d2;
 }
 
 .map-filters-overlay {
@@ -566,12 +570,5 @@ onBeforeUnmount(() => {
   max-width: 150px;
   text-align: left;
   white-space: normal;
-}
-
-/* Mapbox's own wordmark control — always added regardless of the
-   `attributionControl` map option above, hidden here per the design
-   reference's chrome-free map. */
-.map-wrapper :deep(.mapboxgl-ctrl-logo) {
-  display: none !important;
 }
 </style>

@@ -241,16 +241,10 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
   return { base, bites }
 }
 
-// Dark mode only: a darkened satellite view of Europe under the grid
-// One Mapbox Static Images request (the
-// same public token as the tools' maps), fetched only when dark mode is
-// on, with its logo and attribution left off the image.
+// Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
+// Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
-const satelliteUrl = computed(() => {
-  if (colorMode.value !== 'dark') return null
-  const token = useRuntimeConfig().public.mapboxToken
-  return `https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/26,47,3.5,0/1280x600@2x?attribution=false&logo=false&access_token=${token}`
-})
+const satelliteUrl = computed(() => (colorMode.value === 'dark' ? '/nasa/europe-splash.jpg' : null))
 
 // The CMS headline list (site_infos.yml's "sentences"), which the splash
 // cycles through. Each row is one headline, and a line break in it is a line
@@ -513,9 +507,12 @@ const scrollingImages = computed(() => [...(images.value ?? []), ...(images.valu
 // The shelf layout's band height: keep in sync with .splash.is-shelf .splash-images.
 const SHELF_BAND_VH = 34
 const HEIGHT_VARIANTS = [1, 0.45, 0.8, 0.35, 0.95, 0.55, 0.7, 0.4]
-function imageHeight(index: number) {
+function imageVariant(index: number) {
   const n = images.value?.length || 1
-  const variant = HEIGHT_VARIANTS[(index % n) % HEIGHT_VARIANTS.length] ?? 1
+  return HEIGHT_VARIANTS[(index % n) % HEIGHT_VARIANTS.length] ?? 1
+}
+function imageHeight(index: number) {
+  const variant = imageVariant(index)
   // imagesBandHeight starts at 0 until computeGrid's first measurement on
   // mount — the CSS band height (44vh) until then, which server and browser
   // agree on, unlike anything read off the window.
@@ -690,6 +687,9 @@ const STRIP_MAX_HEIGHT = 0.28 // of the window's height
 const stripTop = ref(0)
 const stripStyle = ref<Record<string, string>>({})
 let stripTallest = 0 // px, the tallest image as last measured (placeStrip)
+let stripMinHeight = 0 // px, the least placeStrip brings the strip down to
+let stripFullHeight = 0 // px, what it starts from
+const STRIP_IMAGE_MAX_WIDTH = 0.6 // of the window's width: keep in sync with --splash-image-max-width
 const STRIP_GAP_MAX = 0.025 // of the window's height
 let stripGap = 0 // px, above the strip and between the headline and the subtitle
 const infoStyle = ref<Record<string, string>>({})
@@ -775,9 +775,14 @@ function computeGrid() {
     // Keeps a margin from the button, which is centered on the grid's bottom line.
     const halfGrid = usableH / 2
     const ctaHeight = splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0
-    const stripHeight = Math.max(halfGrid * 0.5, Math.min(window.innerHeight * STRIP_MAX_HEIGHT, halfGrid - ctaHeight - margin * 2))
+    // The text stands above what's kept for the strip; the images themselves start at
+    // their full size, and placeStrip brings them down only as far as they have to.
+    stripMinHeight = halfGrid * 0.5
+    const stripRoom = Math.max(stripMinHeight, Math.min(window.innerHeight * STRIP_MAX_HEIGHT, halfGrid - ctaHeight - margin * 2))
+    const stripHeight = Math.max(stripRoom, window.innerHeight * STRIP_MAX_HEIGHT)
     const stripCenter = gridTop + halfGrid * 1.5
-    stripTop.value = stripCenter - stripHeight / 2
+    stripTop.value = stripCenter - stripRoom / 2
+    stripFullHeight = stripHeight
     imagesBandHeight.value = stripHeight
     stripStyle.value = { top: `${stripCenter}px`, height: `${stripHeight}px` }
     // The grid's margin, unless the window is so short that it would squeeze the text.
@@ -895,10 +900,13 @@ const SHAPE_GRID_OVERHANG = 2 // mobile: cells a top mass may reach past the gri
 const SHAPE_TOP_LIFT = 6 // mobile: cells a top mass rises above the grid
 const SHAPE_TOP_WIDTH = 0.24 // mobile: a top mass's width at most, of the screen's
 const SHAPE_TOP_RATIO = 1.6 // mobile: a top mass's height at most, as a multiple of its width
-const SHAPE_CROSS_COLS = 22 // mobile: the crossing mass's size in cells, its outer ones mostly empty
+const SHAPE_TOP_SCALE = 0.6 // desktop: a top mass's area, of the corner's
+const SHAPE_TOP_TUCK = 3 // desktop: cells a top mass reaches behind the headline
+const SHAPE_TOP_RIGHT_RISE = 0.5 // desktop: how much of the right top mass stands above the headline's top (the left one: all of it)
+const SHAPE_CROSS_COLS = 22 // the crossing mass's size in cells, its outer ones mostly empty
 const SHAPE_CROSS_ROWS = 8
-const SHAPE_CROSS_HOP = 6 // mobile: cells further right each new form of the crossing mass lands
-const SHAPE_CROSS_MS = 7000 // mobile: how long it takes to turn into that next form
+const SHAPE_CROSS_HOP = 6 // cells further right each new form of the crossing mass lands
+const SHAPE_CROSS_MS = 7000 // how long it takes to turn into that next form
 const SHAPE_CROSS_STEPS = 28
 let crossLeft = 0 // cells from the screen's left edge
 let crossActive = false
@@ -981,6 +989,32 @@ function shapeArea(corner: number) {
       bottom,
     }
   }
+  if (!shelfLayout) {
+    // Desktop: the bottom mass crosses between the subtitle and the button.
+    if (bottom) {
+      const subtitle = splash.querySelector('.splash-subtitle-box')?.getBoundingClientRect()
+      const cta = splash.querySelector('.splash-cta')?.getBoundingClientRect()
+      const middle = subtitle && cta ? (subtitle.bottom + cta.top) / 2 - origin.top : bandBottom
+      return { left: crossLeft + pad, top: Math.round(middle / cell - SHAPE_CROSS_ROWS / 2), cols: SHAPE_CROSS_COLS, rows: SHAPE_CROSS_ROWS, right, bottom }
+    }
+    // The top ones are smaller, tucked behind the headline's upper corners along the
+    // diagonal, the right one lower so the two don't line up. `right` flips: what
+    // room is left over opens towards the screen's edge, the mass keeping to the title.
+    const titleTop = (sentencesEl.value?.getBoundingClientRect().top ?? top) - origin.top
+    const cols = Math.floor(width * SHAPE_TOP_SCALE / cell)
+    const rows = Math.floor((end - top) * SHAPE_TOP_SCALE / cell)
+    const tuck = SHAPE_TOP_TUCK * cell
+    const titleEdge = right ? halfScreen + halfTitle - tuck : halfScreen - halfTitle + tuck - cols * cell
+    const massTop = titleTop + tuck - rows * cell * (right ? SHAPE_TOP_RIGHT_RISE : 1)
+    return {
+      left: Math.round(Math.max(0, Math.min(origin.width - cols * cell, titleEdge)) / cell) + pad,
+      top: Math.max(Math.ceil(top / cell), Math.round(massTop / cell)),
+      cols,
+      rows,
+      right: !right,
+      bottom,
+    }
+  }
   return {
     left: Math.round((right ? origin.width - width : 0) / cell) + pad,
     top: Math.ceil(top / cell),
@@ -994,8 +1028,8 @@ function shapeArea(corner: number) {
 function shapeTarget(state: ShapeState) {
   const { cols, rows, pad, cell } = shapeGrid.value
   const area = shapeArea(state.corner)
-  // Mobile: the crossing mass takes its whole area.
-  const whole = !!stripTop.value && area.bottom
+  // The crossing mass takes its whole area.
+  const whole = !shelfLayout && area.bottom
   const width = Math.max(6, whole ? area.cols : Math.round(area.cols * state.width))
   const height = Math.max(6, whole ? area.rows : Math.round(area.rows * state.height))
   const spareX = whole ? 0 : Math.round((area.cols - width) * state.slackX)
@@ -1035,7 +1069,7 @@ function buildShapes() {
   if (crossActive) crossHop()
 }
 
-// Mobile: the small mass behind the strip never slides. It keeps turning, a cell at
+// The small mass behind the images never slides. It keeps turning, a cell at
 // a time, into a new form a little further right: its back falling away first, its
 // front growing last. Past the right edge, it comes back in from the left. On its
 // own clock, not the headline's (morphShapes leaves it out).
@@ -1043,7 +1077,7 @@ function crossHop() {
   clearTimeout(crossTimer)
   const index = shapeStates.findIndex((state) => SHAPE_CORNERS[state.corner]!.bottom)
   const cells = shapeCells[index]
-  if (!stripTop.value || !cells) return
+  if (shelfLayout || !cells) return
   const state = shapeStates[index]!
   crossLeft += SHAPE_CROSS_HOP
   if (crossLeft >= shapeGrid.value.cols - shapeGrid.value.pad) crossLeft = -SHAPE_CROSS_COLS
@@ -1122,11 +1156,11 @@ function morphShapes() {
       ? corner.right === freeCorner.right && corner.bottom !== freeCorner.bottom
       : corner.right !== freeCorner.right && corner.bottom === freeCorner.bottom
   })
-  // Mobile: none travels, each mass having its own place around the text and strip.
-  const traveler = !stripTop.value && shapeRound % motion.travelEvery === 0 ? neighbor(Math.random() < motion.travelNearest) : -1
+  // None travels, each mass having its own place, except in the shelf layout.
+  const traveler = shelfLayout && shapeRound % motion.travelEvery === 0 ? neighbor(Math.random() < motion.travelNearest) : -1
   const turn = traveler >= 0 ? traveler : shapeRound % shapeStates.length
   const plans = shapeStates.map((state, index) => {
-    const crossing = !!stripTop.value && SHAPE_CORNERS[state.corner]!.bottom
+    const crossing = !shelfLayout && SHAPE_CORNERS[state.corner]!.bottom
     if (crossing || (motion.oneAtATime && index !== turn)) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
     const before = shapeTarget(state)
     if (index === traveler) state.corner = free
@@ -1326,10 +1360,27 @@ function placeShelfCta() {
   ctaStyle.value = { top: `${subtitle.offsetTop + subtitle.offsetHeight + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
 }
 
+// The strip's height for every image to stand within `room`. An image stands at its
+// share of that height (imageVariant) unless its width's cap stops it shorter, which
+// is why most phones keep the full height. An image still loading could be any shape.
+function stripFitHeight(room: number) {
+  const maxWidth = window.innerWidth * STRIP_IMAGE_MAX_WIDTH
+  const imgs = [...(splashEl.value?.querySelectorAll<HTMLImageElement>('.splash-images-track img') ?? [])]
+  let height = stripFullHeight
+  imgs.forEach((img, index) => {
+    const variant = imageVariant(index)
+    const capped = img.naturalWidth ? maxWidth * img.naturalHeight / img.naturalWidth : Infinity
+    if (Math.min(stripFullHeight * variant, capped) > room) height = Math.min(height, room / variant)
+  })
+  return Math.max(stripMinHeight, height)
+}
+
 // Mobile: slides the strip up from where computeGrid put it, so its tallest image
 // (often short of the strip's full height, its width being capped) is as far from
 // the subtitle above as from the button below. The text stays put. Returns whether
 // it moved. Measured, so it runs again as each image arrives (onStripImageLoad).
+// First, the strip's height is brought down if an image would leave less than a
+// margin each side (stripFitHeight).
 function placeStrip() {
   if (!stripTop.value || !grid.value || !splashEl.value) return false
   const tallest = Math.max(0, ...[...splashEl.value.querySelectorAll<HTMLElement>('.splash-images-track img')].map((img) => img.offsetHeight))
@@ -1337,6 +1388,16 @@ function placeStrip() {
   stripTallest = tallest
   const subtitleBottom = stripTop.value - stripGap
   const ctaTop = grid.value.bottom - (splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0) / 2
+  const height = stripFitHeight(ctaTop - subtitleBottom - stripGap * 2)
+  if (Math.abs(height - imagesBandHeight.value) > 0.5) {
+    imagesBandHeight.value = height
+    stripStyle.value = { ...stripStyle.value, height: `${height}px` }
+    nextTick(() => {
+      placeStrip()
+      buildShapes()
+    })
+    return true
+  }
   const gap = Math.max(0, (ctaTop - subtitleBottom - tallest) / 2)
   const top = `${ctaTop - gap - imagesBandHeight.value / 2}px`
   if (stripStyle.value.top === top) return false
@@ -1596,7 +1657,7 @@ onUnmounted(() => {
           </span>
           <img
             :src="image.url"
-            :alt="image.alt || ''"
+            :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index }"
             :style="{ maxHeight: imageHeight(index) }"
             @load="onStripImageLoad"
@@ -1942,6 +2003,8 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 8px;
   line-height: 1;
+  /* The mono's alternative zero, on top of the site's round dots (main.css). */
+  font-feature-settings: 'ss11', 'zero';
   color: var(--color-ink);
   pointer-events: none;
   transition: opacity 0.8s ease;
@@ -2059,8 +2122,8 @@ onUnmounted(() => {
   justify-content: center;
   background: var(--color-surface);
   color: var(--color-ink);
-  font-family: var(--font-display);
-  font-weight: 800;
+  font-family: var(--font-text);
+  font-weight: 700;
   font-size: clamp(20px, 3.6vw, 64px);
   letter-spacing: -0.01em;
 }
@@ -2220,6 +2283,7 @@ onUnmounted(() => {
   background: var(--color-surface);
   padding: 20px 28px;
   font-size: 14pt;
+  font-weight: 400;
   /* Line breaks come from the CMS (subtitleLines): a line only wraps further
      if it doesn't fit the screen. */
   max-width: 90vw;
@@ -2294,10 +2358,7 @@ onUnmounted(() => {
   color: var(--color-ink);
 }
 
-/* Display text — Archivo bold (700), same family/weight as the footer
-   brand (see main.css for the import) — a free stand-in for Extraset's
-   Plakat, a commercial font (Anton was tried first but reads as too
-   condensed here; Archivo Black was tried next but reads as too heavy).
+/* Display text — ABC Areal bold, same family/weight as the footer brand.
    No list styling since this is now plain stacked divs, not a <ul>. Each
    line's translateX (inline style, sentenceOffset) staggers them instead
    of sharing one center axis. Font size and height come from fitHeadlines
@@ -2310,7 +2371,7 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: center;
   width: 100%;
-  font-family: var(--font-display);
+  font-family: var(--font-text);
   font-weight: 700;
   text-transform: uppercase;
 }

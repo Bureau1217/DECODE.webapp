@@ -16,3 +16,14 @@ export function cmsImage(page: unknown, field: string): string | undefined {
   if (typeof og === 'string') return og
   return typeof url === 'string' ? url : undefined
 }
+
+/**
+ * An image's alt text, unless it's only the file's name (the CMS fills it in from
+ * that): a screenshot's date, a design tool's "Group 59", a stock photo's code.
+ * Then what's around the image says more.
+ */
+export function cleanAlt(alt: string | null | undefined, fallback = ''): string {
+  const text = alt?.replace(/\s*\(\d{6,}\)\s*$/, '').trim()
+  if (!text || /^(screenshot|group \d|img[ _-]?\d|dsc[ _-]?\d)/i.test(text) || /\d{7,}|[A-Za-z0-9]{20,}|\d{3,}x\d{3,}/.test(text)) return fallback
+  return text
+}

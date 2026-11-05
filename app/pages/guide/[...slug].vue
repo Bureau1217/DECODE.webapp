@@ -10,6 +10,8 @@ const segments = Array.isArray(route.params.slug) ? route.params.slug : []
 const id = assertSafeKirbyId(segments.join('/'))
 
 const page = await useKirbyPage(`guide:${id}`, `page('${id}')`, 'default', { exact: true })
+// For the keywords marked in its text (useKeywordTerms).
+await useKeywordsPanelCategories()
 
 // The article's own opening text: says far more than its short subtitle.
 const description = computed(() => {
@@ -22,6 +24,7 @@ const image = () => cmsImage(page.value, 'page_image_preview') ?? cmsImage(page.
 usePageSeo({
   title: () => cmsText(page.value, 'title'),
   description,
+  ogType: 'article',
   image,
 })
 
@@ -35,26 +38,29 @@ useJsonLd('article', () => ({
   dateModified: cmsText(page.value, 'modified'),
   inLanguage: language.value,
   mainEntityOfPage: seoUrl(route.path),
-  author: { '@type': 'Organization', name: 'DE.CO.DE', url: seoUrl('/') },
+  author: { '@type': 'Organization', name: 'Albert Hirschman Centre on Democracy team', url: seoUrl('/about') },
   publisher: { '@type': 'Organization', name: 'DE.CO.DE', url: seoUrl('/') },
 }))
-useBreadcrumbJsonLd(() => {
-  const parents = segments.slice(0, -1)
-  return [
-    ['Investigation Guide', '/guide'],
-    ...parents.map((_, i): [string, string] => [parents[i]!.replace(/-/g, ' '), `/guide/${parents.slice(0, i + 1).join('/')}`]),
-    [cmsText(page.value, 'title') ?? id, route.path],
-  ]
-})
 
 // Same flat, intendedTemplate:'default' list guide/index.vue's own grid
 // is built from — this article's position in it is what determines its
 // badge color (GuideCard.vue) and its prev/next neighbors here.
-const guideList = await useKirbyCollection<{ id: string }>(
+const guideList = await useKirbyCollection<{ id: string, title: string }>(
   'guide:order',
   "site.children.filterBy('intendedTemplate', 'default')",
-  { id: true },
+  { id: true, title: true },
 )
+useBreadcrumbJsonLd(() => {
+  const parents = segments.slice(0, -1)
+  return [
+    ['Investigation Guide', '/guide'],
+    ...parents.map((_, i): [string, string] => {
+      const parentId = parents.slice(0, i + 1).join('/')
+      return [guideList.value?.find((item) => item.id === parentId)?.title ?? parents[i]!.replace(/-/g, ' '), `/guide/${parentId}`]
+    }),
+    [cmsText(page.value, 'title') ?? id, route.path],
+  ]
+})
 
 const currentIndex = computed(() => guideList.value?.findIndex((a) => a.id === id) ?? -1)
 const badgeColor = computed(() => badgeColorFor(currentIndex.value === -1 ? 0 : currentIndex.value))
@@ -68,39 +74,45 @@ const nextTo = computed(() => {
   return next ? `/guide/${next.id}` : null
 })
 
-// Beside the related tool, on a page with no sub-pages to list there: what its
-// editors chose (the `resources` block's links) first, then the resources
+// Beside the related tool: what its editors chose (the `resources` block's links) first, then the resources
 // sharing a keyword with it.
-const hasSubpages = computed(() => ((page.value.subpages ?? []) as unknown[]).length > 0)
 type KeywordRefs = Partial<Record<'themes' | 'concepts' | 'platforms' | 'questions', { id: string }[]>>
 const KEYWORD_POOLS = ['themes', 'concepts', 'platforms', 'questions'] as const
 const keywordIds = (item: KeywordRefs) => KEYWORD_POOLS.flatMap((pool) => (item[pool] ?? []).map((keyword) => keyword.id))
-const resourcePool = hasSubpages.value
-  ? null
-  : await useKirbyCollection<KeywordRefs & { id: string, title: string }>(
-      'guide:resource-pool',
-      "site.index.filterBy('intendedTemplate', 'ressource')",
-      {
-        id: true,
-        title: true,
-        themes: pageSelects.default!.themes,
-        concepts: pageSelects.default!.concepts,
-        platforms: pageSelects.default!.platforms,
-        questions: pageSelects.default!.questions,
-      },
-    )
+const resourcePool = await useKirbyCollection<KeywordRefs & { id: string, title: string, type?: string }>(
+  'guide:resource-pool',
+  "site.index.filterBy('intendedTemplate', 'ressource')",
+  {
+    id: true,
+    title: true,
+    // Its parent's title (Articles, Papers…), as on the resource cards.
+    type: 'page.parent.title',
+    themes: pageSelects.default!.themes,
+    concepts: pageSelects.default!.concepts,
+    platforms: pageSelects.default!.platforms,
+    questions: pageSelects.default!.questions,
+  },
+)
 const relatedResources = computed(() => {
   const blocks = (page.value.content ?? []) as { type?: string, isHidden?: boolean, content?: { resource_items?: { resource_title?: string, resource_type?: string, resource_link?: string }[] } }[]
   const chosen = blocks
     .filter((block) => block.type === 'resources' && !block.isHidden)
     .flatMap((block) => block.content?.resource_items ?? [])
     .filter((item) => item.resource_title && /^https?:/.test(item.resource_link ?? ''))
-    .map((item) => ({ title: item.resource_title!, to: item.resource_link!, external: true }))
+    .map((item) => ({ title: item.resource_title!, to: item.resource_link!, external: true, type: undefined as string | undefined }))
   const ownKeywords = new Set(keywordIds(page.value as KeywordRefs))
-  const sharing = (resourcePool?.value ?? [])
+  const sharing = (resourcePool.value ?? [])
     .filter((resource) => keywordIds(resource).some((id) => ownKeywords.has(id)))
-    .map((resource) => ({ title: resource.title, to: `/resources/${resource.id}`, external: false }))
-  return [...chosen, ...sharing].slice(0, 4)
+    .map((resource) => ({ title: resource.title, to: `/resources/${resource.id}`, external: false, type: resource.type }))
+  // The same work can be both: once, by its title before any subtitle, on this site
+  // if it's here.
+  const byWork = new Map<string, (typeof chosen)[number]>()
+  for (const item of [...chosen, ...sharing]) {
+    const work = item.title.split(/\s*[:—–]\s/)[0]!.trim().toLowerCase()
+    const known = byWork.get(work)
+    if (!known || (known.external && !item.external)) byWork.set(work, item)
+  }
+  return [...byWork.values()].slice(0, 2)
 })
 </script>
 

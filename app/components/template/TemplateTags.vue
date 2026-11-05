@@ -20,7 +20,7 @@ defineProps<{
       <li v-for="tag in page.tags" :key="tag.slug">
         <!-- `page.slug` is the container's own slug (themes/concepts/platforms/question). -->
         <NuxtLink :to="`/keywords/${page.slug}/${tag.slug}`">
-          <img v-if="tag.image?.[0]" loading="lazy" :src="tag.image[0].url" :alt="tag.image[0].alt || tag.title">
+          <img v-if="tag.image?.[0]" loading="lazy" :src="tag.image[0].url" :alt="cleanAlt(tag.image[0].alt, tag.title)">
           <h2 class="text-h3">{{ tag.title }}</h2>
         </NuxtLink>
         <!-- eslint-disable-next-line vue/no-v-html -->

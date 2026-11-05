@@ -293,7 +293,7 @@ const HEADLINE_MS = 900
    brown. */
 .home-hero-headline {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-text);
   font-weight: 700;
   font-size: clamp(28px, 3.3vw, 72px);
   line-height: 1;

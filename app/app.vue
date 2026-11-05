@@ -32,7 +32,10 @@ const siteDescription = computed(() => SITE_DESCRIPTION[language.value] ?? SITE_
 
 useHead({
   htmlAttrs: { 'data-theme': colorMode, lang: language },
-  titleTemplate: (title) => (title ? `${title} · DE.CO.DE` : siteTitle.value),
+  titleTemplate: (title) => {
+    if (!title) return siteTitle.value
+    return title.length + META_TITLE_BRAND.length <= 60 ? `${title}${META_TITLE_BRAND}` : title
+  },
   link: () => [
     { rel: 'canonical', href: canonicalUrl.value },
     ...(hasFrench.value
@@ -42,12 +45,14 @@ useHead({
           { rel: 'alternate', hreflang: 'x-default', href: urlIn('en') },
         ]
       : []),
-    // Follows the site's own light/dark toggle, not just the system's. The one
-    // icon link: given a second, a browser may keep that one whatever the theme
-    // (/favicon.ico is still there for those that ask for it by name).
+    // Follows the browser's light/dark setting, not the site's toggle: white on a dark
+    // tab bar, black on a light one. The SVG does it on its own; the PNGs are for
+    // browsers without SVG icons (/favicon.ico for those that ask for it by name).
     // ?v: browsers keep favicons in a cache of their own that a reload doesn't
     // clear, so bump it whenever the icons change.
-    { rel: 'icon', type: 'image/png', href: `${colorMode.value === 'dark' ? '/favicon-dark.png' : '/favicon.png'}?v=6`, sizes: '192x192' },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/favicon.png?v=7', media: '(prefers-color-scheme: light)' },
+    { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/favicon-dark.png?v=7', media: '(prefers-color-scheme: dark)' },
+    { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=7' },
     { rel: 'apple-touch-icon', href: '/apple-touch-icon.png?v=6' },
   ],
 })
@@ -77,7 +82,7 @@ useSeoMeta({
 // detail page (DetailPanelChrome.vue) should show it too, half-viewport
 // same as the lists.
 const KEYWORDS_PANEL_EXACT_ROUTES = ['/', '/tools', '/about', '/search']
-const KEYWORDS_PANEL_PREFIX_ROUTES = ['/guide', '/resources']
+const KEYWORDS_PANEL_PREFIX_ROUTES = ['/guide', '/resources', '/about']
 const showKeywordsPanel = computed(() => {
   if (showSplash.value) return false
   if (KEYWORDS_PANEL_EXACT_ROUTES.includes(route.path)) return true
@@ -99,7 +104,7 @@ const introTransition = useIntroTransition()
 // /about shows TeamPanel (the about page's own "Équipes" field) in the
 // same fixed half-viewport slot KeywordsPanel otherwise occupies there —
 // never both at once.
-const isAboutPage = computed(() => route.path === '/about')
+const isAboutPage = computed(() => route.path === '/about' || route.path.startsWith('/about/'))
 
 // Mobile's INDEX/MENU toggles (SiteIndexBar.vue/SiteNav.vue) — reset on
 // every navigation so arriving at a new page always shows its content
@@ -137,6 +142,23 @@ watch(
     <!-- Hidden defs for the global image duotone treatment (app/assets/css/main.css).
          https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Element/feComponentTransfer -->
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <!-- The satellite view on the map's tool card: a positive, taken from the
+           red channel, where the sea is near black and the land stands out. A
+           negative would turn all that dark sea pale. -->
+      <filter id="duotone-satellite" color-interpolation-filters="sRGB">
+        <feColorMatrix
+          type="matrix"
+          values="1 0 0 0 0
+                  1 0 0 0 0
+                  1 0 0 0 0
+                  0 0 0 1 0"
+        />
+        <feComponentTransfer>
+          <feFuncR type="linear" slope="1.19" intercept="0.16" />
+          <feFuncG type="linear" slope="1.19" intercept="0.164" />
+          <feFuncB type="linear" slope="1.19" intercept="0.169" />
+        </feComponentTransfer>
+      </filter>
       <filter id="duotone-silver">
         <!-- Rec.601 luma weights — a more photographically faithful
              grayscale conversion than a flat average, better preserving

@@ -36,6 +36,17 @@ const introTransition = useIntroTransition()
 const hoverLocked = useIntroHoverLock()
 const language = useLanguage()
 
+// Card titles on one line, all the same size: their usual size (.text-h2), smaller
+// only if the longest won't fit.
+const CARD_TITLE_MARGIN = 12 // px each side, at the least
+const gridEl = ref<HTMLElement | null>(null)
+useFitLine(
+  gridEl,
+  () => (articles.value ?? []).map((item) => item.title),
+  (el) => (el.querySelector<HTMLElement>('.guide-card')?.clientWidth ?? 0) - CARD_TITLE_MARGIN * 2,
+  () => (window.innerWidth <= 1150 ? 26 : 32),
+)
+
 usePageSeo({
   title: 'Investigation Guide',
   description: 'Articles and case studies to investigate disinformation: concepts, platforms, campaigns, trolls, deepfakes and how to verify online content.',
@@ -52,7 +63,7 @@ usePageSeo({
        width, never the keywords panel beside it. -->
   <div class="page-with-heading">
   <h1 class="visually-hidden">{{ language === 'fr' ? 'Guide d\'enquête' : 'Investigation Guide' }}</h1>
-  <article class="guide-grid" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }">
+  <article ref="gridEl" class="guide-grid" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }">
     <GuideCard
       v-for="(item, index) in articles"
       :key="item.id"

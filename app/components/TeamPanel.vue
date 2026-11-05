@@ -6,6 +6,7 @@
 // keyword taxonomy — team name instead of a keyword category, members
 // instead of keywords.
 const { data } = await useTeamPanelData()
+const language = useLanguage()
 
 const teams = computed(() => {
   return (data.value?.teams ?? [])
@@ -26,8 +27,12 @@ const teams = computed(() => {
 // tap to open/close on mobile, where there's no hover.
 const hoveredMember = ref<string | null>(null)
 const isMobile = useIsMobile()
-function onRowEnter(key: string) {
-  if (!isMobile.value) hoveredMember.value = key
+// Low in the panel, a bio opens upwards: it would run under the footer.
+const popupAbove = ref(false)
+function onRowEnter(key: string, row: HTMLElement) {
+  if (isMobile.value) return
+  popupAbove.value = row.getBoundingClientRect().top > window.innerHeight * 0.6
+  hoveredMember.value = key
 }
 function onRowLeave() {
   if (!isMobile.value) hoveredMember.value = null
@@ -62,12 +67,12 @@ onBeforeUnmount(() => {
         <li
           v-for="(member, mi) in team.members"
           :key="member.name"
-          @mouseenter="onRowEnter(`${ti}-${mi}`)"
+          @mouseenter="onRowEnter(`${ti}-${mi}`, $event.currentTarget as HTMLElement)"
           @mouseleave="onRowLeave"
           @click="onRowTap(`${ti}-${mi}`)"
         >
           <span class="team-panel-member"><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
-          <div v-if="member.bio && hoveredMember === `${ti}-${mi}`" class="team-panel-popup text-note">
+          <div v-if="member.bio && hoveredMember === `${ti}-${mi}`" :class="['team-panel-popup', 'text-note', { 'is-above': popupAbove }]">
             <div class="team-panel-popup-title">{{ member.name }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="team-panel-popup-bio" v-html="member.bio" />
@@ -75,16 +80,22 @@ onBeforeUnmount(() => {
         </li>
       </ul>
     </template>
-    <!-- Under the last team (Design & development): the centre's logo,
-         grayed out until hovered, centred in whatever room is left down
-         to the footer. -->
-    <div class="team-panel-partner">
-      <!-- Arrives after the teams: the label deciphers once their names
-           have mostly settled, then the logo rises in under it. -->
-      <p class="team-panel-partner-label text-small"><DecipherText text="A project by" :delay="700" /></p>
-      <a href="https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons" target="_blank" rel="noopener">
-        <img src="/logos/ahcd.png" alt="Albert Hirschman Centre on Democracy" class="no-duotone">
-      </a>
+    <!-- Under the last team (Design & development): one block, centred in
+         whatever room is left down to the footer. The centre's logo, grayed out
+         until hovered, with the two reference pages beside it. -->
+    <div class="team-panel-foot">
+      <div class="team-panel-partner">
+        <!-- Arrives after the teams: the label deciphers once their names
+             have mostly settled, then the logo rises in under it. -->
+        <p class="team-panel-partner-label text-small"><DecipherText text="A project by" :delay="700" /></p>
+        <a class="team-panel-logo" href="https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons" target="_blank" rel="noopener">
+          <img src="/logos/ahcd.png" alt="Albert Hirschman Centre on Democracy" class="no-duotone">
+        </a>
+        <nav class="team-panel-links text-small" :aria-label="language === 'fr' ? 'Informations' : 'Information'">
+          <NuxtLink to="/about/credits">{{ language === 'fr' ? 'Crédits' : 'Credits' }}</NuxtLink>
+          <NuxtLink to="/about/legal">{{ language === 'fr' ? 'Mentions légales' : 'Legal terms' }}</NuxtLink>
+        </nav>
+      </div>
     </div>
   </InfoPanel>
 </template>
@@ -152,6 +163,11 @@ onBeforeUnmount(() => {
   color: var(--color-brand);
 }
 
+.team-panel-popup.is-above {
+  top: auto;
+  bottom: -1px;
+}
+
 .team-panel-popup-title {
   font-weight: 700;
 }
@@ -162,6 +178,12 @@ onBeforeUnmount(() => {
 
 .team-panel-popup-bio :deep(p) {
   margin: 0;
+}
+
+.team-panel-popup-bio :deep(a) {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 /* The panel stacks as a column so the logo block can take the space
@@ -176,14 +198,53 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.team-panel-partner {
+/* Takes the room left under the teams, and measures it for the block inside. */
+.team-panel-foot {
+  --logo-width: min(180px, 30vw);
+  /* The label and its gap over the logo, whose proportions are those of ahcd.png. */
+  --block-height: calc(29px + var(--logo-width) * 0.483);
   flex: 1 0 auto;
+  min-height: calc(var(--block-height) + 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* One block, centred both ways: the logo, then the links after a gap. */
+.team-panel-partner {
+  display: grid;
+  grid-template-columns: var(--logo-width) auto;
+  align-items: center;
+  column-gap: 72px;
+  row-gap: 12px;
+}
+
+.team-panel-partner-label {
+  grid-column: 1;
+  text-align: center;
+}
+
+/* Centred on the logo, and on each other. They rise in with the logo. */
+.team-panel-links {
+  grid-column: 2;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 32px 10px;
+  animation: team-panel-partner-in 0.7s cubic-bezier(0.2, 0.6, 0.3, 1) 1.1s backwards;
+  gap: 6px;
+}
+
+.team-panel-links a {
+  color: var(--color-brand-about);
+  text-decoration: none;
+}
+
+.team-panel-links a:hover,
+.team-panel-links a:focus-visible,
+.team-panel-links a.router-link-active {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 /* At rest the label and logo share the panels' hover brown; hovering
@@ -194,13 +255,15 @@ onBeforeUnmount(() => {
   transition: color 0.2s ease;
 }
 
-.team-panel-partner a {
-  display: flex;
-  justify-content: center;
-  width: min(180px, 40%);
+.team-panel-logo {
+  grid-column: 1;
+  grid-row: 2;
+  display: block;
+  width: 100%;
 }
 
 .team-panel-partner img {
+  display: block;
   width: 100%;
   height: auto;
   filter: url(#logo-brown);
@@ -215,28 +278,29 @@ onBeforeUnmount(() => {
   }
 }
 
-.team-panel-partner a:hover img,
-.team-panel-partner a:focus-visible img {
+.team-panel-logo:hover img,
+.team-panel-logo:focus-visible img {
   filter: none;
 }
 
-.team-panel-partner:has(a:hover, a:focus-visible) .team-panel-partner-label {
+.team-panel-partner:has(.team-panel-logo:hover, .team-panel-logo:focus-visible) .team-panel-partner-label {
   color: #000;
 }
 
 /* Dark page: the logo shows inverted (light) when hovered, the label
    in the page's own ink. */
-:root[data-theme='dark'] .team-panel-partner a:hover img,
-:root[data-theme='dark'] .team-panel-partner a:focus-visible img {
+:root[data-theme='dark'] .team-panel-logo:hover img,
+:root[data-theme='dark'] .team-panel-logo:focus-visible img {
   filter: invert(1);
 }
 
-:root[data-theme='dark'] .team-panel-partner:has(a:hover, a:focus-visible) .team-panel-partner-label {
+:root[data-theme='dark'] .team-panel-partner:has(.team-panel-logo:hover, .team-panel-logo:focus-visible) .team-panel-partner-label {
   color: var(--color-ink);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .team-panel-partner img {
+  .team-panel-partner img,
+  .team-panel-links {
     animation: none;
   }
 }
@@ -250,7 +314,8 @@ onBeforeUnmount(() => {
     cursor: pointer;
   }
 
-  .team-panel-popup {
+  .team-panel-popup,
+  .team-panel-popup.is-above {
     position: static;
     width: auto;
     margin: 0 10px 10px;

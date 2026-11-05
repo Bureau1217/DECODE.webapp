@@ -21,6 +21,10 @@ export default defineNuxtConfig({
   experimental: {
     asyncContext: true,
   },
+  // JS, CSS and the like, compressed once at build; pages: server/plugins/compress.ts.
+  nitro: {
+    compressPublicAssets: { gzip: true, brotli: true },
+  },
   runtimeConfig: {
     // Server-only — optional Basic Auth for the KQL endpoint. Leave unset
     // locally: DECODE.cms/site/config/config.php has `kql.auth` disabled.

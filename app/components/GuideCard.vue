@@ -31,7 +31,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     @mouseleave="onLeave"
   >
     <div class="guide-card-image-wrap">
-      <img v-if="item.header_image" :src="item.header_image.url" :width="item.header_image.width" :height="item.header_image.height" :alt="item.header_image.alt || item.title" :style="sharedPart('image')">
+      <img v-if="item.header_image" :src="item.header_image.url" :width="item.header_image.width" :height="item.header_image.height" :alt="cleanAlt(item.header_image.alt, item.title)" :style="sharedPart('image')">
     </div>
     <h2 class="guide-card-title text-h2" :style="sharedPart('title')">{{ item.title }}</h2>
     <!-- Under the title, same order as on the opened article
@@ -58,6 +58,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
      .guide-card-title). The image takes whatever height is left. */
   padding: 5.5%;
   overflow: hidden;
+  container-type: inline-size;
   transition: background-color 0.15s ease;
 }
 
@@ -106,6 +107,10 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   margin: 6.18% 0 0;
   text-align: center;
   color: var(--color-on-fill);
+  /* One line, all cards alike: guide/index.vue sets the size. A little wider than
+     the image if it has to be. Until then, near enough to what it'll be. */
+  white-space: nowrap;
+  font-size: var(--fit-line-size, min(32px, 9.3cqw));
 }
 
 /* Per the reference (Articles.png): number → title → colored subtitle
@@ -125,6 +130,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   .guide-card-title {
     order: 2;
     margin: 4px 0 0;
+    font-size: var(--fit-line-size, min(26px, 9.3cqw));
   }
 
   /* Full-width strip (within the card's own 12px padding), not the

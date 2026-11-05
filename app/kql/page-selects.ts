@@ -127,6 +127,11 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     header_image: fileUrl('header_image'),
     page_image_preview: fileUrl('page_image_preview'),
     content: 'page.content.content.toBlocks.toArray',
+    // The article's sources table (not shown yet).
+    sources: {
+      query: 'page.content.sources.toStructure',
+      select: { title: true, authors: true, publisher: true, year: true, url: true },
+    },
     modified: "page.modified('c')",
     // Structural children (template: default), not a relation field.
     subpages: {
@@ -160,6 +165,10 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     source: true,
     description: true,
     file: fileLink('file'),
+    themes: pagesRelation('themes'),
+    concepts: pagesRelation('concepts'),
+    platforms: pagesRelation('platforms'),
+    questions: pagesRelation('questions'),
     // Same "type" trick as resources/index.vue's flattened list — the CMS
     // has no separate type field, the parent theme page's own title
     // (Articles/Papers/Podcasts/Videos) doubles as it.
@@ -256,6 +265,8 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     paragraph_2_content: 'page.content.paragraph_2_content.toBlocks.toArray',
     paragraph_3_title: true,
     paragraph_3_content: 'page.content.paragraph_3_content.toBlocks.toArray',
+    legal_content: 'page.content.legal_content.toBlocks.toArray',
+    credits_content: 'page.content.credits_content.toBlocks.toArray',
   },
 }
 

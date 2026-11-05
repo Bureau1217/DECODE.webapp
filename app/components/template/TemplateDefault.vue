@@ -22,6 +22,10 @@ const props = defineProps<{
     header_image?: { url: string, alt?: string } | null
     content?: ContentBlock[]
     tools?: ToolRef[]
+    themes?: { title: string, id: string }[]
+    concepts?: { title: string, id: string }[]
+    platforms?: { title: string, id: string }[]
+    questions?: { title: string, id: string }[]
   }
   // Same color this article's own guide-grid card uses (GuideCard.vue) —
   // computed in guide/[...slug].vue from this article's position in the
@@ -30,7 +34,7 @@ const props = defineProps<{
   badgeColor: string
   prevTo?: string | null
   nextTo?: string | null
-  relatedResources?: { title: string, to: string, external: boolean }[]
+  relatedResources?: { title: string, to: string, external: boolean, type?: string }[]
 }>()
 
 // Only 'text' blocks are rendered — citation/cta/gallery/resources blocks
@@ -39,23 +43,28 @@ const props = defineProps<{
 // body copy).
 const textBlocks = computed(() => (props.page.content ?? []).filter((b) => b.type === 'text' && !b.isHidden))
 
+// The concepts, platforms and themes mentioned in those: see useKeywordTerms.
+const { mark, events: termEvents } = useKeywordTerms()
+const blockTexts = computed(() => mark(textBlocks.value.map((block) => block.content?.text)))
+
 // Only one related-tool button, not one per relation — an article's Tools
 // field (default.yml) can hold several, but only the first is shown here.
 const relatedTool = computed(() => props.page.tools?.[0] ?? null)
 
 const language = useLanguage()
-// The divider's right half, 2 by 2: this article's own case studies, or on a
-// page without any (a case study itself), its related resources.
-const dividerLinks = computed(() => {
-  const subpages = props.page.subpages ?? []
-  const fr = language.value === 'fr'
-  return subpages.length
-    ? {
-        label: fr ? 'Dans cet article' : 'In this article',
-        items: subpages.slice(0, 4).map((sub) => ({ title: sub.title, to: `/guide/${sub.id}`, external: false })),
-      }
-    : { label: fr ? 'Ressources liées' : 'Related resources', items: props.relatedResources ?? [] }
-})
+// The divider's right half.
+const dividerLinks = computed(() => ({
+  label: language.value === 'fr' ? 'Ressources liées' : 'Related resources',
+  items: props.relatedResources ?? [],
+}))
+
+// This article's own sub-pages, at its foot.
+const subpageLinks = computed(() => (props.page.subpages ?? []).map((sub) => ({ title: sub.title, to: `/guide/${sub.id}` })))
+
+
+// The keywords this page carries, each with its own page.
+const keywordLinks = computed(() => [...(props.page.concepts ?? []), ...(props.page.themes ?? []), ...(props.page.platforms ?? []), ...(props.page.questions ?? [])]
+  .map((keyword) => ({ title: keyword.title, to: `/keywords/${keyword.id}` })))
 
 // A case study closes back to the article it belongs to, a plain step back;
 // only an article morphs into its card on the guide.
@@ -68,13 +77,20 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   '/guide',
   '.article-detail-block-title, .article-detail-paragraph',
 )
+
+// The title on one line: its usual size (.text-h1), smaller only if it won't fit.
+const TITLE_SIDE_MARGIN = 12 // px each side, at the least
+useFitLine(articleEl, () => [props.page.title], (el) => el.clientWidth - TITLE_SIDE_MARGIN * 2, () => (window.innerWidth <= 1150 ? 34 : 48))
+
+// The pale blue is too light for the button's white text: its darker tone instead.
+const toolButtonColor = computed(() => (props.badgeColor === BADGE_COLORS[1] ? deepBadgeColor(props.badgeColor) : props.badgeColor))
 </script>
 
 <template>
   <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-on-fill)" :close-to="closeTo" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="parentId ? undefined : closeArticle">
     <article ref="articleEl" class="article-detail" :class="`detail-lines-${drawState}`">
       <div v-if="page.header_image" class="article-detail-cover">
-        <img :src="page.header_image.url" :width="page.header_image.width" :height="page.header_image.height" :alt="page.header_image.alt || page.title" :style="sharedPart('image')">
+        <img :src="page.header_image.url" :width="page.header_image.width" :height="page.header_image.height" :alt="cleanAlt(page.header_image.alt, page.title)" :style="sharedPart('image')">
       </div>
 
       <header class="article-detail-header">
@@ -94,7 +110,7 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
             <NuxtLink
               :to="`/tools/${relatedTool.slug}`"
               class="article-detail-tool-btn btn-fill text-label"
-              :style="{ '--btn-fill': badgeColor }"
+              :style="{ '--btn-fill': toolButtonColor }"
             >
               {{ relatedTool.title }}
             </NuxtLink>
@@ -113,7 +129,8 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
                 :title="item.title"
                 class="text-note"
               >
-                {{ item.title }}
+                <span v-if="item.type" class="article-detail-resource-type text-tag">{{ item.type }}</span>
+                <span class="article-detail-resource-title">{{ item.title }}</span>
               </NuxtLink>
             </li>
           </ul>
@@ -121,18 +138,20 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
         <div v-else class="article-detail-divider-half is-empty" />
       </TemplateDividerBand>
 
-      <TemplateDetailBody color="var(--color-on-fill)">
+      <TemplateDetailBody color="var(--color-on-fill)" v-on="termEvents">
         <div v-for="(block, index) in textBlocks" :key="index" class="article-detail-block">
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <h2 v-if="block.content?.title" class="article-detail-block-title text-note" v-decipher="bodyDecipher" v-html="decipherHtml(block.content.title)" />
+          <h2 v-if="block.content?.title" class="article-detail-block-title" v-decipher="bodyDecipher" v-html="decipherHtml(block.content.title)" />
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div
             class="article-detail-paragraph"
             :class="{ 'article-detail-alinea': index === 0 }"
-            v-decipher="bodyDecipher" v-html="decipherHtml(block.content?.text)"
+            v-decipher="bodyDecipher" v-html="decipherHtml(blockTexts[index])"
           />
         </div>
       </TemplateDetailBody>
+      <DetailLinks :label="language === 'fr' ? 'Dans cet article' : 'In this article'" :items="subpageLinks" />
+      <DetailLinks :label="language === 'fr' ? 'Mots-clés' : 'Keywords'" :items="keywordLinks" />
     </article>
   </DetailPanelChrome>
 </template>
@@ -162,6 +181,8 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   width: fit-content;
   margin: 20px auto 0;
   color: var(--color-on-fill);
+  white-space: nowrap;
+  font-size: var(--fit-line-size, 48px);
 }
 
 /* Chip look itself lives in BadgeChip.vue now — only this header's own
@@ -196,6 +217,11 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   padding: 12px 16px;
 }
 
+/* Under their labels, the button and the resources end on the same line. */
+.article-detail-tool-btn {
+  margin-top: auto;
+}
+
 .article-detail-divider-label {
   margin: 0;
   font-weight: inherit;
@@ -208,40 +234,58 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   min-height: 10vh;
 }
 
-/* Plain links, underlined, 2 by 2. */
+/* One per line: a framed tag, then the title, underlined. */
 .article-detail-subpages ul {
   list-style: none;
-  margin: 0;
+  margin: auto 0 0;
   padding: 0;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 16px;
+  gap: 8px;
 }
 
 .article-detail-subpages li {
   min-width: 0;
 }
 
-/* Alone, it has no neighbour to leave room for. */
-.article-detail-subpages li:only-child {
-  grid-column: 1 / -1;
+/* The resource cards' tag (ResourceCard.vue), outlined. */
+.article-detail-resource-type {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid currentColor;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* The tag fills white while its resource is hovered. */
+.article-detail-subpages a:hover .article-detail-resource-type,
+.article-detail-subpages a:focus-visible .article-detail-resource-type {
+  background: var(--color-on-fill);
+  border-color: var(--color-on-fill);
+  color: var(--color-brand-resources);
+}
+
+.article-detail-subpages a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
 }
 
 /* One line, cut with an ellipsis: the full title shows on hover (title). */
-.article-detail-subpages a {
-  display: block;
+.article-detail-resource-title {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: inherit;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
   transition: opacity 0.15s ease;
 }
 
-.article-detail-subpages a:hover {
+.article-detail-subpages a:hover .article-detail-resource-title {
   opacity: 0.65;
 }
 
@@ -255,17 +299,15 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   padding: 8px 12px;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-/* Black on the badge color; on hover the page's own ink, readable on the
-   surface fill in both themes. */
-.article-detail-tool-btn.btn-fill {
-  color: #000;
-}
-
-.article-detail-tool-btn.btn-fill:hover,
-.article-detail-tool-btn.btn-fill:focus-visible {
-  color: var(--color-ink);
+/* On hover, only a stroke: the band shows through it. */
+.article-detail-tool-btn:hover,
+.article-detail-tool-btn:focus-visible {
+  background-color: transparent;
+  border-color: var(--color-on-fill);
+  color: var(--color-on-fill);
 }
 
 /* Body box/font/v-html paragraph-spacing rules live in
@@ -275,10 +317,16 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   margin-top: 1.5em;
 }
 
+/* The body text itself, in bold. */
 .article-detail-block-title {
   margin: 0 0 0.3em;
-  font-style: italic;
+  font: inherit;
   font-weight: 700;
+}
+
+/* The CMS wraps these titles in <em>, and there's no bold italic face. */
+.article-detail-block-title :deep(em) {
+  font-style: normal;
 }
 
 /* A plain first-line indent (alinéa), not a drop cap — :first-child
@@ -311,12 +359,14 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
     object-fit: cover;
   }
 
+  /* The same margin as the title's (TITLE_SIDE_MARGIN). */
   .article-detail-header {
-    padding: 0 6%;
+    padding: 0 12px;
   }
 
   .article-detail-title {
     margin-top: 16px;
+    font-size: var(--fit-line-size, 34px);
   }
 
   :deep(.divider-band-row) {

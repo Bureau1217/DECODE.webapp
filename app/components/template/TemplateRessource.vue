@@ -13,6 +13,10 @@ const props = defineProps<{
     // Parent theme's own title (Articles/Papers/Podcasts/Videos) — same
     // "type" trick as ResourceCard.vue / resources/index.vue.
     type?: string
+    themes?: { title: string, id: string }[]
+    concepts?: { title: string, id: string }[]
+    platforms?: { title: string, id: string }[]
+    questions?: { title: string, id: string }[]
   }
   prevTo?: string | null
   nextTo?: string | null
@@ -23,6 +27,15 @@ const props = defineProps<{
 // rendering both, just now exclusive since only one button is wanted.
 const actionLabel = computed(() => (props.page.file ? 'Download PDF' : props.page.source ? 'Read article' : null))
 const actionHref = computed(() => props.page.file?.url ?? props.page.source ?? null)
+
+// The concepts, platforms and themes its text mentions: see useKeywordTerms.
+const { mark, events: termEvents } = useKeywordTerms()
+const descriptionHtml = computed(() => mark([props.page.description])[0])
+
+// The keywords this resource carries, each with its own page.
+const language = useLanguage()
+const keywordLinks = computed(() => [...(props.page.concepts ?? []), ...(props.page.themes ?? []), ...(props.page.platforms ?? []), ...(props.page.questions ?? [])]
+  .map((keyword) => ({ title: keyword.title, to: `/keywords/${keyword.id}` })))
 
 // Opened from / closed back into its resource card: see
 // useSharedTransition.
@@ -60,10 +73,11 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
         </a>
       </TemplateDividerBand>
 
-      <TemplateDetailBody v-if="page.description" color="var(--color-brand-about)">
+      <TemplateDetailBody v-if="page.description" color="var(--color-brand-about)" v-on="termEvents">
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div class="resource-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(page.description)" />
+        <div class="resource-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(descriptionHtml)" />
       </TemplateDetailBody>
+      <DetailLinks :label="language === 'fr' ? 'Mots-clés' : 'Keywords'" :items="keywordLinks" />
     </article>
   </DetailPanelChrome>
 </template>
@@ -111,7 +125,7 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
 .resource-detail-type {
   display: inline-block;
   margin-top: 16px;
-  padding: 2px;
+  padding: 2px 6px;
   background: var(--color-brand-resources);
   color: var(--color-on-fill);
 }

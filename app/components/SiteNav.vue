@@ -69,7 +69,7 @@ const tabPath = computed(() => buildTabPath(tabWidth.value, tabHeight.value))
 // stays hidden until SiteIndexBar, unfolding downward from that line,
 // arrives underneath it.
 const introTransition = useIntroTransition()
-// Mobile's sentence waits for the draw-in. Kept after it ends, or dropping the
+// Mobile's sentence waits for the MENU tab to draw itself. Kept after that, or dropping the
 // delay would make the running animation jump.
 const tickerAfterIntro = introTransition.value
 const TAB_RISE_STAGGER_S = 0.15
@@ -258,9 +258,9 @@ onUnmounted(() => {
       site-nav-ticker-scroll 16s linear var(--ticker-enter-delay, 0s) infinite;
   }
 
-  /* Last of the splash -> guide draw-in (INTRO_MS, pages/index.vue). */
+  /* Splash -> guide: once the MENU tab's outline has drawn itself. */
   .site-nav-ticker.is-after-intro {
-    --ticker-enter-delay: 2.8s;
+    --ticker-enter-delay: 1.3s;
   }
 }
 

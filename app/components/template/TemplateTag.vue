@@ -15,7 +15,11 @@ const props = defineProps<{
   closeTo: string
   prevTo?: string | null
   nextTo?: string | null
+  relatedArticles?: { title: string, to: string }[]
+  relatedResources?: { title: string, to: string }[]
 }>()
+
+const language = useLanguage()
 
 const { drawState, bodyDecipher, root, close } = useDetailTransition(() => props.id, props.closeTo, '.tag-detail-description')
 </script>
@@ -34,7 +38,7 @@ const { drawState, bodyDecipher, root, close } = useDetailTransition(() => props
       <!-- Between the two dividers, where a resource has its button. -->
       <TemplateDividerBand class="tag-detail-band" color="var(--color-brand-resources)">
         <div v-if="page.image?.length" class="tag-detail-images">
-          <img v-for="img in page.image" :key="img.url" loading="lazy" :src="img.url" :alt="img.alt || page.title" :style="{ '--ratio': img.width && img.height ? img.width / img.height : 1 }">
+          <img v-for="img in page.image" :key="img.url" loading="lazy" :src="img.url" :alt="cleanAlt(img.alt, page.title)" :style="{ '--ratio': img.width && img.height ? img.width / img.height : 1 }">
         </div>
       </TemplateDividerBand>
 
@@ -42,6 +46,8 @@ const { drawState, bodyDecipher, root, close } = useDetailTransition(() => props
         <!-- eslint-disable-next-line vue/no-v-html -->
         <div class="tag-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(page.description)" />
       </TemplateDetailBody>
+      <DetailLinks :label="language === 'fr' ? 'Dans le guide' : 'In the guide'" :items="relatedArticles ?? []" />
+      <DetailLinks :label="language === 'fr' ? 'Ressources' : 'Resources'" :items="relatedResources ?? []" />
     </article>
   </DetailPanelChrome>
 </template>

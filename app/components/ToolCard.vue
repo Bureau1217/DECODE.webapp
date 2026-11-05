@@ -23,10 +23,11 @@ const props = defineProps<{
 
 const badgeColor = computed(() => toolColorFor(props.index))
 // A photo in the site's duotone, like a guide card (main.css).
+// Europe from above: NASA's Blue Marble, as on the splash.
 const TOOL_VISUALS = [
-  { url: '/tool-visuals/map.jpg', width: 900, height: 839 },
-  { url: '/tool-visuals/extension.jpg', width: 675, height: 900 },
-  { url: '/tool-visuals/bot.jpg', width: 900, height: 675 },
+  { url: '/nasa/europe-card.jpg', width: 1200, height: 900, class: 'duotone-satellite' },
+  { url: '/tool-visuals/extension.jpg', width: 900, height: 589 },
+  { url: '/tool-visuals/bot.jpg', width: 720, height: 900 },
 ]
 const visual = computed(() => TOOL_VISUALS[props.index % TOOL_VISUALS.length]!)
 // Tools 2 and 3 (purple #cdb4ea, teal #b4eae1) are too pale for the
@@ -51,7 +52,7 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
     @mouseleave="onLeave"
   >
     <div class="tool-card-image-wrap">
-      <img :src="visual.url" :width="visual.width" :height="visual.height" :alt="item.title">
+      <img :src="visual.url" :class="visual.class" :width="visual.width" :height="visual.height" :alt="item.title">
     </div>
     <div class="tool-card-body">
       <span class="tool-card-eyebrow text-small">Tool {{ index + 1 }}</span>

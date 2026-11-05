@@ -29,7 +29,7 @@ function onIndexClick() {
 // white everywhere else, the divider's original color.
 const route = useRoute()
 const isResourcesPage = computed(() => route.path === '/resources')
-const isAboutPage = computed(() => route.path === '/about')
+const isAboutPage = computed(() => route.path === '/about' || route.path.startsWith('/about/'))
 const isHomePage = computed(() => route.path === '/')
 const isSearchPage = computed(() => route.path === '/search')
 // A custom tool page reskins this bar in its own accent instead of

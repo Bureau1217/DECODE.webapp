@@ -125,7 +125,7 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   flex-shrink: 0;
   margin-top: auto;
   display: inline-block;
-  padding: 2px;
+  padding: 2px 6px;
   background: var(--color-brand-resources);
   color: var(--color-on-fill);
 }

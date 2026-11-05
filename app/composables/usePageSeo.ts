@@ -14,10 +14,12 @@ export interface PageSeo {
   image?: MaybeRefOrGetter<string | null | undefined>
   // Pages that shouldn't show up in results themselves (e.g. /search).
   noindex?: boolean
+  // og:type. The site-wide default (app.vue) is 'website'.
+  ogType?: 'article' | 'website'
 }
 
 export function usePageSeo(seo: PageSeo) {
-  const title = () => toValue(seo.title)?.trim() || undefined
+  const title = () => toMetaTitle(toValue(seo.title))
   const description = () => toMetaDescription(toValue(seo.description))
   const image = () => toValue(seo.image) || undefined
 
@@ -27,8 +29,28 @@ export function usePageSeo(seo: PageSeo) {
     description,
     ogDescription: description,
     ogImage: image,
+    ...(seo.ogType ? { ogType: seo.ogType } : {}),
     robots: seo.noindex ? 'noindex, follow' : undefined,
   })
+}
+
+/** Search results show about this many characters of a title. */
+const META_TITLE_MAX = 60
+export const META_TITLE_BRAND = ' · DE.CO.DE'
+
+/**
+ * A title short enough to show whole in search results: its part before a subtitle
+ * if it has one, else cut at a word. app.vue adds the site's name only if there's
+ * room for that too.
+ */
+export function toMetaTitle(text: string | null | undefined): string | undefined {
+  const title = text?.trim()
+  if (!title) return undefined
+  if (title.length <= META_TITLE_MAX) return title
+  const subtitle = title.match(/^(.{20,60}?[?!]|.{20,60}?)(?:\s+[–—|]\s+|\s?:\s)/)
+  if (subtitle) return subtitle[1]!.trim()
+  const cut = title.slice(0, META_TITLE_MAX - 1)
+  return `${cut.slice(0, cut.lastIndexOf(' ')).replace(/[\s,;:.–-]+$/, '')}…`
 }
 
 /**
