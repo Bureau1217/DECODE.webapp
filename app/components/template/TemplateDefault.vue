@@ -257,6 +257,17 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
   cursor: pointer;
 }
 
+/* Black on the badge color; on hover the page's own ink, readable on the
+   surface fill in both themes. */
+.article-detail-tool-btn.btn-fill {
+  color: #000;
+}
+
+.article-detail-tool-btn.btn-fill:hover,
+.article-detail-tool-btn.btn-fill:focus-visible {
+  color: var(--color-ink);
+}
+
 /* Body box/font/v-html paragraph-spacing rules live in
    TemplateDetailBody.vue now — only this template's own per-block spacing
    and the alinea indent (first block only) stay here. */
@@ -319,24 +330,15 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
     padding: 14px 5.5%;
   }
 
-  /* Stacked: the tool centered like the title above it, the links full width
-     under a rule. An empty half would only add a blank strip. */
-  .article-detail-divider-tool {
-    align-items: center;
-  }
-
+  /* Stacked, the tool on the left, level with the links under it. An empty
+     half would only add a blank strip. */
   .article-detail-subpages {
     padding: 14px 5.5%;
-    border-top: 1px solid var(--color-on-fill);
   }
 
   .article-detail-divider-half.is-empty,
   .article-detail-divider-vertical {
     display: none;
-  }
-
-  .article-detail-divider-half.is-empty + .article-detail-divider-vertical + .article-detail-subpages {
-    border-top: none;
   }
 }
 </style>

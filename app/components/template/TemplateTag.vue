@@ -8,7 +8,7 @@ const props = defineProps<{
     title: string
     slug: string
     description?: string
-    image?: { url: string, alt?: string }[]
+    image?: { url: string, alt?: string, width?: number, height?: number }[]
   }
   id: string
   category?: string
@@ -34,7 +34,7 @@ const { drawState, bodyDecipher, root, close } = useDetailTransition(() => props
       <!-- Between the two dividers, where a resource has its button. -->
       <TemplateDividerBand class="tag-detail-band" color="var(--color-brand-resources)">
         <div v-if="page.image?.length" class="tag-detail-images">
-          <img v-for="img in page.image" :key="img.url" loading="lazy" :src="img.url" :alt="img.alt || page.title">
+          <img v-for="img in page.image" :key="img.url" loading="lazy" :src="img.url" :alt="img.alt || page.title" :style="{ '--ratio': img.width && img.height ? img.width / img.height : 1 }">
         </div>
       </TemplateDividerBand>
 
@@ -108,5 +108,21 @@ const { drawState, bodyDecipher, root, close } = useDetailTransition(() => props
   max-width: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* One row, never wrapped. Each starts at its size above and they shrink in
+   proportion to fit, so they stay the same height and nothing gets cropped. */
+@media (max-width: 1150px) {
+  .tag-detail-images {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .tag-detail-images img {
+    flex: 0 1 calc(var(--ratio) * 18vh);
+    min-width: 0;
+    height: auto;
+    aspect-ratio: var(--ratio);
+  }
 }
 </style>

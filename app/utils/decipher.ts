@@ -3,9 +3,10 @@
 //
 // Each word starts with its own letters scrambled into wrong positions
 // (never random characters, so widths and line breaks hold). Then, at
-// short irregular intervals (MIN_GAP–MAX_GAP ms), discrete swaps snap
-// letters into their correct places: several words at once, each word
-// starting at its own moment, and a letter that has landed stays put.
+// irregular intervals, quick at first and slowing as it settles (nextGap),
+// discrete swaps snap letters into their correct places: several words at
+// once, each word starting at its own moment, and a letter that has landed
+// stays put.
 // Everything is resolved by DURATION. A quick opacity reveal (CSS,
 // .decipher-reveal) runs first; the reordering itself is at full opacity.
 
@@ -83,10 +84,18 @@ function correct(word: Word) {
   ;[word.current[i], word.current[j]] = [word.current[j]!, word.current[i]!]
 }
 
-// Applies each word's scheduled swaps at irregular MIN_GAP–MAX_GAP ms
-// steps until `duration`, then snaps every word to its target. Returns a
-// stop function that snaps immediately.
-function run(words: Word[], duration: number) {
+// The wait before the next swaps: a quick flurry, widening to about four times
+// as long by the end, so the text settles rather than just stops.
+function nextGap(t: number, duration: number) {
+  const progress = Math.min(1, t / duration)
+  return (MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP)) * (1 + 3 * progress * progress)
+}
+
+// Applies each word's scheduled swaps at irregular steps until `duration`,
+// then snaps every word to its target. `settling` slows the steps towards the
+// end (nextGap); text on its way out keeps an even pace. Returns a stop
+// function that snaps immediately.
+function run(words: Word[], duration: number, settling = true) {
   const t0 = performance.now()
   let timer = setTimeout(function tick() {
     const t = performance.now() - t0
@@ -117,7 +126,9 @@ function run(words: Word[], duration: number) {
       }
       if (changed) render(word)
     }
-    timer = setTimeout(tick, MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP))
+    // Never past the end, however long the gap: it still lands on time.
+    const gap = settling ? nextGap(t, duration) : MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP)
+    timer = setTimeout(tick, Math.min(gap, duration - t))
   }, MIN_GAP + Math.random() * (MAX_GAP - MIN_GAP))
 
   return () => {
@@ -238,7 +249,7 @@ export function scrambleOut(root: HTMLElement, duration: number) {
     }
     node.replaceWith(frag)
   }
-  return run(words, duration)
+  return run(words, duration, false)
 }
 
 // Morphs a DecipherText root (its .decipher-char spans) from another
@@ -363,7 +374,9 @@ export function decipherIn(root: HTMLElement, { grow = true, growMax = 2, reveal
 // is swapped for temporary spans and put back afterwards, so Vue's own
 // render stays intact. `ticks`: when the letters change, in ms from the start,
 // for anything that has to change with them (Splash.vue's headlines and frame).
-export function decipherFrom(root: HTMLElement, from: string, duration = DURATION, ticks?: number[]): () => void {
+// `locks`: when each position lands, for anything following that (same).
+// The letters flicker less and less as they settle.
+export function decipherFrom(root: HTMLElement, from: string, duration = DURATION, ticks?: number[], locks?: number[]): () => void {
   const node = [...root.childNodes].find((n): n is Text => n.nodeType === Node.TEXT_NODE)
   const to = node?.nodeValue ?? ''
   if (!node || to === from || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => {}
@@ -377,7 +390,7 @@ export function decipherFrom(root: HTMLElement, from: string, duration = DURATIO
     c.textContent = source[i] ?? ''
     return c
   })
-  const fixAt = charEls.map(() => 80 + Math.random() * (duration - 140))
+  const fixAt = charEls.map((_, i) => locks?.[i] ?? 80 + Math.random() * (duration - 140))
   const fixed = charEls.map(() => false)
   // One inline wrapper (see decipherIn): in a flex parent, loose letter
   // spans would each become an item and lose their spaces.
@@ -403,7 +416,7 @@ export function decipherFrom(root: HTMLElement, from: string, duration = DURATIO
       if (fixAt[i]! <= t) {
         fixed[i] = true
         c.textContent = target[i] ?? ''
-      } else if (Math.random() < 0.5) {
+      } else if (Math.random() < 0.85 - 0.6 * (t / duration)) {
         c.textContent = pool[Math.floor(Math.random() * pool.length)] ?? ''
       }
     })

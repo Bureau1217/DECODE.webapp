@@ -128,6 +128,7 @@ const EXTEND_MAX = 40 // px, largest outward extension — capped: the backgroun
 const SEGMENTS_PER_EDGE = 4 // top/bottom jumps per line — tuned live via the Reveal Mask Tuner artifact
 const MASK_SEED = 42
 const MASK_SNAP = 24 // px at full size: the smallest step in the silhouette
+const FRAME_SCREEN_MARGIN = 0.025 // mobile: of the window's width, kept clear each side of the frame
 
 interface ParagraphMask {
   // Behind the text — the readable backing. Always includes one safety
@@ -156,10 +157,29 @@ function pickLevel(rand: () => number, allowBite: boolean, scale: number): numbe
   return (EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)) * scale
 }
 
-function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): ParagraphMask {
+// While a headline changes (shuffleFrame), each piece of the frame over letters
+// still changing takes a passing level instead of its own, and lands on its own
+// once they have. Its own levels are always drawn, so where it lands doesn't
+// depend on the moment.
+interface FrameShuffle {
+  tick: number
+  time: number // ms into the change
+  targets: DOMRect[] // the new headline's lines as they'll end up
+  settledAt: (line: number, from: number, to: number) => number // when that stretch of the line has landed
+}
+
+function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuffle: FrameShuffle | null = null): ParagraphMask {
   const rand = mulberry32(seed)
   const base: MaskRect[] = []
   const bites: MaskRect[] = []
+  const level = (allowBite: boolean, line: number, piece: number, from: number, to: number) => {
+    const own = pickLevel(rand, allowBite, scale)
+    if (!shuffle || shuffle.settledAt(line, from, to) <= shuffle.time) return own
+    // Each piece changes every other tick, not all of them on each: a frame
+    // changing whole at this pace would strobe.
+    const passing = seed ^ Math.imul(line + 1, 73856093) ^ Math.imul(piece + 1, 19349663) ^ Math.imul(Math.floor((shuffle.tick + piece) / 2) + 1, 83492791)
+    return pickLevel(mulberry32(passing), allowBite, scale)
+  }
 
   lines.forEach((line, lineIndex) => {
     if (!line.width || !line.height) return
@@ -178,10 +198,10 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): Para
       const segLeft = line.left + i * segWidth
       const w = segWidth + 1
 
-      let topLevel = pickLevel(rand, isFirstLine, scale)
+      let topLevel = level(isFirstLine, lineIndex, i * 2, i / segCount, (i + 1) / segCount)
       // Never a bite under the last line: it would open a gap above the subtitle's
       // box, which the outline would then draw a line along.
-      let bottomLevel = pickLevel(rand, false, scale)
+      let bottomLevel = level(false, lineIndex, i * 2 + 1, i / segCount, (i + 1) / segCount)
       // If both edges of the same segment bite inward, clamp their
       // combined depth to under half the line height — a segment can
       // still lose real height off the top AND the bottom, just never
@@ -208,11 +228,11 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED): Para
     // Left/right edges: one jump each, for the line's full height — this
     // (lines being different widths) is most of what makes the combined
     // silhouette read as stepped, so it stays simple: no internal banding.
-    const leftLevel = pickLevel(rand, false, scale)
+    const leftLevel = level(false, lineIndex, segCount * 2, 0, 0)
     if (leftLevel > 0) {
       base.push({ left: line.left - leftLevel, top: line.top, width: leftLevel, height: line.height })
     }
-    const rightLevel = pickLevel(rand, false, scale)
+    const rightLevel = level(false, lineIndex, segCount * 2 + 1, 1, 1)
     if (rightLevel > 0) {
       base.push({ left: line.left + line.width, top: line.top, width: rightLevel, height: line.height })
     }
@@ -285,25 +305,53 @@ function fitHeadlines() {
   const subtitleHeight = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')?.offsetHeight ?? 0
   const maxHeight = Math.min(splashHeight * (isMobile ? HEADLINE_MAX_HEIGHT_MOBILE : HEADLINE_MAX_HEIGHT), splashHeight - subtitleHeight - HEADLINE_CLEARANCE * 2)
   headlineMaxWidth.value = window.innerWidth * (1 - HEADLINE_SIDE_MARGIN * 2)
+  // Mobile: the frame stays on screen (buildSentenceMasks), so the letters leave it
+  // that margin plus the frame's largest step, which it snaps out to around them.
+  if (stripTop.value) {
+    const largestStep = Math.max(8, MASK_SNAP * HEADLINE_MAX_FONT_SIZE_MOBILE * window.innerWidth / HEADLINE_MAX_FONT_SIZE)
+    headlineMaxWidth.value = window.innerWidth * (1 - FRAME_SCREEN_MARGIN * 2) - largestStep * 2
+  }
+  // Mobile: the text stands on the image strip, so it also has to fit between the
+  // strip and the top tab, its frame's tallest step included.
+  const roomAboveStrip = stripTop.value - stripGap * 2 - subtitleHeight - (tabTop.value + tabHeight.value + stripGap)
   headlineFontSize.value = Math.min(
     isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
     widestEm ? headlineMaxWidth.value / widestEm : Infinity,
     maxHeight / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT),
+    stripTop.value ? Math.max(0, roomAboveStrip) / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT + EXTEND_MAX / HEADLINE_MAX_FONT_SIZE) : Infinity,
   )
 }
 
 const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
 // Which silhouette the mask draws — each headline settles on its own.
 const maskSeed = ref(MASK_SEED)
+let frameShuffle: FrameShuffle | null = null
 const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
 // The subtitle's box, a whole number of the frame's steps wide and centered, so
 // each of its sides is on the frame's grid.
+// Mobile: it also stays at least two steps inside the grid's sides, its text
+// shrinking only as far as it takes to wrap no more than it does at the grid's
+// full width (and a fifth at most).
 function fitSubtitleBox() {
   const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
   if (!box) return
   box.style.width = ''
-  const grid = frameGrid()
-  box.style.width = `${Math.ceil(box.offsetWidth / (grid * 2)) * grid * 2}px`
+  box.style.fontSize = ''
+  const step = frameGrid()
+  let limit = Infinity
+  if (stripTop.value && grid.value) {
+    const gridWidth = grid.value.right - grid.value.left
+    limit = Math.floor((gridWidth - step * 4) / (step * 2)) * step * 2
+    // Hugging the lines as they wrap: a wrapped box otherwise stays as wide as
+    // its limit, however short its lines end up.
+    box.style.width = `${limit}px`
+    const range = document.createRange()
+    range.selectNodeContents(box)
+    const lines = [...range.getClientRects()]
+    const { paddingLeft, paddingRight } = getComputedStyle(box)
+    box.style.width = `${Math.ceil(Math.max(...lines.map((line) => line.right)) - Math.min(...lines.map((line) => line.left)) + parseFloat(paddingLeft) + parseFloat(paddingRight))}px`
+  }
+  box.style.width = `${Math.min(limit, Math.ceil(box.offsetWidth / (step * 2)) * step * 2)}px`
 }
 function buildSentenceMasks() {
   const masked = maskedEl.value
@@ -318,7 +366,14 @@ function buildSentenceMasks() {
     .filter((rect): rect is DOMRect => !!rect?.width)
     .map((rect) => ({ left: rect.left - origin.left, top: rect.top - origin.top, width: rect.width, height: rect.height }))
   if (!lines.length) return
-  const mask = buildParagraphMask(lines, headlineFontSize.value / HEADLINE_MAX_FONT_SIZE, maskSeed.value)
+  // While a headline changes, the frame is drawn for the lines as they'll end up,
+  // so its pieces can land one by one, and the scrambled letters' changing widths
+  // only ever add their own backing, for none of them to be cut off.
+  const shape: LineBox[] = frameShuffle
+    ? frameShuffle.targets.map((rect) => ({ left: rect.left - origin.left, top: rect.top - origin.top, width: rect.width, height: rect.height }))
+    : lines
+  const mask = buildParagraphMask(shape, headlineFontSize.value / HEADLINE_MAX_FONT_SIZE, maskSeed.value, frameShuffle)
+  if (frameShuffle) mask.base.push(...lines)
   // Every edge on a coarse grid of screen pixels. Edges that nearly line up then
   // line up exactly, so the silhouette only has real steps, never a tiny jog, and
   // two pieces meeting leave no half-transparent seam for the outline to show
@@ -335,14 +390,22 @@ function buildSentenceMasks() {
   const nearX = (value: number) => startX + Math.round((value - startX) / grid) * grid
   const downY = (value: number) => startY + Math.floor((value - startY) / grid) * grid
   const upY = (value: number) => startY + Math.ceil((value - startY) / grid) * grid
+  // Mobile: no piece of the frame past these, on the same grid.
+  const screenEdge = window.innerWidth * FRAME_SCREEN_MARGIN
+  const minX = stripTop.value ? upX(screenEdge) : -Infinity
+  const maxX = stripTop.value ? downX(window.innerWidth - screenEdge) : Infinity
+  // Mobile: the frame stops at least a step short of the subtitle's box, whichever
+  // silhouette it's jumping through, the box having its own margin above it.
+  const maxY = stripTop.value && box?.width ? startY - Math.min(grid, stripGap) : Infinity
   const outward = (rect: MaskRect): MaskRect => {
-    const left = downX(origin.left + rect.left)
+    const left = Math.max(minX, downX(origin.left + rect.left))
+    const right = Math.min(maxX, upX(origin.left + rect.left + rect.width))
     const top = downY(origin.top + rect.top)
     return {
       left: left - origin.left,
       top: top - origin.top,
-      width: upX(origin.left + rect.left + rect.width) - left,
-      height: upY(origin.top + rect.top + rect.height) - top,
+      width: Math.max(0, right - left),
+      height: Math.max(0, Math.min(maxY, upY(origin.top + rect.top + rect.height)) - top),
     }
   }
   const lineTop = lines[0]!.top
@@ -358,9 +421,9 @@ function buildSentenceMasks() {
   maskLines = lines
   const base = mask.base.map(outward)
   // The frame always runs on into the subtitle's box, so nothing shows between
-  // them, however short the headline.
-  if (box?.width) {
-    const last = lines[lines.length - 1]!
+  // them, however short the headline. Not on mobile, where they stand apart.
+  if (box?.width && !stripTop.value) {
+    const last = shape[shape.length - 1]!
     const left = Math.max(origin.left + last.left, box.left)
     const right = Math.min(origin.left + last.left + last.width, box.right)
     if (right > left) {
@@ -620,6 +683,16 @@ const ctaStyle = ref<Record<string, string>>({})
 // .splash-images' own rendered height, in px — see imageHeight() above for
 // why this drives the per-image max-height instead of a CSS percentage.
 const imagesBandHeight = ref(0)
+// Mobile (not the shelf layout): the image strip is centered in the grid's lower
+// half, with the headline and subtitle standing above it, one grid margin clear.
+// stripTop is 0 on desktop, where the headline sits over the band instead.
+const STRIP_MAX_HEIGHT = 0.28 // of the window's height
+const stripTop = ref(0)
+const stripStyle = ref<Record<string, string>>({})
+let stripTallest = 0 // px, the tallest image as last measured (placeStrip)
+const STRIP_GAP_MAX = 0.025 // of the window's height
+let stripGap = 0 // px, above the strip and between the headline and the subtitle
+const infoStyle = ref<Record<string, string>>({})
 
 function computeGrid() {
   if (!splashEl.value) return
@@ -698,6 +771,24 @@ function computeGrid() {
     { ...common, bottom: `${insetYBottom + 18}px`, right: `${insetX}px` },
   ]
 
+  if (isMobile && !shelfLayout) {
+    // Keeps a margin from the button, which is centered on the grid's bottom line.
+    const halfGrid = usableH / 2
+    const ctaHeight = splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0
+    const stripHeight = Math.max(halfGrid * 0.5, Math.min(window.innerHeight * STRIP_MAX_HEIGHT, halfGrid - ctaHeight - margin * 2))
+    const stripCenter = gridTop + halfGrid * 1.5
+    stripTop.value = stripCenter - stripHeight / 2
+    imagesBandHeight.value = stripHeight
+    stripStyle.value = { top: `${stripCenter}px`, height: `${stripHeight}px` }
+    // The grid's margin, unless the window is so short that it would squeeze the text.
+    stripGap = Math.min(margin, window.innerHeight * STRIP_GAP_MAX)
+    infoStyle.value = { justifyContent: 'flex-end', paddingBottom: `${boxH - stripTop.value + stripGap}px`, '--subtitle-gap': `${stripGap}px` }
+    return
+  }
+
+  stripTop.value = 0
+  stripStyle.value = {}
+  infoStyle.value = {}
   if (imagesEl.value) {
     imagesBandHeight.value = imagesEl.value.getBoundingClientRect().height
   }
@@ -765,7 +856,7 @@ const TAB_AT = HEADLINE_AT + 1250
 const FOOTER_AT = TAB_AT + 900
 const DONE_AT = FOOTER_AT + 700
 const introTimers: ReturnType<typeof setTimeout>[] = []
-const introClass = computed(() => (['logo', 'build', 'tab'].includes(splashIntro.value) ? `intro-${splashIntro.value}` : null))
+const introClass = computed(() => (['logo', 'build', 'tab', 'footer'].includes(splashIntro.value) ? `intro-${splashIntro.value}` : null))
 
 function buildIn() {
   splashIntro.value = 'build'
@@ -800,6 +891,18 @@ const SHAPE_FULL_CELL = 0.016 // of the window's height: the size of a cell
 const SHAPE_FULL_CELL_MOBILE = 0.0085
 const SHAPE_GRID_PAD = 3 // cells past the screen's sides and bottom, so no outline shows on its edge
 const SHAPE_EDGE_MARGIN = 30 // px clear under the top tab's line, and above the footer
+const SHAPE_GRID_OVERHANG = 2 // mobile: cells a top mass may reach past the grid's side
+const SHAPE_TOP_LIFT = 6 // mobile: cells a top mass rises above the grid
+const SHAPE_TOP_WIDTH = 0.24 // mobile: a top mass's width at most, of the screen's
+const SHAPE_TOP_RATIO = 1.6 // mobile: a top mass's height at most, as a multiple of its width
+const SHAPE_CROSS_COLS = 22 // mobile: the crossing mass's size in cells, its outer ones mostly empty
+const SHAPE_CROSS_ROWS = 8
+const SHAPE_CROSS_HOP = 6 // mobile: cells further right each new form of the crossing mass lands
+const SHAPE_CROSS_MS = 7000 // mobile: how long it takes to turn into that next form
+const SHAPE_CROSS_STEPS = 28
+let crossLeft = 0 // cells from the screen's left edge
+let crossActive = false
+let crossTimer: ReturnType<typeof setTimeout> | undefined
 // How each theme behaves. Light keeps attention on the headline: bigger masses
 // that barely change, one at a time and slowly, each new one the last with its
 // noise shifted a little (evolve). Dark is livelier: all three at once, in step
@@ -858,6 +961,26 @@ function shapeArea(corner: number) {
   const { right, bottom } = SHAPE_CORNERS[corner]!
   const top = bottom ? bandBottom - shapeMotion().bandTuck * cell : (tabTop.value + tabHeight.value + SHAPE_EDGE_MARGIN)
   const end = bottom ? origin.height - SHAPE_EDGE_MARGIN : bandTop + shapeMotion().bandTuck * cell
+  if (stripTop.value && grid.value) {
+    // Mobile: the bottom mass is a small one, level with the top of the tallest image
+    // and behind it, wherever it has shape-shifted to so far (crossHop).
+    const imageTop = bandBottom - (stripTallest || imagesBandHeight.value)
+    const crossTop = Math.round(imageTop / cell - SHAPE_CROSS_ROWS / 2)
+    if (bottom) return { left: crossLeft + pad, top: crossTop, cols: SHAPE_CROSS_COLS, rows: SHAPE_CROSS_ROWS, right, bottom }
+    // The top masses are small and upright, at the grid's top corners, rising a little
+    // above it, and stop short of the crossing mass's path.
+    const overhang = SHAPE_GRID_OVERHANG * cell
+    const areaTop = Math.ceil((grid.value.top - SHAPE_TOP_LIFT * cell) / cell)
+    const cols = Math.floor(origin.width * SHAPE_TOP_WIDTH / cell)
+    return {
+      left: (right ? Math.round((grid.value.right + overhang) / cell) - cols : Math.round((grid.value.left - overhang) / cell)) + pad,
+      top: areaTop,
+      cols,
+      rows: Math.min(Math.round(cols * SHAPE_TOP_RATIO), crossTop - areaTop),
+      right,
+      bottom,
+    }
+  }
   return {
     left: Math.round((right ? origin.width - width : 0) / cell) + pad,
     top: Math.ceil(top / cell),
@@ -871,10 +994,12 @@ function shapeArea(corner: number) {
 function shapeTarget(state: ShapeState) {
   const { cols, rows, pad, cell } = shapeGrid.value
   const area = shapeArea(state.corner)
-  const width = Math.max(6, Math.round(area.cols * state.width))
-  const height = Math.max(6, Math.round(area.rows * state.height))
-  const spareX = Math.round((area.cols - width) * state.slackX)
-  const spareY = Math.round((area.rows - height) * state.slackY)
+  // Mobile: the crossing mass takes its whole area.
+  const whole = !!stripTop.value && area.bottom
+  const width = Math.max(6, whole ? area.cols : Math.round(area.cols * state.width))
+  const height = Math.max(6, whole ? area.rows : Math.round(area.rows * state.height))
+  const spareX = whole ? 0 : Math.round((area.cols - width) * state.slackX)
+  const spareY = whole ? 0 : Math.round((area.rows - height) * state.slackY)
   // Towards the screen's corner, the slack opening towards the headline.
   const left = area.right ? area.left + area.cols - width - spareX : area.left + spareX
   const top = area.bottom ? area.top + area.rows - height - spareY : area.top + spareY
@@ -907,6 +1032,43 @@ function buildShapes() {
   const waiting = splashIntro.value === 'logo'
   shapeCells = targets.map((target) => (waiting ? new Set<number>() : target.cells))
   shapeViews.value = targets.map((target, index) => ({ ...cellPaths(shapeCells[index]!), video: target.video }))
+  if (crossActive) crossHop()
+}
+
+// Mobile: the small mass behind the strip never slides. It keeps turning, a cell at
+// a time, into a new form a little further right: its back falling away first, its
+// front growing last. Past the right edge, it comes back in from the left. On its
+// own clock, not the headline's (morphShapes leaves it out).
+function crossHop() {
+  clearTimeout(crossTimer)
+  const index = shapeStates.findIndex((state) => SHAPE_CORNERS[state.corner]!.bottom)
+  const cells = shapeCells[index]
+  if (!stripTop.value || !cells) return
+  const state = shapeStates[index]!
+  crossLeft += SHAPE_CROSS_HOP
+  if (crossLeft >= shapeGrid.value.cols - shapeGrid.value.pad) crossLeft = -SHAPE_CROSS_COLS
+  state.seed = Math.floor(Math.random() * 1e6)
+  const target = shapeTarget(state)
+  const steps = morphSteps(cells, target.cells, 1, 0, Math.floor(Math.random() * 1e6))
+  let next = 0
+  let step = 0
+  const tick = () => {
+    step++
+    while (next < steps.length && (step === SHAPE_CROSS_STEPS || steps[next]!.time < step / SHAPE_CROSS_STEPS)) {
+      const change = steps[next]!
+      if (change.add) cells.add(change.key)
+      else cells.delete(change.key)
+      next++
+    }
+    shapeViews.value = shapeViews.value.map((view, i) => (i === index ? { ...cellPaths(cells), video: target.video } : view))
+    crossTimer = setTimeout(step < SHAPE_CROSS_STEPS ? tick : crossHop, SHAPE_CROSS_MS / SHAPE_CROSS_STEPS)
+  }
+  tick()
+}
+function startCrossing() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  crossActive = true
+  crossHop()
 }
 
 // The splash building itself: each mass grows cell by cell out of nothing, along
@@ -960,10 +1122,12 @@ function morphShapes() {
       ? corner.right === freeCorner.right && corner.bottom !== freeCorner.bottom
       : corner.right !== freeCorner.right && corner.bottom === freeCorner.bottom
   })
-  const traveler = shapeRound % motion.travelEvery === 0 ? neighbor(Math.random() < motion.travelNearest) : -1
+  // Mobile: none travels, each mass having its own place around the text and strip.
+  const traveler = !stripTop.value && shapeRound % motion.travelEvery === 0 ? neighbor(Math.random() < motion.travelNearest) : -1
   const turn = traveler >= 0 ? traveler : shapeRound % shapeStates.length
   const plans = shapeStates.map((state, index) => {
-    if (motion.oneAtATime && index !== turn) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
+    const crossing = !!stripTop.value && SHAPE_CORNERS[state.corner]!.bottom
+    if (crossing || (motion.oneAtATime && index !== turn)) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
     const before = shapeTarget(state)
     if (index === traveler) state.corner = free
     // The drawn silhouette has no noise to shift: its first change is a new mass.
@@ -988,34 +1152,55 @@ function morphShapes() {
 // straight into the next one letter by letter (decipherFrom) — never
 // through an empty or half-empty headline — the white backing mask
 // following the lines' widths as they change.
-const HEADLINE_MORPH_MS = 1400
-// How long the letters hold between changes: slower to read than the site's other
-// deciphering text, over the same duration.
-const HEADLINE_LETTER_GAP = { min: 170, max: 270 }
+const HEADLINE_MORPH_MS = 1500
+// How long the letters hold between changes: a quick flurry, slowing as it lands.
+const HEADLINE_LETTER_GAP = { first: 70, last: 300 }
 function headlineTicks() {
   const ticks = [0]
   let t = 0
   for (;;) {
-    t += HEADLINE_LETTER_GAP.min + Math.random() * (HEADLINE_LETTER_GAP.max - HEADLINE_LETTER_GAP.min)
-    if (t >= HEADLINE_MORPH_MS) return ticks
+    const progress = t / HEADLINE_MORPH_MS
+    t += (HEADLINE_LETTER_GAP.first + (HEADLINE_LETTER_GAP.last - HEADLINE_LETTER_GAP.first) * progress * progress) * (0.85 + Math.random() * 0.3)
+    // The landing keeps a full gap of its own.
+    if (t >= HEADLINE_MORPH_MS - HEADLINE_LETTER_GAP.last * 0.6) return ticks
     ticks.push(t)
   }
 }
+// When each letter of each line lands: loosely from left to right and from the
+// top line down, the very last with the end of the change.
+function headlineLocks(lengths: number[]) {
+  const raw = lengths.map((length, line) => Array.from({ length }, (_, i) =>
+    (i / Math.max(1, length - 1)) * 0.5 + Math.random() * 0.35 + (line / Math.max(1, lengths.length - 1)) * 0.15))
+  const latest = Math.max(...raw.flat(), 0.01)
+  return raw.map((row) => row.map((value) => HEADLINE_MORPH_MS * (0.15 + 0.85 * (value / latest))))
+}
 let headlineTimer: ReturnType<typeof setTimeout> | undefined
 let morphStops: (() => void)[] = []
-// The frame changes at the very moments the letters do (ticks): it jumps through
-// other silhouettes, and lands on the new headline's own one with the last letter.
+// The frame changes at the very moments the letters do (ticks), and each piece of
+// it lands on the new headline's silhouette when the letters over it do, so the
+// frame settles along with the text.
 let frameTimers: ReturnType<typeof setTimeout>[] = []
-function shuffleFrame(finalSeed: number, ticks: number[]) {
+function shuffleFrame(finalSeed: number, ticks: number[], locks: number[][], targets: DOMRect[]) {
   frameTimers.forEach(clearTimeout)
   frameTimers = []
-  const jump = (seed: number) => {
-    maskSeed.value = seed
+  maskSeed.value = finalSeed
+  const settledAt = (line: number, from: number, to: number) => {
+    const row = locks[line] ?? []
+    const first = Math.min(Math.floor(from * row.length), row.length - 1)
+    return row.length ? Math.max(...row.slice(first, Math.max(first + 1, Math.ceil(to * row.length)))) : 0
+  }
+  const jump = (index: number) => {
+    frameShuffle = { tick: index, time: ticks[index]!, targets, settledAt }
     buildSentenceMasks()
   }
-  for (const at of ticks.slice(1)) frameTimers.push(setTimeout(() => jump(Math.floor(Math.random() * 1e9)), at))
-  frameTimers.push(setTimeout(() => jump(finalSeed), HEADLINE_MORPH_MS))
-  jump(Math.floor(Math.random() * 1e9))
+  ticks.forEach((at, index) => {
+    if (index) frameTimers.push(setTimeout(() => jump(index), at))
+  })
+  frameTimers.push(setTimeout(() => {
+    frameShuffle = null
+    buildSentenceMasks()
+  }, HEADLINE_MORPH_MS))
+  jump(0)
 }
 
 async function nextHeadline() {
@@ -1025,24 +1210,31 @@ async function nextHeadline() {
   await nextTick()
   if (leaving.value) return
   const ticks = headlineTicks()
-  morphStops = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])]
-    .map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks))
+  const lines = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])]
+  const locks = headlineLocks(lines.map((el, i) => Math.max([...(previous[i] ?? '')].length, [...(el.textContent ?? '')].length)))
+  // Still the new text as Vue rendered it, before the letters scramble.
+  const targets = lines.map((el) => el.getBoundingClientRect())
+  morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
   morphShapes()
-  shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks)
+  shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
 function startHeadlineCycle() {
   clearTimeout(headlineTimer)
+  startCrossing()
   if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   headlineTimer = setTimeout(nextHeadline, shapeMotion().holdMs)
 }
 function stopHeadlineCycle() {
+  crossActive = false
+  clearTimeout(crossTimer)
   clearTimeout(shapeTimer)
   clearTimeout(headlineTimer)
   morphStops.forEach((stop) => stop())
   morphStops = []
   frameTimers.forEach(clearTimeout)
   frameTimers = []
+  frameShuffle = null
 }
 
 function playIntro() {
@@ -1134,6 +1326,33 @@ function placeShelfCta() {
   ctaStyle.value = { top: `${subtitle.offsetTop + subtitle.offsetHeight + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
 }
 
+// Mobile: slides the strip up from where computeGrid put it, so its tallest image
+// (often short of the strip's full height, its width being capped) is as far from
+// the subtitle above as from the button below. The text stays put. Returns whether
+// it moved. Measured, so it runs again as each image arrives (onStripImageLoad).
+function placeStrip() {
+  if (!stripTop.value || !grid.value || !splashEl.value) return false
+  const tallest = Math.max(0, ...[...splashEl.value.querySelectorAll<HTMLElement>('.splash-images-track img')].map((img) => img.offsetHeight))
+  if (!tallest) return false
+  stripTallest = tallest
+  const subtitleBottom = stripTop.value - stripGap
+  const ctaTop = grid.value.bottom - (splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0) / 2
+  const gap = Math.max(0, (ctaTop - subtitleBottom - tallest) / 2)
+  const top = `${ctaTop - gap - imagesBandHeight.value / 2}px`
+  if (stripStyle.value.top === top) return false
+  stripStyle.value = { ...stripStyle.value, top }
+  return true
+}
+
+let stripFrame = 0
+function onStripImageLoad() {
+  if (!stripTop.value) return
+  cancelAnimationFrame(stripFrame)
+  stripFrame = requestAnimationFrame(() => {
+    if (placeStrip()) nextTick(buildShapes)
+  })
+}
+
 function handleResize() {
   computeGrid()
   fitHeadlines()
@@ -1142,7 +1361,11 @@ function handleResize() {
     buildSentenceMasks()
   })
   nextTick(placeShelfCta)
-  nextTick(buildShapes)
+  nextTick(async () => {
+    placeStrip()
+    await nextTick()
+    buildShapes()
+  })
 }
 
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
@@ -1165,6 +1388,7 @@ onMounted(() => {
 onUnmounted(() => {
   introTimers.forEach(clearTimeout)
   stopHeadlineCycle()
+  cancelAnimationFrame(stripFrame)
   lineObserver?.disconnect()
   if (splashIntro.value !== 'done') splashIntro.value = 'done'
   window.removeEventListener('resize', handleResize)
@@ -1359,7 +1583,7 @@ onUnmounted(() => {
     <!-- Behind .splash-info (lower z-index) — a background layer, not a
          band confined to the margin strip, now that it's centered in the
          viewport like the text is. -->
-    <div v-if="images?.length" ref="imagesEl" class="splash-images" aria-hidden="true">
+    <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="stripStyle" aria-hidden="true">
       <div class="splash-images-track">
         <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper">
           <span
@@ -1375,6 +1599,7 @@ onUnmounted(() => {
             :alt="image.alt || ''"
             :class="{ 'is-hovered': hoveredIndex === index }"
             :style="{ maxHeight: imageHeight(index) }"
+            @load="onStripImageLoad"
             @mouseenter="hoveredIndex = canHover() ? index : null"
             @mouseleave="hoveredIndex = null"
           >
@@ -1382,7 +1607,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="splash-info">
+    <div class="splash-info" :style="infoStyle">
       <div
         v-if="headlineWords.length"
         ref="sentencesEl"
@@ -1440,7 +1665,7 @@ onUnmounted(() => {
       <!-- Lines as typed in the CMS (Sous-titre). -->
       <div v-if="subtitleLines.length" class="text-label splash-subtitle">
         <span class="splash-subtitle-box">
-          <template v-for="(line, index) in subtitleLines" :key="index"><br v-if="index">{{ line }}</template>
+          {{ subtitleLines[0] }}<span v-if="subtitleLines.length > 1" class="splash-subtitle-rest"><template v-for="(line, index) in subtitleLines.slice(1)" :key="index"><br>{{ line }}</template></span>
         </span>
       </div>
     </div>
@@ -1550,6 +1775,13 @@ onUnmounted(() => {
 @keyframes splash-tab-ticker-slide {
   to {
     transform: translateX(calc(-100% / 3));
+  }
+}
+
+/* `translate`, not `transform`: it adds up with the slide running alongside. */
+@keyframes splash-tab-ticker-enter {
+  from {
+    translate: 55vw 0;
   }
 }
 
@@ -2261,6 +2493,37 @@ onUnmounted(() => {
     --splash-image-max-width: 60vw;
   }
 
+  /* The tab's sentence comes last, once the footer is up: it runs in from the
+     tab's right edge, first word first, slowing down to its usual pace. */
+  .splash.intro-tab .splash-tab-ticker,
+  .splash.intro-footer .splash-tab-ticker {
+    opacity: 0;
+  }
+
+  .splash.intro-logo .splash-tab-ticker-slide,
+  .splash.intro-build .splash-tab-ticker-slide,
+  .splash.intro-tab .splash-tab-ticker-slide,
+  .splash.intro-footer .splash-tab-ticker-slide {
+    animation-play-state: paused;
+  }
+
+  .splash:not(.is-leaving) .splash-tab-ticker {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .splash.is-measured:not(.intro-logo, .intro-build, .intro-tab, .intro-footer) .splash-tab-ticker-slide {
+      animation:
+        splash-tab-ticker-enter 1.4s cubic-bezier(0.16, 1, 0.3, 1) var(--ticker-enter-delay, 0s) backwards,
+        splash-tab-ticker-slide 24s linear var(--ticker-enter-delay, 0s) infinite;
+    }
+
+    /* A returning visitor has no intro: after the splash's fade-in. */
+    .splash.is-returning {
+      --ticker-enter-delay: 0.4s;
+    }
+  }
+
   .splash-corner {
     display: none;
   }
@@ -2269,14 +2532,43 @@ onUnmounted(() => {
     font-size: 12vw;
   }
 
-  .splash-subtitle-box {
-    padding: 12px 14px;
-    /* Smaller than text-label on a phone: the splash's own art sizing. */
-    font-size: 9pt;
+  /* Apart from the headline's frame (computeGrid, buildSentenceMasks). */
+  .splash-subtitle {
+    margin-top: var(--subtitle-gap, 0);
   }
 
+  .splash-subtitle-box {
+    padding: 8px 10px;
+    /* The same size as the tab's sentence (.splash-tab-ticker-track). */
+    font-size: 12pt;
+  }
+
+  /* Only the CMS's first line, which ends on "disinformation". */
+  .splash-subtitle-rest {
+    display: none;
+  }
+
+  /* Top and height come from computeGrid and placeStrip (stripStyle): in the
+     grid's lower half, midway between the subtitle and the button. Every image
+     stands on the strip's bottom edge. */
   .splash-images {
     height: 28vh;
+  }
+
+  .splash-images-track {
+    align-items: flex-end;
+  }
+
+  /* Smaller on a phone's narrower images, so fewer words need cutting. Never as
+     wide as the image: a long word ends in an ellipsis, so some of the image
+     always shows beside it. */
+  .image-label {
+    box-sizing: border-box;
+    max-width: 75%;
+    padding: 1px 5px;
+    overflow: hidden;
+    font-size: 11px;
+    text-overflow: ellipsis;
   }
 
   /* Scales with the screen, so its one line of text fits the narrowest phone. */

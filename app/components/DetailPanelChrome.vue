@@ -5,7 +5,7 @@
 // area (the slot — each variant owns its own layout inside it), and
 // NEXT/PREVIOUS links that only appear once you've scrolled to the very
 // end of the content, not fixed/sticky.
-defineProps<{
+const props = defineProps<{
   background: string
   textColor: string
   // Omit to hide the close cross entirely — TemplateAbout.vue's own use
@@ -22,6 +22,42 @@ defineProps<{
   // it calls preventDefault itself when it takes over the navigation.
   onClose?: (event: MouseEvent) => void
 }>()
+
+// Closing from further down the page: back up to the top first, then the
+// cross is clicked again and closes as usual, whichever way this panel closes.
+const scrollEl = ref<HTMLElement | null>(null)
+let scrollingUp = false
+function onCloseClick(event: MouseEvent) {
+  const scroller = scrollEl.value
+  if (event.metaKey || event.ctrlKey || event.shiftKey) return
+  if (scrollingUp) return event.preventDefault()
+  if (!scroller?.scrollTop) return props.onClose?.(event)
+  event.preventDefault()
+  scrollingUp = true
+  const link = event.currentTarget as HTMLElement
+  scrollToTop(scroller, () => {
+    scrollingUp = false
+    link.click()
+  })
+}
+
+function scrollToTop(scroller: HTMLElement, done: () => void) {
+  const from = scroller.scrollTop
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    scroller.scrollTop = 0
+    return done()
+  }
+  // Long enough to read as going back up, without keeping a long article waiting.
+  const duration = Math.min(900, Math.max(350, from / 3))
+  const start = performance.now()
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / duration)
+    scroller.scrollTop = from * (1 - t * t * (3 - 2 * t))
+    if (t < 1) requestAnimationFrame(step)
+    else done()
+  }
+  requestAnimationFrame(step)
+}
 </script>
 
 <template>
@@ -32,7 +68,7 @@ defineProps<{
       class="detail-panel-close"
       :class="closeDraw ? `is-${closeDraw}` : null"
       aria-label="Close"
-      @click.capture="onClose?.($event)"
+      @click.capture="onCloseClick"
     >
       <!-- A drawn cross (thin stroke, square linecap), not a font glyph —
            the "×" character renders visibly rounded/bold at larger sizes
@@ -42,7 +78,7 @@ defineProps<{
         <line x1="22" y1="2" x2="2" y2="22" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" pathLength="1" />
       </svg>
     </NuxtLink>
-    <div class="detail-panel-scroll">
+    <div ref="scrollEl" class="detail-panel-scroll">
       <div class="detail-panel-scroll-inner">
         <slot />
         <div class="detail-panel-nav">

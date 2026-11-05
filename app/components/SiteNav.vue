@@ -69,6 +69,9 @@ const tabPath = computed(() => buildTabPath(tabWidth.value, tabHeight.value))
 // stays hidden until SiteIndexBar, unfolding downward from that line,
 // arrives underneath it.
 const introTransition = useIntroTransition()
+// Mobile's sentence waits for the draw-in. Kept after it ends, or dropping the
+// delay would make the running animation jump.
+const tickerAfterIntro = introTransition.value
 const TAB_RISE_STAGGER_S = 0.15
 function tabRiseDelay(index: number) {
   return index * TAB_RISE_STAGGER_S
@@ -139,7 +142,7 @@ onUnmounted(() => {
          hydration flash when the breakpoint flips. Scrolling marquee
          (doubled text + translateX loop), not static truncated text —
          same technique as Splash.vue's own .splash-tab-ticker-track. -->
-    <div class="site-nav-ticker">
+    <div class="site-nav-ticker" :class="{ 'is-after-intro': tickerAfterIntro }">
       <div class="site-nav-ticker-track text-small">
         <span>{{ SITE_TAGLINE }}</span>
         <span>{{ SITE_TAGLINE }}</span>
@@ -237,6 +240,27 @@ onUnmounted(() => {
   }
   to {
     transform: translateX(-50%);
+  }
+}
+
+/* Runs in from the right, first word first, slowing down to its usual pace.
+   `translate`, not `transform`: it adds up with the scroll running alongside. */
+@keyframes site-nav-ticker-enter {
+  from {
+    translate: 55vw 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-nav-ticker-track {
+    animation:
+      site-nav-ticker-enter 1.4s cubic-bezier(0.16, 1, 0.3, 1) var(--ticker-enter-delay, 0s) backwards,
+      site-nav-ticker-scroll 16s linear var(--ticker-enter-delay, 0s) infinite;
+  }
+
+  /* Last of the splash -> guide draw-in (INTRO_MS, pages/index.vue). */
+  .site-nav-ticker.is-after-intro {
+    --ticker-enter-delay: 2.8s;
   }
 }
 
