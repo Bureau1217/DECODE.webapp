@@ -867,6 +867,7 @@ function buildIn() {
   splashIntro.value = 'build'
   logoVisible.value = false
   constructShapes()
+  cellsShown.value = true
   for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.corner-title, .corner-badge, .splash-cta, .image-label') ?? []) {
     decipherIn(el)
   }
@@ -921,6 +922,15 @@ const SHAPE_MOTION = {
 }
 // Dark mode: what fills each mass, through the duotone (.splash-shape-video).
 const SHAPE_VIDEOS = ['/videos/splash-1.mp4', '/videos/splash-2.mp4', '/videos/splash-3.mp4']
+// Desktop's shapes (SplashLayers.vue): the workshop's fake news clips (Iran and
+// Ukraine), with the first two above (the third is ukraine-03 again). In a new
+// order each visit.
+const LAYER_VIDEOS = [
+  '/videos/splash-1.mp4', '/videos/splash-2.mp4',
+  ...Array.from({ length: 10 }, (_, i) => `/videos/splash/iran-${String(i + 1).padStart(2, '0')}.mp4`),
+  '/videos/splash/ukraine-01.mov',
+  ...Array.from({ length: 8 }, (_, i) => `/videos/splash/ukraine-${String(i + 2).padStart(2, '0')}.mp4`),
+].sort(() => Math.random() - 0.5)
 const SHAPE_CORNERS = [
   { right: false, bottom: false },
   { right: true, bottom: false },
@@ -948,6 +958,41 @@ let shapeRound = 0
 let shapeTimer: ReturnType<typeof setTimeout> | undefined
 
 const shapeMotion = () => SHAPE_MOTION[colorMode.value === 'dark' ? 'dark' : 'light']
+
+// Desktop: shapes of grid cells (SplashLayers.vue) instead of the masses.
+// Mobile keeps the masses for now.
+const wideScreen = ref(false)
+const cellsOn = computed(() => wideScreen.value && !shelfLayout)
+const cellsRound = ref(0)
+// When each letter of the current change lands: the shapes change a tile on each.
+const cellsTicks = ref<number[][]>([])
+const cellsShown = ref(false)
+// The headline's frame (its lines with the frame's margin), the subtitle and the
+// button, relative to the splash: where SplashLayers.vue places its shapes.
+function cellsBoxes() {
+  const splash = splashEl.value
+  const lines = [...(splash?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])].map((el) => el.getBoundingClientRect())
+  if (!splash || !lines.length) return null
+  const origin = splash.getBoundingClientRect()
+  const rel = (r: DOMRect) => new DOMRect(r.left - origin.left, r.top - origin.top, r.width, r.height)
+  const pad = (grid.value?.cellH ?? 80) * 0.3
+  const left = Math.min(...lines.map((r) => r.left)) - pad, top = Math.min(...lines.map((r) => r.top)) - pad
+  const right = Math.max(...lines.map((r) => r.right)) + pad, bottom = Math.max(...lines.map((r) => r.bottom)) + pad
+  const subtitle = splash.querySelector('.splash-subtitle-box')?.getBoundingClientRect()
+  const cta = splash.querySelector('.splash-cta')?.getBoundingClientRect()
+  return {
+    headline: new DOMRect(left - origin.left, top - origin.top, right - left, bottom - top),
+    subtitle: subtitle ? rel(subtitle) : null,
+    cta: cta ? rel(cta) : null,
+  }
+}
+// Switching theme or crossing the mobile width: the masses come back, or go.
+watch(cellsOn, (on) => {
+  nextTick(() => {
+    buildShapes()
+    if (!on) startCrossing()
+  })
+})
 const shapeDrift = (share: number, min: number) => Math.min(1, Math.max(min, share + (Math.random() * 2 - 1) * shapeMotion().drift))
 
 function shapeFirstRow() {
@@ -1055,6 +1100,11 @@ function shapeTarget(state: ShapeState) {
 // Lays them out as they stand: on load, and whenever the window changes size.
 function buildShapes() {
   clearTimeout(shapeTimer)
+  if (cellsOn.value) {
+    shapeViews.value = []
+    shapeCells = []
+    return
+  }
   const splash = splashEl.value
   if (!splash || !sentencesEl.value) return
   const { width, height } = splash.getBoundingClientRect()
@@ -1100,7 +1150,7 @@ function crossHop() {
   tick()
 }
 function startCrossing() {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (cellsOn.value || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   crossActive = true
   crossHop()
 }
@@ -1250,6 +1300,10 @@ async function nextHeadline() {
   const targets = lines.map((el) => el.getBoundingClientRect())
   morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
   morphShapes()
+  // Each letter landing, line by line (not the spaces of the new headline): one
+  // tile of that line's shape changes with it.
+  cellsTicks.value = locks.map((row, i) => row.filter((_, j) => (headlineWords.value[i]?.[j] ?? 'x') !== ' '))
+  cellsRound.value++
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
@@ -1415,6 +1469,7 @@ function onStripImageLoad() {
 }
 
 function handleResize() {
+  wideScreen.value = window.innerWidth > 1150
   computeGrid()
   fitHeadlines()
   nextTick(() => {
@@ -1432,6 +1487,7 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
+  if (splashIntro.value !== 'logo') cellsShown.value = true
   playIntro()
   handleResize()
   observeLines()
@@ -1607,7 +1663,8 @@ onUnmounted(() => {
     <!-- Over the grid, under the image band and the headline:
          same z-index as those, so DOM order sets it. Placed by buildShapes,
          at least SHAPE_EDGE_MARGIN from the top tab's line and the footer. -->
-    <div class="splash-shapes" aria-hidden="true">
+    <SplashLayers v-if="cellsOn" :grid="grid" :round="cellsRound" :shown="cellsShown && measured" :dark="colorMode === 'dark'" :boxes="cellsBoxes" :ticks="cellsTicks" :lines="headlineWords" :videos="LAYER_VIDEOS" />
+    <div v-else class="splash-shapes" aria-hidden="true">
       <div
         v-for="(view, index) in shapeViews"
         :key="index"
@@ -2107,7 +2164,12 @@ onUnmounted(() => {
   transition-duration: 0.8s;
 }
 
-.splash.is-leaving .splash-shapes {
+.splash.is-leaving .splash-shapes,
+.splash.is-leaving .splash-layer {
+  opacity: 0;
+}
+
+.splash.intro-logo .splash-layer {
   opacity: 0;
 }
 
