@@ -16,6 +16,26 @@ export function deepBadgeColor(color: string) {
   return DEEP_BADGE_COLORS[BADGE_COLORS.indexOf(color)] ?? color
 }
 
+// A card's photo on hover (app.vue's filters, main.css, ToolCard.vue): a negative
+// from white to its deep badge colour taken 45% towards black, as 0..1 channels.
+// A guide card's stays grey (#duotone-card-gray: white to #4a4b4d, about as dark
+// as the coloured ones).
+export const CARD_HOVER_INKS = [
+  ...DEEP_BADGE_COLORS.map((hex, i) => [
+    `duotone-card-${i}`,
+    [1, 3, 5].map((k, ch) => {
+      const v = parseInt(hex.slice(k, k + 2), 16)
+      return ((v + ((ch === 2 ? 24 : 20) - v) * 0.45) / 255).toFixed(4)
+    }),
+  ] as const),
+  ['duotone-card-gray', ['0.2902', '0.2941', '0.3020']] as const,
+]
+
+export function cardHoverFilter(color: string) {
+  const i = BADGE_COLORS.indexOf(color)
+  return i < 0 ? 'none' : `url(#duotone-card-${i})`
+}
+
 // Tools follow their own tool colors, not the plain badge cycle: tool 2
 // (DE.CO.DE Extension) is purple and tool 3 (Bot / Troll Detector) teal —
 // the same accents their own pages use (--tool-sourcerel-accent,

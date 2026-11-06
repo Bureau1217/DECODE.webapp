@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { KeywordRef } from '~/types/article'
-import { toolColorFor } from '~/utils/badgeColors'
+import { cardHoverFilter, deepBadgeColor, toolColorFor } from '~/utils/badgeColors'
 
 export interface Tool {
   title: string
@@ -24,12 +24,68 @@ const props = defineProps<{
 const badgeColor = computed(() => toolColorFor(props.index))
 // A photo in the site's duotone, like a guide card (main.css).
 // Europe from above: NASA's Blue Marble, as on the splash.
+// band: which of the photo's tones take the colour, as shares of its own pixels,
+// darkest 0 to brightest 1, chosen per photo (each one's tones differ):
+// - the map is a dark sea, so its brighter half (land, desert) goes coral;
+// - the newspapers are mostly white paper: their brighter half (the paper) takes
+//   a pale lilac, at under half strength, the ink staying light silver;
+// - the phone farm's brightest 35% (walls, window) go teal.
+// soft: how gradually the colour comes in (1: across the whole band).
+// amount: how far into the colour the band goes (1: its full deep shade).
 const TOOL_VISUALS = [
-  { url: '/nasa/europe-card.jpg', width: 1200, height: 900, class: 'duotone-satellite' },
-  { url: '/tool-visuals/extension.jpg', width: 900, height: 589 },
-  { url: '/tool-visuals/bot.jpg', width: 720, height: 900 },
-]
+  { url: '/nasa/europe-card.jpg', width: 1200, height: 900, band: [0.5, 1], soft: 0.6, amount: 1 },
+  { url: '/tool-visuals/extension.jpg', width: 900, height: 589, band: [0.5, 1], soft: 1, amount: 0.45 },
+  { url: '/tool-visuals/bot.jpg', width: 720, height: 900, band: [0.65, 1], soft: 1, amount: 1 },
+] as const
 const visual = computed(() => TOOL_VISUALS[props.index % TOOL_VISUALS.length]!)
+
+// The photo in the site's silver (app.vue's #duotone-silver, as on the splash: a
+// negative, black showing near white, white showing cool grey), one band of its
+// tones in the tool's colour instead (TOOL_VISUALS' band, measured on the photo
+// itself), the colour coming in smoothly from the silver and deepening. One SVG
+// gradient map per card, smooth by nature; hovering shows the photo as it is.
+const filterId = computed(() => `tool-tint-${props.index}`)
+const tableValues = ref<[string, string, string] | null>(null)
+const hexRgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number]
+const mixRgb = (a: number[], b: number[], t: number) => [0, 1, 2].map((i) => a[i]! + (b[i]! - a[i]!) * t)
+function fitFilter() {
+  const image = new Image()
+  image.src = visual.value.url
+  image.onload = () => {
+    const w = 160, h = Math.max(1, Math.round(160 * image.naturalHeight / image.naturalWidth))
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+    ctx.drawImage(image, 0, 0, w, h)
+    const d = ctx.getImageData(0, 0, w, h).data
+    const levels: number[] = []
+    for (let i = 0; i < d.length; i += 4) levels.push((0.299 * d[i]! + 0.587 * d[i + 1]! + 0.114 * d[i + 2]!) / 255)
+    levels.sort((x, y) => x - y)
+    const at = (share: number) => levels[Math.min(levels.length - 1, Math.floor(share * levels.length))]!
+    const { band: [from, to], soft, amount } = visual.value
+    // The band in luminance: lo..hi, the colour easing in (and out) over `ramp`.
+    const lo = from > 0 ? at(from) : 0
+    const hi = to < 1 ? at(to) : at(0.99)
+    const ramp = Math.max(0.06, (hi - lo) * soft)
+    const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
+    const deep = hexRgb(deepBadgeColor(badgeColor.value))
+    const shade = mixRgb(deep, [30, 30, 32], 0.2)
+    const silverAt = (v: number) => mixRgb([244, 244, 242], [159, 161, 163], v)
+    const STOPS = 64
+    const stops = Array.from({ length: STOPS + 1 }, (_, k) => {
+      const v = k / STOPS
+      const rise = from > 0 ? smooth((v - lo) / ramp) : 1
+      const fall = to < 1 ? 1 - smooth((v - (hi - ramp)) / ramp) : 1
+      const e = rise * fall * amount
+      if (e <= 0) return silverAt(v)
+      // Out of the silver, into the colour, its deep shade at the band's heart.
+      const base = silverAt(Math.min(Math.max(v, lo), hi))
+      return e < 0.5 ? mixRgb(base, deep, e * 2 * 0.85) : mixRgb(mixRgb(base, deep, 0.85), shade, (e - 0.5) * 2)
+    })
+    tableValues.value = [0, 1, 2].map((ch) => stops.map((s) => (s[ch]! / 255).toFixed(4)).join(' ')) as [string, string, string]
+  }
+}
+onMounted(fitFilter)
 // Tools 2 and 3 (purple #cdb4ea, teal #b4eae1) are too pale for the
 // white eyebrow/title once the card fills with them on hover: those two
 // take dark text instead (.tool-card.is-pale, below); tool 1's coral keeps
@@ -52,7 +108,27 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
     @mouseleave="onLeave"
   >
     <div class="tool-card-image-wrap">
-      <img :src="visual.url" :class="visual.class" :width="visual.width" :height="visual.height" :alt="item.title">
+      <svg v-if="tableValues" width="0" height="0" class="tool-card-filter" aria-hidden="true">
+        <filter :id="filterId" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0" />
+          <feComponentTransfer>
+            <feFuncR type="table" :tableValues="tableValues[0]" />
+            <feFuncG type="table" :tableValues="tableValues[1]" />
+            <feFuncB type="table" :tableValues="tableValues[2]" />
+          </feComponentTransfer>
+        </filter>
+      </svg>
+      <img
+        class="tool-card-img no-duotone"
+        :src="visual.url"
+        :width="visual.width"
+        :height="visual.height"
+        :alt="item.title"
+        :style="{
+          '--tool-filter': tableValues ? `url(#${filterId})` : 'url(#duotone-silver)',
+          '--tool-filter-hover': cardHoverFilter(badgeColor),
+        }"
+      >
     </div>
     <div class="tool-card-body">
       <span class="tool-card-eyebrow text-small">Tool {{ index + 1 }}</span>
@@ -98,6 +174,22 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* The splash's silver with the tool's colour (script, fitFilter); on hover, the
+   same negative from white to a deep shade of the card's colour, as on a guide
+   card (app.vue's #duotone-card-*). */
+.tool-card .tool-card-img {
+  filter: var(--tool-filter);
+  transition: filter 0.3s ease;
+}
+
+.tool-card:hover .tool-card-img {
+  filter: var(--tool-filter-hover);
+}
+
+.tool-card-filter {
+  position: absolute;
 }
 
 /* justify-content:flex-end (not center) bottom-aligns the text block

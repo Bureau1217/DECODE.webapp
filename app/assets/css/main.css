@@ -425,10 +425,6 @@ img {
   transition: filter 0.3s ease;
 }
 
-img.duotone-satellite {
-  filter: url(#duotone-satellite);
-}
-
 img:hover,
 img.no-duotone {
   filter: none;
@@ -441,17 +437,13 @@ img.no-duotone {
   filter: url(#duotone-dark);
 }
 
-:root[data-theme='dark'] img.duotone-satellite:not(:hover) {
-  filter: url(#duotone-satellite);
-}
-
-/* A guide or tool card's visual drops the duotone with the whole card's hover,
-   not only when the pointer is on the image itself. */
-.guide-card:hover img,
-.tool-card:hover img,
-:root[data-theme='dark'] .guide-card:hover img:not(.no-duotone),
-:root[data-theme='dark'] .tool-card:hover img:not(.no-duotone) {
-  filter: none;
+/* A guide card's visual with the whole card's hover (not only when the pointer
+   is on the image itself): the same negative, from white to a dark grey
+   (app.vue's #duotone-card-gray). Tool cards take their own colour instead
+   (ToolCard.vue). */
+.guide-card:hover img:not(.no-duotone),
+:root[data-theme='dark'] .guide-card:hover img:not(.no-duotone) {
+  filter: url(#duotone-card-gray);
 }
 
 /* Opening or leaving a tool (plugins/tool-view-transition.client.ts): the

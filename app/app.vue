@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Language } from '~/composables/useLanguage'
+import { CARD_HOVER_INKS } from '~/utils/badgeColors'
 
 const showSplash = useSplashVisible()
 
@@ -142,23 +143,6 @@ watch(
     <!-- Hidden defs for the global image duotone treatment (app/assets/css/main.css).
          https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Element/feComponentTransfer -->
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
-      <!-- The satellite view on the map's tool card: a positive, taken from the
-           red channel, where the sea is near black and the land stands out. A
-           negative would turn all that dark sea pale. -->
-      <filter id="duotone-satellite" color-interpolation-filters="sRGB">
-        <feColorMatrix
-          type="matrix"
-          values="1 0 0 0 0
-                  1 0 0 0 0
-                  1 0 0 0 0
-                  0 0 0 1 0"
-        />
-        <feComponentTransfer>
-          <feFuncR type="linear" slope="1.19" intercept="0.16" />
-          <feFuncG type="linear" slope="1.19" intercept="0.164" />
-          <feFuncB type="linear" slope="1.19" intercept="0.169" />
-        </feComponentTransfer>
-      </filter>
       <filter id="duotone-silver">
         <!-- Rec.601 luma weights — a more photographically faithful
              grayscale conversion than a flat average, better preserving
@@ -203,6 +187,29 @@ watch(
           <feFuncR type="table" tableValues="0.91373 0.10980" />
           <feFuncG type="table" tableValues="0.91373 0.10980" />
           <feFuncB type="table" tableValues="0.90588 0.10980" />
+        </feComponentTransfer>
+      </filter>
+      <!-- A guide or tool card's photo on hover (main.css, ToolCard.vue): the
+           same negative, from white to a deep shade of the card's own colour
+           (badgeColors.ts, cardHoverFilter), one per badge colour: coral,
+           teal, purple. The ink is the deep badge colour 45% towards black. -->
+      <filter
+        v-for="[id, ink] in CARD_HOVER_INKS"
+        :id="id"
+        :key="id"
+        color-interpolation-filters="sRGB"
+      >
+        <feColorMatrix
+          type="matrix"
+          values="0.299 0.587 0.114 0 0
+                  0.299 0.587 0.114 0 0
+                  0.299 0.587 0.114 0 0
+                  0     0     0     1 0"
+        />
+        <feComponentTransfer>
+          <feFuncR type="table" :tableValues="`1 ${ink[0]}`" />
+          <feFuncG type="table" :tableValues="`1 ${ink[1]}`" />
+          <feFuncB type="table" :tableValues="`1 ${ink[2]}`" />
         </feComponentTransfer>
       </filter>
       <!-- The About page's partner logo (TeamPanel.vue) at rest: its two

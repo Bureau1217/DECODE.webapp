@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { decipherFrom, decipherIn, scrambleOut } from '~/utils/decipher'
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
-import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, resizeMass, stampMass } from '~/utils/splashShape'
+import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, refineMass, resizeMass, stampMass } from '~/utils/splashShape'
 
 // Decorative intro screen — fails soft (empty state, no thrown error) if
 // the CMS call doesn't come back, since this isn't core content.
@@ -577,8 +577,34 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 // cutting off its outline. Width and height are fit independently (cells
 // can end up slightly rectangular rather than perfectly square) so each
 // axis gets a whole number of cells with no leftover.
-const SQUARE_TARGET = 80
-const SQUARE_TARGET_MOBILE = 44
+//
+// The grid's settings, all here:
+// - SQUARE_TARGET: a cell's size, roughly (px): smaller, more cells.
+// - GRID_FRAME_GAP: the gap between the grid and the frame drawn around it (px).
+// - GRID_NUMBERS: the numbers in the left margin, shown or not, every
+//   GRID_NUMBER_EVERY lines.
+// - GRID_TICKS_ACROSS / GRID_TICKS_SIDE: how many little bars across the frame
+//   on its top and bottom, and on its left and right, each on the nearest grid
+//   line, GRID_TICK_LENGTH × GRID_TICK_WIDTH (px). GRID_TICK_SIDE_INSET: how far
+//   in from the frame's corners the side ones start (of its height): smaller,
+//   further apart.
+// - The button sits halfway between the subtitle and the grid's bottom line on
+//   desktop (placeCta), on that line on mobile.
+// - The pixel masses are cut from these same squares and their quarters
+//   (SHAPE_EDGE_QUARTERS, buildShapes).
+// Its colours are CSS variables on .splash (--grid-line, --grid-frame, and the
+// bars' --grid-tick).
+const SQUARE_TARGET = 40
+const SQUARE_TARGET_MOBILE = 24
+const GRID_FRAME_GAP = 14
+const GRID_FRAME_GAP_MOBILE = 8
+const GRID_NUMBERS = false
+const GRID_NUMBER_EVERY = 4
+const GRID_TICKS_ACROSS = 3
+const GRID_TICKS_SIDE = 2
+const GRID_TICK_SIDE_INSET = 0.14
+const GRID_TICK_LENGTH = 22
+const GRID_TICK_WIDTH = 5
 
 // Folder-tab silhouette above the grid: a long flat top line with steep
 // (~70-74°) diagonal "shoulders" down to a lower baseline at each edge,
@@ -669,6 +695,8 @@ const folderTabPath = computed(() => {
 const splashEl = ref<HTMLElement | null>(null)
 const imagesEl = ref<HTMLElement | null>(null)
 const gridStyle = ref<Record<string, string>>({})
+// The frame around the grid, GRID_FRAME_GAP outside it (computeGrid).
+const frameStyle = ref<Record<string, string>>({})
 // The same grid in plain numbers (px, relative to .splash) — the exit
 // transition (leave(), below) redraws it as individual SVG lines so each
 // one can retract on its own.
@@ -741,6 +769,14 @@ function computeGrid() {
     left: `${margin}px`,
     right: `${margin}px`,
     backgroundSize: `${cellWidth}px ${cellHeight}px`,
+  }
+
+  const frameGap = isMobile ? GRID_FRAME_GAP_MOBILE : GRID_FRAME_GAP
+  frameStyle.value = {
+    top: `${gridTop - frameGap}px`,
+    bottom: `${gridBottomGap - frameGap}px`,
+    left: `${margin - frameGap}px`,
+    right: `${margin - frameGap}px`,
   }
 
   ctaStyle.value = { top: `${boxH - gridBottomGap}px` }
@@ -892,7 +928,13 @@ function headlineIn() {
 // There's one more corner than masses: every few changes, one of them travels to
 // it, usually from the corner nearest it. The rest of the time they stay put and
 // each new mass is close to the last in place and size, so nothing jumps far.
-const SHAPE_FULL_CELL = 0.016 // of the window's height: the size of a cell
+// The masses are drawn on the splash grid itself: each of its squares split in
+// four (a quarter is the masses' cell), whole squares inside, quarters along the
+// edges (refineMass, SHAPE_EDGE_QUARTERS of them changed).
+const SHAPE_EDGE_QUARTERS = 0.3
+// The unit the tucks, lifts and sizes below are counted in, of the window's height
+// (not the grid's quarters, which follow SQUARE_TARGET).
+const SHAPE_FULL_CELL = 0.016
 const SHAPE_FULL_CELL_MOBILE = 0.0085
 const SHAPE_GRID_PAD = 3 // cells past the screen's sides and bottom, so no outline shows on its edge
 const SHAPE_EDGE_MARGIN = 30 // px clear under the top tab's line, and above the footer
@@ -941,7 +983,17 @@ const shapeStates: ShapeState[] = [
   { corner: 0, seed: null, width: 0.95, height: 1, slackX: 0, slackY: 0, phase: 0 },
   { corner: 1, seed: 41, width: 0.75, height: 0.85, slackX: 0.2, slackY: 0.4, phase: 0 },
 ]
-const shapeGrid = ref({ cell: 0, cols: 0, rows: 0, pad: 0 })
+// cw × ch: a quarter of a grid square (px). x0, y0: where cell 0 0 sits on the
+// splash, on a grid line, past its left and top edges. pad: cell columns left of
+// the screen. unit: SHAPE_FULL_CELL in px.
+const shapeGrid = ref({ cw: 0, ch: 0, x0: 0, y0: 0, cols: 0, rows: 0, pad: 0, unit: 0 })
+// From the splash's px to its cells, and the crossing mass's size in cells (even,
+// so it covers whole squares).
+const shapeCol = (px: number) => (px - shapeGrid.value.x0) / shapeGrid.value.cw
+const shapeRow = (py: number) => (py - shapeGrid.value.y0) / shapeGrid.value.ch
+const toEven = (n: number) => Math.max(2, Math.round(n / 2) * 2)
+const crossCols = () => toEven(SHAPE_CROSS_COLS * shapeGrid.value.unit / shapeGrid.value.cw)
+const crossRows = () => toEven(SHAPE_CROSS_ROWS * shapeGrid.value.unit / shapeGrid.value.ch)
 const shapeViews = ref<{ fill: string, outline: string, video: Record<string, string> }[]>([])
 let shapeCells: Set<number>[] = []
 let shapeRound = 0
@@ -951,13 +1003,13 @@ const shapeMotion = () => SHAPE_MOTION[colorMode.value === 'dark' ? 'dark' : 'li
 const shapeDrift = (share: number, min: number) => Math.min(1, Math.max(min, share + (Math.random() * 2 - 1) * shapeMotion().drift))
 
 function shapeFirstRow() {
-  return Math.ceil((tabTop.value + tabHeight.value + SHAPE_EDGE_MARGIN) / shapeGrid.value.cell)
+  return Math.ceil(shapeRow(tabTop.value + tabHeight.value + SHAPE_EDGE_MARGIN))
 }
 
 // A corner's area in cells: between the top tab or the screen's bottom and the
 // image band, and between the screen's side and the headline.
 function shapeArea(corner: number) {
-  const { cell, pad } = shapeGrid.value
+  const { unit: cell, cw, ch, pad } = shapeGrid.value
   const splash = splashEl.value!
   const origin = splash.getBoundingClientRect()
   const band = imagesEl.value?.getBoundingClientRect()
@@ -973,18 +1025,18 @@ function shapeArea(corner: number) {
     // Mobile: the bottom mass is a small one, level with the top of the tallest image
     // and behind it, wherever it has shape-shifted to so far (crossHop).
     const imageTop = bandBottom - (stripTallest || imagesBandHeight.value)
-    const crossTop = Math.round(imageTop / cell - SHAPE_CROSS_ROWS / 2)
-    if (bottom) return { left: crossLeft + pad, top: crossTop, cols: SHAPE_CROSS_COLS, rows: SHAPE_CROSS_ROWS, right, bottom }
+    const crossTop = Math.round(shapeRow(imageTop) - crossRows() / 2)
+    if (bottom) return { left: crossLeft + pad, top: crossTop, cols: crossCols(), rows: crossRows(), right, bottom }
     // The top masses are small and upright, at the grid's top corners, rising a little
     // above it, and stop short of the crossing mass's path.
     const overhang = SHAPE_GRID_OVERHANG * cell
-    const areaTop = Math.ceil((grid.value.top - SHAPE_TOP_LIFT * cell) / cell)
-    const cols = Math.floor(origin.width * SHAPE_TOP_WIDTH / cell)
+    const areaTop = Math.ceil(shapeRow(grid.value.top - SHAPE_TOP_LIFT * cell))
+    const cols = Math.floor(origin.width * SHAPE_TOP_WIDTH / cw)
     return {
-      left: (right ? Math.round((grid.value.right + overhang) / cell) - cols : Math.round((grid.value.left - overhang) / cell)) + pad,
+      left: right ? Math.round(shapeCol(grid.value.right + overhang)) - cols : Math.round(shapeCol(grid.value.left - overhang)),
       top: areaTop,
       cols,
-      rows: Math.min(Math.round(cols * SHAPE_TOP_RATIO), crossTop - areaTop),
+      rows: Math.min(Math.round(cols * cw / ch * SHAPE_TOP_RATIO), crossTop - areaTop),
       right,
       bottom,
     }
@@ -995,20 +1047,20 @@ function shapeArea(corner: number) {
       const subtitle = splash.querySelector('.splash-subtitle-box')?.getBoundingClientRect()
       const cta = splash.querySelector('.splash-cta')?.getBoundingClientRect()
       const middle = subtitle && cta ? (subtitle.bottom + cta.top) / 2 - origin.top : bandBottom
-      return { left: crossLeft + pad, top: Math.round(middle / cell - SHAPE_CROSS_ROWS / 2), cols: SHAPE_CROSS_COLS, rows: SHAPE_CROSS_ROWS, right, bottom }
+      return { left: crossLeft + pad, top: Math.round(shapeRow(middle) - crossRows() / 2), cols: crossCols(), rows: crossRows(), right, bottom }
     }
     // The top ones are smaller, tucked behind the headline's upper corners along the
     // diagonal, the right one lower so the two don't line up. `right` flips: what
     // room is left over opens towards the screen's edge, the mass keeping to the title.
     const titleTop = (sentencesEl.value?.getBoundingClientRect().top ?? top) - origin.top
-    const cols = Math.floor(width * SHAPE_TOP_SCALE / cell)
-    const rows = Math.floor((end - top) * SHAPE_TOP_SCALE / cell)
+    const cols = Math.floor(width * SHAPE_TOP_SCALE / cw)
+    const rows = Math.floor((end - top) * SHAPE_TOP_SCALE / ch)
     const tuck = SHAPE_TOP_TUCK * cell
-    const titleEdge = right ? halfScreen + halfTitle - tuck : halfScreen - halfTitle + tuck - cols * cell
-    const massTop = titleTop + tuck - rows * cell * (right ? SHAPE_TOP_RIGHT_RISE : 1)
+    const titleEdge = right ? halfScreen + halfTitle - tuck : halfScreen - halfTitle + tuck - cols * cw
+    const massTop = titleTop + tuck - rows * ch * (right ? SHAPE_TOP_RIGHT_RISE : 1)
     return {
-      left: Math.round(Math.max(0, Math.min(origin.width - cols * cell, titleEdge)) / cell) + pad,
-      top: Math.max(Math.ceil(top / cell), Math.round(massTop / cell)),
+      left: Math.round(shapeCol(Math.max(0, Math.min(origin.width - cols * cw, titleEdge)))),
+      top: Math.max(Math.ceil(shapeRow(top)), Math.round(shapeRow(massTop))),
       cols,
       rows,
       right: !right,
@@ -1016,37 +1068,39 @@ function shapeArea(corner: number) {
     }
   }
   return {
-    left: Math.round((right ? origin.width - width : 0) / cell) + pad,
-    top: Math.ceil(top / cell),
-    cols: Math.floor(width / cell),
-    rows: Math.floor(end / cell) - Math.ceil(top / cell),
+    left: Math.round(shapeCol(right ? origin.width - width : 0)),
+    top: Math.ceil(shapeRow(top)),
+    cols: Math.floor(width / cw),
+    rows: Math.floor(shapeRow(end)) - Math.ceil(shapeRow(top)),
     right,
     bottom,
   }
 }
 
 function shapeTarget(state: ShapeState) {
-  const { cols, rows, pad, cell } = shapeGrid.value
+  const { cols, rows, pad, cw, ch } = shapeGrid.value
   const area = shapeArea(state.corner)
   // The crossing mass takes its whole area.
   const whole = !shelfLayout && area.bottom
-  const width = Math.max(6, whole ? area.cols : Math.round(area.cols * state.width))
-  const height = Math.max(6, whole ? area.rows : Math.round(area.rows * state.height))
+  // In whole grid squares (two cells each way), starting on a grid line.
+  const width = Math.max(6, toEven(whole ? area.cols : area.cols * state.width))
+  const height = Math.max(6, toEven(whole ? area.rows : area.rows * state.height))
   const spareX = whole ? 0 : Math.round((area.cols - width) * state.slackX)
   const spareY = whole ? 0 : Math.round((area.rows - height) * state.slackY)
   // Towards the screen's corner, the slack opening towards the headline.
-  const left = area.right ? area.left + area.cols - width - spareX : area.left + spareX
-  const top = area.bottom ? area.top + area.rows - height - spareY : area.top + spareY
-  const mass = state.seed === null ? resizeMass(SHAPE_DRAWN, width, height) : generateMass(state.seed, width, height, state.phase)
+  const left = Math.round((area.right ? area.left + area.cols - width - spareX : area.left + spareX) / 2) * 2
+  const top = Math.round((area.bottom ? area.top + area.rows - height - spareY : area.top + spareY) / 2) * 2
+  const squares = state.seed === null ? resizeMass(SHAPE_DRAWN, width / 2, height / 2) : generateMass(state.seed, width / 2, height / 2, state.phase)
+  const mass = refineMass(squares, (state.seed ?? 0) + Math.round(state.phase * 10), SHAPE_EDGE_QUARTERS)
   return {
     left,
     top,
     cells: stampMass(mass, left, top, cols, rows, shapeFirstRow()),
     video: {
-      left: `${left * cell}px`,
-      top: `${top * cell}px`,
-      width: `${width * cell}px`,
-      height: `${height * cell}px`,
+      left: `${left * cw}px`,
+      top: `${top * ch}px`,
+      width: `${width * cw}px`,
+      height: `${height * ch}px`,
     },
     pad,
   }
@@ -1058,9 +1112,20 @@ function buildShapes() {
   const splash = splashEl.value
   if (!splash || !sentencesEl.value) return
   const { width, height } = splash.getBoundingClientRect()
-  const cell = Math.max(5, Math.round(window.innerHeight * (window.innerWidth <= 1150 ? SHAPE_FULL_CELL_MOBILE : SHAPE_FULL_CELL)))
-  const pad = SHAPE_GRID_PAD
-  shapeGrid.value = { cell, pad, cols: Math.ceil(width / cell) + pad * 2, rows: Math.ceil(height / cell) + pad }
+  const g = grid.value
+  if (!g) return
+  const unit = Math.max(5, Math.round(window.innerHeight * (window.innerWidth <= 1150 ? SHAPE_FULL_CELL_MOBILE : SHAPE_FULL_CELL)))
+  // Quarters of the grid's squares, laid from one of its lines so that every
+  // even cell starts a square, carried on past the screen's edges.
+  const cw = g.cellW / 2
+  const ch = g.cellH / 2
+  const across = 2 * Math.ceil((g.left / cw + SHAPE_GRID_PAD) / 2)
+  const down = 2 * Math.ceil(g.top / ch / 2)
+  const x0 = g.left - across * cw
+  const y0 = g.top - down * ch
+  shapeGrid.value = { cw, ch, x0, y0, unit, pad: Math.round(-x0 / cw), cols: Math.ceil((width - x0) / cw) + SHAPE_GRID_PAD, rows: Math.ceil((height - y0) / ch) + SHAPE_GRID_PAD }
+  clearPixels()
+  clearScramble()
   const targets = shapeStates.map(shapeTarget)
   // First visit: nothing yet, until the splash builds itself (constructShapes).
   const waiting = splashIntro.value === 'logo'
@@ -1079,8 +1144,9 @@ function crossHop() {
   const cells = shapeCells[index]
   if (shelfLayout || !cells) return
   const state = shapeStates[index]!
-  crossLeft += SHAPE_CROSS_HOP
-  if (crossLeft >= shapeGrid.value.cols - shapeGrid.value.pad) crossLeft = -SHAPE_CROSS_COLS
+  crossLeft += toEven(SHAPE_CROSS_HOP * shapeGrid.value.unit / shapeGrid.value.cw)
+  if (crossLeft >= shapeGrid.value.cols - shapeGrid.value.pad) crossLeft = -crossCols()
+  crossLeft = Math.round(crossLeft / 2) * 2
   state.seed = Math.floor(Math.random() * 1e6)
   const target = shapeTarget(state)
   const steps = morphSteps(cells, target.cells, 1, 0, Math.floor(Math.random() * 1e6))
@@ -1143,6 +1209,7 @@ function constructShapes() {
 // the letters' time; in light mode only one, in turn, over most of the hold.
 function morphShapes() {
   clearTimeout(shapeTimer)
+  scrambleTargets = []
   if (!shapeCells.length) return
   const motion = shapeMotion()
   shapeRound++
@@ -1180,6 +1247,325 @@ function morphShapes() {
   })
   shapeViews.value = shapeViews.value.map((view, index) => ({ ...view, video: plans[index]!.video ?? view.video }))
   runShapeSteps(plans, motion.morphMs, motion.steps)
+}
+
+// Light mode: while the headline deciphers, each mass fills up with pixels on the
+// letters' own beats, sweeping from left to right as they land, then dissolves back
+// to the bare outline once the headline has landed (/lab/pixels' "Video pixels"):
+// - What they show: the mass's own video (the ones dark mode shows through them),
+//   pixelated, each pixel the mean of the cells under it, in the splash's silver
+//   (the site's negative, #duotone-silver), its contrast raised.
+// - Their size: PIXEL_CELLS cells square (2: one grid square), split in four down
+//   to a single cell (a quarter of a square) along the mass's outline and, at
+//   random, PIXEL_DETAIL of the time inside it.
+// - Their colour: each mass's own (its outline's), in patches over about
+//   PIXEL_TINT_SHARE of them, tone on tone, and a few solid squares.
+// - Each flickers on and off a moment before it settles, like the cells, and the
+//   grid's squares show inside the mass while they're there.
+const PIXEL_CELLS = 4
+const PIXEL_DETAIL = 0.4
+const PIXEL_CONTRAST = 1.6
+const PIXEL_TINT_SHARE = 0.4
+const PIXEL_TINT_SCALE = 4 // a patch of colour, in SHAPE_FULL_CELL units
+const PIXEL_ACCENT_CHANCE = 0.04
+const PIXEL_SWEEP = 0.65 // how strictly they build left to right (0: at random)
+const PIXEL_FLICKER_MS = 500 // how long before settling a pixel starts flickering
+const PIXEL_DISSOLVE_MS = 1300
+const PIXEL_DISSOLVE_STEPS = 14
+const PIXEL_SILVER = { light: [244, 244, 242], dark: [159, 161, 163] }
+interface ShapePixel { x: number, y: number, size: number, t: number, at: number, on: boolean }
+interface PixelPalette { rgb: number[], pale: number[], deep: number[] }
+// Each mass's pixels, and the box they cover (in cells), drawn on its own canvas.
+let shapePixels: ShapePixel[][] = []
+const pixelBoxes = ref<({ x: number, y: number, w: number, h: number } | null)[]>([])
+const pixelCanvases = ref<HTMLCanvasElement[]>([])
+let pixelPalettes: PixelPalette[] = []
+let pixelVideos: HTMLVideoElement[] = []
+let pixelFrame = 0
+let pixelRound = 0
+let pixelTimers: ReturnType<typeof setTimeout>[] = []
+// The cells each mass is turning into this round (scrambleShapes), for the pixels
+// to cover both forms.
+let scrambleTargets: (Set<number> | null)[] = []
+const pixelScratch = import.meta.client ? document.createElement('canvas') : null
+
+function loadPixelVideos() {
+  if (pixelVideos.length || !import.meta.client) return
+  pixelVideos = SHAPE_VIDEOS.map((src) => {
+    const video = document.createElement('video')
+    Object.assign(video, { src, muted: true, loop: true, playsInline: true, autoplay: true, preload: 'auto' })
+    video.play().catch(() => {})
+    return video
+  })
+}
+
+const hexToRgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+const blendRgb = (a: number[], b: number[], t: number) => a.map((value, i) => value + (b[i]! - value) * t)
+const rgbCss = (c: number[]) => `rgb(${c.map((value) => Math.round(value)).join(' ')})`
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+// Smooth noise over the splash (0 to 1, `scale` px across): where the colour gathers.
+function tintField(seed: number, scale: number) {
+  const rand = mulberry32(seed)
+  const lattice = new Map<string, number>()
+  const at = (x: number, y: number) => {
+    const key = `${x},${y}`
+    if (!lattice.has(key)) lattice.set(key, rand())
+    return lattice.get(key)!
+  }
+  const smooth = (t: number) => t * t * (3 - 2 * t)
+  return (x: number, y: number) => {
+    const gx = x / scale, gy = y / scale
+    const x0 = Math.floor(gx), y0 = Math.floor(gy)
+    const tx = smooth(gx - x0), ty = smooth(gy - y0)
+    const top = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * tx
+    const bottom = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * tx
+    return top + (bottom - top) * ty
+  }
+}
+
+// Silver from the video's brightness, then pale, full and deep colour.
+function pixelShade(palette: PixelPalette, level: number, t: number) {
+  const silver = blendRgb(PIXEL_SILVER.light, PIXEL_SILVER.dark, clamp01(0.5 + (level - 0.5) * PIXEL_CONTRAST))
+  if (t <= 0) return silver
+  return t < 0.4
+    ? blendRgb(silver, palette.pale, t / 0.4)
+    : t < 0.75 ? blendRgb(palette.pale, palette.rgb, (t - 0.4) / 0.35) : blendRgb(palette.rgb, palette.deep, (t - 0.75) / 0.25)
+}
+
+function clearPixels() {
+  pixelTimers.forEach(clearTimeout)
+  pixelTimers = []
+  cancelAnimationFrame(pixelFrame)
+  pixelFrame = 0
+  shapePixels = []
+  pixelBoxes.value = []
+}
+
+// One mass's pixels, over both its forms (and, for the crossing mass, which keeps
+// moving, a little around them): squares split in four where the outline crosses
+// them, or at random.
+function buildPixels(cells: Set<number>, loose: boolean, seed: number) {
+  const { cw, x0, unit } = shapeGrid.value
+  const rand = mulberry32(seed)
+  const tint = tintField(seed + 5, PIXEL_TINT_SCALE * unit)
+  const splashWidth = splashEl.value?.getBoundingClientRect().width ?? window.innerWidth
+  const last = HEADLINE_MORPH_MS - HEADLINE_LETTER_GAP.last
+  const cut = 1 - PIXEL_TINT_SHARE
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const key of cells) {
+    const x = key % 4096, y = Math.floor(key / 4096)
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y)
+  }
+  const coverage = (x: number, y: number, size: number) => {
+    let count = 0
+    for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) if (cells.has((y + j) * 4096 + x + i)) count++
+    return count / (size * size)
+  }
+  const pixels: ShapePixel[] = []
+  const push = (x: number, y: number, size: number) => {
+    const screenX = x0 + (x + size / 2) * cw
+    const noise = tint(screenX, (y + size / 2) * shapeGrid.value.ch)
+    let t = noise <= cut ? 0 : clamp01((noise - cut) / Math.max(0.05, 1 - cut) * 1.2)
+    if (rand() < PIXEL_ACCENT_CHANCE) t = 0.75 + rand() * 0.25
+    pixels.push({ x, y, size, t, at: last * clamp01((screenX / splashWidth) * PIXEL_SWEEP + rand() * (1 - PIXEL_SWEEP)), on: false })
+  }
+  const split = (x: number, y: number, size: number) => {
+    const covered = coverage(x, y, size)
+    if (covered === 0 && !loose) return
+    if (size > 1 && ((covered > 0 && covered < 1) || rand() < PIXEL_DETAIL * 0.6)) {
+      const half = size / 2
+      for (const [dx, dy] of [[0, 0], [half, 0], [0, half], [half, half]]) split(x + dx!, y + dy!, half)
+      return
+    }
+    push(x, y, size)
+  }
+  const size = PIXEL_CELLS
+  const reach = loose ? 2 * size : 0
+  for (let y = Math.floor(minY / size) * size; y <= maxY; y += size) {
+    for (let x = Math.floor(minX / size) * size - reach; x <= maxX + reach; x += size) split(x, y, size)
+  }
+  return pixels
+}
+
+// Every frame while there are pixels: each mass's video, one sample per cell, each
+// pixel the mean of its cells, clipped to the mass as it stands, the grid's
+// squares over them.
+function drawPixels() {
+  const { cw, ch } = shapeGrid.value
+  const dpr = window.devicePixelRatio || 1
+  shapePixels.forEach((pixels, index) => {
+    const canvas = pixelCanvases.value[index]
+    const box = pixelBoxes.value[index]
+    if (!canvas || !box) return
+    const width = Math.round(box.w * cw * dpr)
+    const height = Math.round(box.h * ch * dpr)
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width
+      canvas.height = height
+    }
+    const context = canvas.getContext('2d')!
+    context.setTransform(dpr * cw, 0, 0, dpr * ch, -box.x * cw * dpr, -box.y * ch * dpr)
+    context.clearRect(box.x, box.y, box.w, box.h)
+    const on = pixels.filter((pixel) => pixel.on)
+    const palette = pixelPalettes[index]
+    if (!on.length || !palette) return
+    const video = pixelVideos[index]
+    let levels: Uint8ClampedArray | null = null
+    if (pixelScratch && video && video.readyState >= 2 && video.videoWidth) {
+      pixelScratch.width = box.w
+      pixelScratch.height = box.h
+      const scratch = pixelScratch.getContext('2d', { willReadFrequently: true })!
+      const boxWidth = box.w * cw, boxHeight = box.h * ch
+      const scale = Math.max(boxWidth / video.videoWidth, boxHeight / video.videoHeight)
+      const sourceWidth = boxWidth / scale, sourceHeight = boxHeight / scale
+      scratch.drawImage(video, (video.videoWidth - sourceWidth) / 2, (video.videoHeight - sourceHeight) / 2, sourceWidth, sourceHeight, 0, 0, box.w, box.h)
+      levels = scratch.getImageData(0, 0, box.w, box.h).data
+    }
+    const level = (pixel: ShapePixel) => {
+      if (!levels) return 0.5
+      let sum = 0
+      for (let y = pixel.y - box.y; y < pixel.y - box.y + pixel.size; y++) {
+        for (let x = pixel.x - box.x; x < pixel.x - box.x + pixel.size; x++) {
+          const k = (y * box.w + x) * 4
+          sum += (0.299 * levels[k]! + 0.587 * levels[k + 1]! + 0.114 * levels[k + 2]!) / 255
+        }
+      }
+      return sum / (pixel.size * pixel.size)
+    }
+    context.save()
+    context.beginPath()
+    for (const key of shapeCells[index] ?? []) context.rect(key % 4096, Math.floor(key / 4096), 1, 1)
+    context.clip()
+    for (const pixel of on) {
+      context.fillStyle = rgbCss(pixelShade(palette, level(pixel), pixel.t))
+      context.fillRect(pixel.x, pixel.y, pixel.size, pixel.size)
+    }
+    // The grid's squares (two cells each way), in the shapes only.
+    context.strokeStyle = 'rgba(28, 28, 28, 0.14)'
+    context.lineWidth = 1 / cw
+    context.beginPath()
+    const firstX = Math.floor(box.x / 2) * 2, firstY = Math.floor(box.y / 2) * 2
+    for (let x = firstX; x <= box.x + box.w; x += 2) { context.moveTo(x, box.y); context.lineTo(x, box.y + box.h) }
+    for (let y = firstY; y <= box.y + box.h; y += 2) { context.moveTo(box.x, y); context.lineTo(box.x + box.w, y) }
+    context.stroke()
+    context.restore()
+  })
+  pixelFrame = requestAnimationFrame(drawPixels)
+}
+
+function pixelBurst(ticks: number[]) {
+  clearPixels()
+  if (colorMode.value === 'dark' || !shapeCells.length || !splashEl.value) return
+  loadPixelVideos()
+  pixelPalettes = shapeCells.map((_, index) => {
+    const color = BADGE_COLORS[index % BADGE_COLORS.length]!
+    const rgb = hexToRgb(color)
+    return { rgb, pale: blendRgb(rgb, [255, 255, 255], 0.55), deep: hexToRgb(deepBadgeColor(color)) }
+  })
+  const rand = mulberry32(7000 + pixelRound * 97)
+  pixelRound++
+  shapePixels = shapeCells.map((cells, index) => {
+    if (!cells.size) return []
+    const target = scrambleTargets[index]
+    const loose = !shelfLayout && SHAPE_CORNERS[shapeStates[index]!.corner]!.bottom
+    return buildPixels(target ? new Set([...cells, ...target]) : cells, loose, pixelRound * 101 + index)
+  })
+  pixelBoxes.value = shapePixels.map((pixels) => {
+    if (!pixels.length) return null
+    const x = Math.min(...pixels.map((pixel) => pixel.x)), y = Math.min(...pixels.map((pixel) => pixel.y))
+    return { x, y, w: Math.max(...pixels.map((pixel) => pixel.x + pixel.size)) - x, h: Math.max(...pixels.map((pixel) => pixel.y + pixel.size)) - y }
+  })
+  const last = HEADLINE_MORPH_MS - HEADLINE_LETTER_GAP.last
+  // On the letters' beats: those due settle, those about to flicker.
+  for (const at of [...ticks.slice(1), last]) {
+    pixelTimers.push(setTimeout(() => {
+      for (const pixels of shapePixels) {
+        for (const pixel of pixels) pixel.on = pixel.at <= at ? true : at > pixel.at - PIXEL_FLICKER_MS ? rand() < 0.4 : false
+      }
+    }, at))
+  }
+  pixelTimers.push(setTimeout(() => {
+    for (const pixels of shapePixels) for (const pixel of pixels) pixel.on = true
+  }, HEADLINE_MORPH_MS))
+  // Then away, at random.
+  pixelTimers.push(setTimeout(() => {
+    const all = shapePixels.flat().filter((pixel) => pixel.on)
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1))
+      ;[all[i], all[j]] = [all[j]!, all[i]!]
+    }
+    for (let step = 1; step <= PIXEL_DISSOLVE_STEPS; step++) {
+      pixelTimers.push(setTimeout(() => {
+        const from = Math.floor(all.length * (step - 1) / PIXEL_DISSOLVE_STEPS)
+        const to = Math.floor(all.length * step / PIXEL_DISSOLVE_STEPS)
+        for (const pixel of all.slice(from, to)) pixel.on = false
+        if (step === PIXEL_DISSOLVE_STEPS) clearPixels()
+      }, PIXEL_DISSOLVE_MS * step / PIXEL_DISSOLVE_STEPS))
+    }
+  }, HEADLINE_MORPH_MS + 150))
+  pixelFrame = requestAnimationFrame(drawPixels)
+}
+
+// Light mode, desktop: the masses scramble with the letters. All of them change
+// over the letters' own time, on their beats: the cells that change, and some
+// along their edges, flicker on and off at random, each landing on the new mass
+// at its own moment, as each letter does. The crossing mass keeps its own clock.
+const SCRAMBLE_EDGE_SHARE = 0.4 // of a mass's edge cells, flickering though they end as they were
+const SCRAMBLE_ON_CHANCE = 0.5
+let scrambleTimers: ReturnType<typeof setTimeout>[] = []
+function clearScramble() {
+  scrambleTimers.forEach(clearTimeout)
+  scrambleTimers = []
+  scrambleTargets = []
+}
+function scrambleShapes(ticks: number[]) {
+  clearTimeout(shapeTimer)
+  clearScramble()
+  if (!shapeCells.length) return
+  const motion = shapeMotion()
+  shapeRound++
+  const rand = mulberry32(shapeRound * 7919 + 3)
+  const splashWidth = splashEl.value?.getBoundingClientRect().width ?? window.innerWidth
+  const plans = shapeStates.map((state, index) => {
+    if (SHAPE_CORNERS[state.corner]!.bottom) return null
+    const cells = shapeCells[index]!
+    const before = shapeTarget(state)
+    if (motion.evolve && state.seed !== null) state.phase += motion.evolve
+    else state.seed = Math.floor(Math.random() * 1e6)
+    state.width = shapeDrift(state.width, motion.sizeMin)
+    state.height = shapeDrift(state.height, motion.sizeMin)
+    state.slackX = shapeDrift(state.slackX, 0)
+    state.slackY = shapeDrift(state.slackY, 0)
+    const after = shapeTarget(state)
+    const steps = morphSteps(cells, after.cells, after.left - before.left, after.top - before.top, shapeRound * 31 + index)
+    // Each cell: where it ends, and when it lands there (like a letter's lock),
+    // loosely left to right across the screen, as the pixels do.
+    const flicker = new Map<number, { end: boolean, lock: number }>()
+    const lockAt = (key: number) => HEADLINE_MORPH_MS * (0.15 + 0.85 * clamp01((shapeGrid.value.x0 + (key % 4096) * shapeGrid.value.cw) / splashWidth * 0.6 + rand() * 0.4))
+    for (const step of steps) flicker.set(step.key, { end: step.add, lock: lockAt(step.key) })
+    for (const key of cells) {
+      if (flicker.has(key) || rand() > SCRAMBLE_EDGE_SHARE) continue
+      const edge = [-4096, 1, 4096, -1].some((offset) => !cells.has(key + offset))
+      if (edge && after.cells.has(key)) flicker.set(key, { end: true, lock: lockAt(key) })
+    }
+    return { index, cells, flicker, after: after.cells, video: after.video }
+  })
+  scrambleTargets = plans.map((plan) => plan?.after ?? null)
+  shapeViews.value = shapeViews.value.map((view, index) => ({ ...view, video: plans[index]?.video ?? view.video }))
+  const frame = (at: number, final: boolean) => {
+    for (const plan of plans) {
+      if (!plan) continue
+      for (const [key, { end, lock }] of plan.flicker) {
+        const on = final || at >= lock ? end : rand() < SCRAMBLE_ON_CHANCE
+        if (on) plan.cells.add(key)
+        else plan.cells.delete(key)
+      }
+    }
+    shapeViews.value = shapeViews.value.map((view, index) => (plans[index] ? { ...view, ...cellPaths(plans[index]!.cells) } : view))
+  }
+  for (const at of ticks) scrambleTimers.push(setTimeout(() => frame(at, false), at))
+  scrambleTimers.push(setTimeout(() => frame(HEADLINE_MORPH_MS, true), HEADLINE_MORPH_MS))
 }
 
 // Headline cycle: each headline holds (SHAPE_MOTION's holdMs), then turns
@@ -1249,7 +1635,9 @@ async function nextHeadline() {
   // Still the new text as Vue rendered it, before the letters scramble.
   const targets = lines.map((el) => el.getBoundingClientRect())
   morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
-  morphShapes()
+  if (colorMode.value === 'dark' || shelfLayout) morphShapes()
+  else scrambleShapes(ticks)
+  pixelBurst(ticks)
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
@@ -1269,6 +1657,8 @@ function stopHeadlineCycle() {
   frameTimers.forEach(clearTimeout)
   frameTimers = []
   frameShuffle = null
+  clearPixels()
+  clearScramble()
 }
 
 function playIntro() {
@@ -1314,8 +1704,45 @@ const gridHorizontals = computed(() => {
   if (!g) return []
   return Array.from({ length: g.rows + 1 }, (_, k) => g.top + k * g.cellH)
 })
+// The light grey bars across the frame:
+// GRID_TICKS_ACROSS on the top and bottom, GRID_TICKS_SIDE on each side, spread
+// evenly and each on the nearest grid line.
+const gridTicks = computed(() => {
+  const g = grid.value
+  if (!g) return []
+  const frame = { left: parseFloat(frameStyle.value.left ?? '0'), right: g.boxW - parseFloat(frameStyle.value.right ?? '0'), top: parseFloat(frameStyle.value.top ?? '0'), bottom: g.boxH - parseFloat(frameStyle.value.bottom ?? '0') }
+  const long = GRID_TICK_LENGTH, thin = GRID_TICK_WIDTH
+  // Evenly across the side, or from `inset` in at each end.
+  const spread = (lines: number[], count: number, inset?: number) => Array.from({ length: count }, (_, i) => {
+    const at = inset === undefined || count < 2 ? (i + 1) / (count + 1) : inset + (1 - 2 * inset) * i / (count - 1)
+    return lines[Math.round((lines.length - 1) * at)]!
+  })
+  const ticks: Record<string, string>[] = []
+  for (const y of spread(gridHorizontals.value, GRID_TICKS_SIDE, GRID_TICK_SIDE_INSET)) {
+    for (const x of [frame.left, frame.right - 1]) ticks.push({ left: `${x + 0.5 - thin / 2}px`, top: `${y + 0.5 - long / 2}px`, width: `${thin}px`, height: `${long}px` })
+  }
+  for (const x of spread(gridVerticals.value, GRID_TICKS_ACROSS)) {
+    for (const y of [frame.top, frame.bottom - 1]) ticks.push({ left: `${x + 0.5 - long / 2}px`, top: `${y + 0.5 - thin / 2}px`, width: `${long}px`, height: `${thin}px` })
+  }
+  return ticks
+})
+// The frame's four sides as lines (the build's SVG), on its 1px border.
+const frameSides = computed(() => {
+  const g = grid.value
+  if (!g) return []
+  const left = parseFloat(frameStyle.value.left ?? '0') + 0.5
+  const top = parseFloat(frameStyle.value.top ?? '0') + 0.5
+  const right = g.boxW - parseFloat(frameStyle.value.right ?? '0') - 0.5
+  const bottom = g.boxH - parseFloat(frameStyle.value.bottom ?? '0') - 0.5
+  return [
+    { x1: left - 0.5, x2: right + 0.5, y1: top, y2: top },
+    { x1: left - 0.5, x2: right + 0.5, y1: bottom, y2: bottom },
+    { x1: left, x2: left, y1: top - 0.5, y2: bottom + 0.5 },
+    { x1: right, x2: right, y1: top - 0.5, y2: bottom + 0.5 },
+  ]
+})
 const gridNumbers = computed(() => gridHorizontals.value
-  .filter((_, index) => index % 2 === 0)
+  .filter((_, index) => index % GRID_NUMBER_EVERY === 0)
   .map((y, index) => ({
     // The middle of the line: the grid's closing line sits a pixel higher, being
     // its border, inside its box (.splash-grid).
@@ -1348,16 +1775,20 @@ function enterGuide(event: MouseEvent) {
   leave()
 }
 
-// Shelf layout: the button follows the subtitle, rather than the grid's bottom
-// line. Offsets, not a measured box: the subtitle is moved by a transform while
-// it's next to the logo, and this is where it ends up.
+// The button. Shelf layout: it follows the subtitle. Desktop: halfway between
+// the subtitle's box and the grid's bottom line, as far from one as from the
+// other. Mobile: on that line (computeGrid). Offsets, not a measured box: the
+// subtitle is moved by a transform while it's next to the logo, and this is
+// where it ends up.
 const SHELF_CTA_GAP = 22
-function placeShelfCta() {
-  if (!shelfLayout || !splashEl.value) return
+function placeCta() {
+  if (!splashEl.value || !grid.value) return
   const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')
   const cta = splashEl.value.querySelector<HTMLElement>('.splash-cta')
   if (!subtitle || !cta) return
-  ctaStyle.value = { top: `${subtitle.offsetTop + subtitle.offsetHeight + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
+  const subtitleBottom = subtitle.offsetTop + subtitle.offsetHeight
+  if (shelfLayout) ctaStyle.value = { top: `${subtitleBottom + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
+  else if (window.innerWidth > 1150) ctaStyle.value = { top: `${(subtitleBottom + grid.value.bottom) / 2}px` }
 }
 
 // The strip's height for every image to stand within `room`. An image stands at its
@@ -1421,7 +1852,7 @@ function handleResize() {
     fitSubtitleBox()
     buildSentenceMasks()
   })
-  nextTick(placeShelfCta)
+  nextTick(placeCta)
   nextTick(async () => {
     placeStrip()
     await nextTick()
@@ -1447,6 +1878,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearPixels()
+  for (const video of pixelVideos) video.pause()
   introTimers.forEach(clearTimeout)
   stopHeadlineCycle()
   cancelAnimationFrame(stripFrame)
@@ -1559,6 +1992,15 @@ onUnmounted(() => {
         </filter>
       </svg>
     </div>
+    <div class="splash-grid-frame" :style="frameStyle" aria-hidden="true" />
+    <div class="splash-grid-ticks" aria-hidden="true">
+      <span
+        v-for="(tick, index) in gridTicks"
+        :key="index"
+        class="splash-grid-tick"
+        :style="{ ...tick, '--tick-index': index }"
+      />
+    </div>
     <div class="splash-grid" :style="gridStyle" aria-hidden="true" />
     <!-- The grid as separate lines, each moving on its own: growing out of
          their centres on arrival (is-building), retracting on exit. -->
@@ -1588,6 +2030,10 @@ onUnmounted(() => {
         :y1="y + 0.5"
         :y2="y + 0.5"
       />
+      <!-- The frame too, on arrival only: it draws itself just after the grid. -->
+      <template v-if="!leaving">
+        <line v-for="(side, k) in frameSides" :key="`f${k}`" class="splash-grid-frame-line" v-bind="side" />
+      </template>
     </svg>
 
     <div
@@ -1612,20 +2058,26 @@ onUnmounted(() => {
         v-for="(view, index) in shapeViews"
         :key="index"
         class="splash-shape"
-        :style="{ left: `${-shapeGrid.pad * shapeGrid.cell}px`, width: `${shapeGrid.cols * shapeGrid.cell}px`, height: `${shapeGrid.rows * shapeGrid.cell}px` }"
+        :style="{ left: `${shapeGrid.x0}px`, top: `${shapeGrid.y0}px`, width: `${shapeGrid.cols * shapeGrid.cw}px`, height: `${shapeGrid.rows * shapeGrid.ch}px` }"
       >
-        <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`">
+        <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`" preserveAspectRatio="none">
           <defs>
             <clipPath :id="`splash-shape-clip-${index}`">
-              <path :d="view.fill" :transform="`scale(${shapeGrid.cell})`" />
+              <path :d="view.fill" :transform="`scale(${shapeGrid.cw} ${shapeGrid.ch})`" />
             </clipPath>
           </defs>
           <path class="splash-shape-fill" :d="view.fill" />
         </svg>
+        <canvas
+          v-if="pixelBoxes[index]"
+          :ref="(el) => { if (el) pixelCanvases[index] = el as HTMLCanvasElement }"
+          class="splash-shape-pixels"
+          :style="{ left: `${pixelBoxes[index]!.x * shapeGrid.cw}px`, top: `${pixelBoxes[index]!.y * shapeGrid.ch}px`, width: `${pixelBoxes[index]!.w * shapeGrid.cw}px`, height: `${pixelBoxes[index]!.h * shapeGrid.ch}px` }"
+        />
         <div v-if="colorMode === 'dark'" class="splash-shape-video" :style="{ clipPath: `url(#splash-shape-clip-${index})` }">
           <video :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
         </div>
-        <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`">
+        <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`" preserveAspectRatio="none">
           <path class="splash-shape-outline" :d="view.outline" :stroke="BADGE_COLORS[index]" />
         </svg>
       </div>
@@ -1633,7 +2085,7 @@ onUnmounted(() => {
 
     <!-- Every second line of the grid, numbered in the margin to its left. Over the
          pixel masses, under the image band: same z-index, so DOM order sets it. -->
-    <div v-if="grid" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
+    <div v-if="grid && GRID_NUMBERS" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
       <span
         v-for="(number, index) in gridNumbers"
         :key="index"
@@ -1874,15 +2326,86 @@ onUnmounted(() => {
    (left/top), so the closing line at the container's own right/bottom
    edge falls exactly on the boundary and gets clipped — an explicit
    border fills in that last line. */
+.splash {
+  /* The grid's lines, light so its many small cells read as a fine mesh, and
+     the frame around it, grey (computeGrid's settings for the sizes). */
+  --grid-line: color-mix(in srgb, var(--color-ink) 28%, transparent);
+  --grid-frame: #c4c6c9; /* a light silver grey */
+}
+
 .splash-grid {
   position: absolute;
   z-index: 0;
   background-image:
-    linear-gradient(to right, var(--color-ink) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--color-ink) 1px, transparent 1px);
-  border-right: 1px solid var(--color-ink);
-  border-bottom: 1px solid var(--color-ink);
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  border-right: 1px solid var(--grid-line);
+  border-bottom: 1px solid var(--grid-line);
 }
+
+.splash-grid-frame {
+  position: absolute;
+  z-index: 0;
+  border: 1px solid var(--grid-frame);
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+.splash.intro-logo .splash-grid-frame,
+.splash.is-leaving .splash-grid-frame,
+.splash.intro-logo .splash-grid-ticks,
+.splash.is-leaving .splash-grid-ticks {
+  opacity: 0;
+}
+
+/* Arrival: the frame draws itself as lines (.splash-grid-frame-line) just after
+   the grid's own, then its bars pop in one by one. */
+.splash.intro-build .splash-grid-frame {
+  opacity: 0;
+  transition: none;
+}
+
+.splash-grid-lines.is-building .splash-grid-frame-line {
+  stroke: var(--grid-frame);
+  animation: splash-grow-in 0.9s cubic-bezier(0.2, 0.6, 0.3, 1) 0.25s both;
+}
+
+.splash.intro-build .splash-grid-ticks {
+  opacity: 1;
+  transition: none;
+}
+
+.splash.intro-build .splash-grid-tick {
+  animation: splash-grow-in 0.35s cubic-bezier(0.2, 0.6, 0.3, 1) both;
+  animation-delay: calc(0.75s + var(--tick-index) * 0.05s);
+}
+
+/* Little bars across the frame (gridTicks): the page's own colour inside (white
+   in light mode), outlined in the frame's grey. */
+.splash {
+  --grid-tick: var(--grid-frame);
+}
+
+/* Dark mode only: in light mode the frame stays a plain line. */
+:root:not([data-theme='dark']) .splash-grid-ticks {
+  display: none;
+}
+
+.splash-grid-tick {
+  position: absolute;
+  box-sizing: border-box;
+  background: var(--color-surface);
+  border: 1px solid var(--grid-tick);
+}
+
+.splash-grid-ticks {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
 
 /* Exit transition (leave()) — the background grid hands over to the
    per-line SVG copy, every line retracting into its own centre at the
@@ -1902,7 +2425,7 @@ onUnmounted(() => {
 }
 
 .splash-grid-lines line {
-  stroke: var(--color-ink);
+  stroke: var(--grid-line);
   stroke-width: 1;
   shape-rendering: crispEdges;
   transform-box: fill-box;
@@ -2067,6 +2590,12 @@ onUnmounted(() => {
 .splash-shape-fill {
   fill: var(--color-surface);
   shape-rendering: crispEdges;
+}
+
+/* Light mode's pixel windows (script, pixelBurst, drawPixels). */
+.splash-shape-pixels {
+  position: absolute;
+  display: block;
 }
 
 .splash-shape-outline {

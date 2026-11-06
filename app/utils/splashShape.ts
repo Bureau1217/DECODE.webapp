@@ -111,6 +111,31 @@ export function generateMass(seed: number, cols: number, rows: number, phase = 0
   return settled
 }
 
+// A mass of whole grid squares, split into quarters (twice as many cells each
+// way), its edges then broken up a quarter at a time: along the outline, some
+// quarters of the squares inside fall away and some of the squares outside
+// gain a quarter or two, so it reads half grid, half organic. `share`: how
+// many of those edge quarters change.
+export function refineMass(mass: ShapeMass, seed: number, share: number): ShapeMass {
+  const rows = mass.length
+  const cols = mass[0]?.length ?? 0
+  const on = (x: number, y: number) => !!mass[y]?.[x]
+  return Array.from({ length: rows * 2 }, (_, fy) => Array.from({ length: cols * 2 }, (_, fx) => {
+    const x = fx >> 1
+    const y = fy >> 1
+    // The square's neighbours on this quarter's own two sides.
+    const sideX = x + (fx & 1 ? 1 : -1)
+    const sideY = y + (fy & 1 ? 1 : -1)
+    const chance = cellNoise(seed + 5, fx, fy)
+    if (on(x, y)) {
+      const open = !on(sideX, y) || !on(x, sideY)
+      return !(open && chance < share)
+    }
+    const touching = on(sideX, y) || on(x, sideY)
+    return touching && chance < share
+  }))
+}
+
 // A mass stretched to another size, a cell at a time.
 export function resizeMass(mass: ShapeMass, cols: number, rows: number): ShapeMass {
   return Array.from({ length: rows }, (_, y) => Array.from({ length: cols }, (_, x) =>
