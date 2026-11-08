@@ -254,7 +254,11 @@ const colorMode = useColorMode()
 const SATELLITE_VIEWS = 10
 const satelliteView = ref<number | null>(null)
 const satelliteForced = Number(useRoute().query.nasa)
-const satelliteUrl = computed(() => (colorMode.value === 'dark' && satelliteView.value !== null ? `/nasa/random/splash-${satelliteView.value}.jpg` : null))
+// Light mode shows it too, inside the masses only, while the headline's
+// letters scramble (headlineScrambling, .is-scrambling, .splash-shape-map).
+const satelliteUrl = computed(() => (satelliteView.value !== null ? `/nasa/random/splash-${satelliteView.value}.jpg` : null))
+const headlineScrambling = ref(false)
+let scramblingTimer: ReturnType<typeof setTimeout> | undefined
 
 // The CMS headline list (site_infos.yml's "sentences"), which the splash
 // cycles through. Each row is one headline, and a line break in it is a line
@@ -824,7 +828,8 @@ function computeGrid() {
 
   const square = isMobile ? SQUARE_TARGET_MOBILE : SQUARE_TARGET
   const cols = Math.max(1, Math.round(usableW / square))
-  const rows = Math.max(1, Math.round(usableH / square))
+  // One row more than the squares would give: a little shorter cells.
+  const rows = Math.max(1, Math.round(usableH / square)) + 1
   const cellWidth = usableW / cols
   const cellHeight = usableH / rows
 
@@ -1717,6 +1722,9 @@ async function nextHeadline() {
   // Still the new text as Vue rendered it, before the letters scramble.
   const targets = lines.map((el) => el.getBoundingClientRect())
   morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
+  headlineScrambling.value = true
+  clearTimeout(scramblingTimer)
+  scramblingTimer = setTimeout(() => { headlineScrambling.value = false }, HEADLINE_MORPH_MS)
   if (colorMode.value === 'dark' || shelfLayout) morphShapes()
   else scrambleShapes(ticks)
   pixelBurst(ticks)
@@ -1730,6 +1738,8 @@ function startHeadlineCycle() {
   headlineTimer = setTimeout(nextHeadline, shapeMotion().holdMs)
 }
 function stopHeadlineCycle() {
+  clearTimeout(scramblingTimer)
+  headlineScrambling.value = false
   crossActive = false
   clearTimeout(crossTimer)
   clearTimeout(shapeTimer)
@@ -1989,6 +1999,7 @@ onUnmounted(() => {
     class="splash"
     :class="[{
       'is-leaving': leaving,
+      'is-scrambling': headlineScrambling,
       'is-shelf': shelfLayout,
       'is-returning': returning,
       'is-measured': measured,
@@ -2168,6 +2179,14 @@ onUnmounted(() => {
           class="splash-shape-pixels"
           :style="{ left: `${pixelBoxes[index]!.x * shapeGrid.cw}px`, top: `${pixelBoxes[index]!.y * shapeGrid.ch}px`, width: `${pixelBoxes[index]!.w * shapeGrid.cw}px`, height: `${pixelBoxes[index]!.h * shapeGrid.ch}px` }"
         />
+        <!-- Light mode, while the headline scrambles: dark mode's map, in the
+             mass only (its cells), lined up with where the map lies on the grid. -->
+        <div v-if="colorMode !== 'dark' && satelliteUrl && grid" class="splash-shape-map" :style="{ clipPath: `url(#splash-shape-clip-${index})` }">
+          <div
+            class="splash-shape-map-image"
+            :style="{ left: `${grid.left - shapeGrid.x0}px`, top: `${grid.top - shapeGrid.y0}px`, width: `${grid.right - grid.left}px`, height: `${grid.bottom - grid.top}px`, '--satellite': `url(${satelliteUrl})` }"
+          />
+        </div>
         <div v-if="colorMode === 'dark'" class="splash-shape-video" :style="{ clipPath: `url(#splash-shape-clip-${index})` }">
           <video :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
         </div>
@@ -2722,6 +2741,34 @@ onUnmounted(() => {
   z-index: 0;
   transition: opacity 1.6s ease;
   pointer-events: none;
+}
+
+/* Light mode: no map on the grid; inside the masses only, while the
+   headline's letters scramble (.splash-shape-map). The layer stays, for its
+   filter (#splash-satellite-duotone). */
+:root:not([data-theme='dark']) .splash-satellite {
+  opacity: 0;
+}
+
+/* Light mode's map in the masses, while the headline scrambles: in quickly
+   with the letters, out as they settle; over the mass's pixels. */
+.splash-shape-map {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+}
+
+.splash.is-scrambling .splash-shape-map {
+  opacity: 1;
+  transition-duration: 0.35s;
+}
+
+.splash-shape-map-image {
+  position: absolute;
+  background: var(--satellite) center / cover no-repeat;
+  filter: url(#splash-satellite-duotone);
 }
 
 .splash-satellite::before {
