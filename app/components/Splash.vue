@@ -313,6 +313,11 @@ function revealLabel(n: number, after: number) {
     const chip = imagesEl.value?.querySelector<HTMLElement>(`[data-n="${n}"] .splash-image-name`)
     if (!chip) return
     const { duration } = boxReveal(chip, { mode: 'in', lettersPerSecond: 26, segmentGap: 90 })
+    // The chip builds up behind the letters as they come, left to right, one
+    // continuous fill over their time (not added at the end).
+    // The front ends before its trail does: the fill keeps up with the front.
+    chip.style.setProperty('--build-ms', `${Math.round(duration * 0.72)}ms`)
+    requestAnimationFrame(() => chip.classList.add('is-building'))
     labelTimers.push(setTimeout(() => { framedLabels.value = new Set([...framedLabels.value, n]) }, duration))
   }, after))
 }
@@ -3587,16 +3592,32 @@ onUnmounted(() => {
 }
 
 .splash-image-name.is-revealing {
-  background-color: transparent;
-  transition: background-color 0.25s ease;
+  position: relative;
+  z-index: 0;
+}
+
+/* The chip: a fill behind the letters, shut to its left edge until it builds
+   (is-building, over --build-ms), there whole once framed. */
+.splash-image-name.is-revealing::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--box-color);
+  clip-path: inset(0 100% 0 0);
+}
+
+.splash-image-name.is-revealing.is-building::before {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path var(--build-ms, 500ms) linear;
+}
+
+.splash-image-name.is-revealing.is-framed::before {
+  clip-path: inset(0 0 0 0);
 }
 
 .splash-image-name.is-revealing:not(.is-framed):not(:has(.box-char)) {
   visibility: hidden;
-}
-
-.splash-image-name.is-framed {
-  background-color: var(--box-color);
 }
 
 /* Areal (not its mono), with its other zero. */
@@ -4579,10 +4600,7 @@ onUnmounted(() => {
   background: var(--box-color);
 }
 
-.splash-image-name .box-char[data-box='invert'] {
-  background: var(--box-color);
-}
-
+/* Behind the front, the letter on the chip's own fill (building with it). */
 .splash-image-name .box-char[data-box='invert']::after {
   content: none;
 }
