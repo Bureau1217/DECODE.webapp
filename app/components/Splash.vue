@@ -3037,33 +3037,72 @@ onUnmounted(() => {
              (white = shown, black = hidden), not a color — a token that
              turns near-black in dark mode hid the whole headline. -->
         <svg v-if="TITLE_SILVER" width="0" height="0" style="position: absolute" aria-hidden="true">
-          <filter id="splash-title-silver" x="-5%" y="-10%" width="110%" height="120%" color-interpolation-filters="sRGB">
-            <!-- The letters as a surface: high inside, falling off at the edges. -->
-            <feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="bump" />
-            <!-- Soft light from the upper left: the silver's body. -->
-            <feDiffuseLighting in="bump" surfaceScale="5" diffuseConstant="1.05" lighting-color="#e4e5e7" result="body">
-              <feDistantLight azimuth="225" elevation="48" />
+          <filter id="splash-title-silver" x="-4%" y="-8%" width="108%" height="116%" color-interpolation-filters="sRGB">
+            <!-- The letters as a raised plate: high inside, a narrow bevel at
+                 their edges (a short blur of their shape). -->
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="bump" />
+            <!-- Lit from the upper left, low: flat parts give sin(32°) =
+                 0.53, mapped to 1 below (so the inside keeps its silver),
+                 bevels facing the light go white, those facing away only
+                 down to a mid grey (0.45), as on the plate. -->
+            <feDiffuseLighting in="bump" surfaceScale="5" diffuseConstant="1" lighting-color="#ffffff" result="light">
+              <feDistantLight azimuth="225" elevation="32" />
             </feDiffuseLighting>
-            <!-- Sharp light: the bright rims on the upper left edges. -->
-            <feSpecularLighting in="bump" surfaceScale="5" specularConstant="1.2" specularExponent="26" lighting-color="#ffffff" result="shine">
-              <feDistantLight azimuth="225" elevation="38" />
+            <feComponentTransfer in="light" result="shade">
+              <feFuncR type="linear" slope="1.05" intercept="0.45" />
+              <feFuncG type="linear" slope="1.05" intercept="0.45" />
+              <feFuncB type="linear" slope="1.05" intercept="0.45" />
+            </feComponentTransfer>
+            <!-- The silver itself (the letters' own matte tone, .is-title-silver)
+                 under that light. -->
+            <feBlend in="shade" in2="SourceGraphic" mode="multiply" result="body" />
+            <!-- Glints: a thin bright line inside the upper left edges. -->
+            <feSpecularLighting in="bump" surfaceScale="5" specularConstant="0.95" specularExponent="40" lighting-color="#ffffff" result="glint">
+              <feDistantLight azimuth="225" elevation="26" />
             </feSpecularLighting>
-            <feComposite in="body" in2="shine" operator="arithmetic" k1="0" k2="1" k3="0.85" k4="0" result="lit" />
-            <!-- Across the whole word, a little lighter top left than bottom right. -->
-            <feFlood flood-color="#ffffff" flood-opacity="0.12" result="haze" />
-            <feComposite in="lit" in2="haze" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lit2" />
-            <!-- Grain. -->
-            <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="4" result="noise" />
-            <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.10 0" result="grain" />
-            <!-- The word's own tone (the letters' gradient, .is-title-silver):
-                 pale top left to a deeper grey bottom right. -->
-            <feBlend in="lit2" in2="SourceGraphic" mode="multiply" result="toned" />
-            <feBlend in="grain" in2="toned" mode="overlay" result="grained" />
-            <feComposite in="grained" in2="SourceAlpha" operator="in" result="letters" />
-            <!-- The thin dark line round each letter. -->
-            <feMorphology in="SourceAlpha" operator="dilate" radius="1.3" result="grown" />
-            <feComposite in="grown" in2="SourceAlpha" operator="out" result="ring" />
-            <feFlood flood-color="#26272a" result="ink" />
+            <feComposite in="body" in2="glint" operator="arithmetic" k1="0" k2="1" k3="0.9" k4="0" result="lit" />
+            <!-- Grain: fine specks, lighter and darker, all over the metal. -->
+            <feTurbulence type="fractalNoise" baseFrequency="1.5" numOctaves="2" seed="9" result="noise" />
+            <feColorMatrix in="noise" type="saturate" values="0" result="noiseGrey" />
+            <feComponentTransfer in="noiseGrey" result="specks">
+              <feFuncR type="linear" slope="2.6" intercept="-0.8" />
+              <feFuncG type="linear" slope="2.6" intercept="-0.8" />
+              <feFuncB type="linear" slope="2.6" intercept="-0.8" />
+              <feFuncA type="linear" slope="0" intercept="0.36" />
+            </feComponentTransfer>
+            <feBlend in="specks" in2="lit" mode="overlay" result="grained" />
+            <feComposite in="grained" in2="SourceAlpha" operator="in" result="lettersBody" />
+            <!-- The pressed rim: a thin line just inside each letter's edge,
+                 bright where the edge faces the light, greyer where it
+                 doesn't (the light map, brightened, on that line only). -->
+            <feMorphology in="SourceAlpha" operator="erode" radius="1.3" result="inner" />
+            <feComposite in="SourceAlpha" in2="inner" operator="out" result="rimBand" />
+            <!-- Its own sharp light map (a tight edge, a low light): white
+                 facing the light, dark facing away. -->
+            <feGaussianBlur in="SourceAlpha" stdDeviation="0.9" result="rimBump" />
+            <feDiffuseLighting in="rimBump" surfaceScale="6" diffuseConstant="1" lighting-color="#ffffff" result="rimLit">
+              <feDistantLight azimuth="225" elevation="18" />
+            </feDiffuseLighting>
+            <feComponentTransfer in="rimLit" result="rimLight">
+              <feFuncR type="linear" slope="1.5" intercept="0.05" />
+              <feFuncG type="linear" slope="1.5" intercept="0.05" />
+              <feFuncB type="linear" slope="1.5" intercept="0.05" />
+            </feComponentTransfer>
+            <feComposite in="rimLight" in2="rimBand" operator="in" result="rim" />
+            <feMerge result="letters">
+              <feMergeNode in="lettersBody" />
+              <feMergeNode in="rim" />
+            </feMerge>
+            <!-- The crisp black line round each letter, a touch heavier on
+                 the lower right (where the plate drops into shadow). -->
+            <feMorphology in="SourceAlpha" operator="dilate" radius="0.9" result="grown" />
+            <feOffset in="grown" dx="0.35" dy="0.35" result="grownLow" />
+            <feMerge result="grownAll">
+              <feMergeNode in="grown" />
+              <feMergeNode in="grownLow" />
+            </feMerge>
+            <feComposite in="grownAll" in2="SourceAlpha" operator="out" result="ring" />
+            <feFlood flood-color="#121314" result="ink" />
             <feComposite in="ink" in2="ring" operator="in" result="line" />
             <feMerge>
               <feMergeNode in="line" />
@@ -3563,12 +3602,22 @@ onUnmounted(() => {
 
 /* /?title=silver: the headline's letters through the silver filter. */
 .splash.is-title-silver .sentence-text {
-  /* The tone the filter's light falls on (only its colour counts there). */
-  background: linear-gradient(165deg, #ffffff 0%, #e2e3e5 35%, #a7a9ad 75%, #c9cbce 100%);
+  /* The matte silver the filter's light falls on (only its colour counts
+     there): light, a little greyer to the right, as the reference's. */
+  background: linear-gradient(100deg, #dedede 0%, #d2d2d2 35%, #bcbcbc 70%, #cfcfcf 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
   filter: url(#splash-title-silver);
+}
+
+/* Its box a silver plate, grained, the same metal as the letters. */
+.splash.is-title-silver .sentence-fill {
+  background-color: #c9c9c9;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='1' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0' intercept='0.22'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(120% 140% at 22% 18%, #efefef 0%, #d6d6d6 38%, #a9a9a9 78%, #8e8e8e 100%);
+  background-blend-mode: overlay, normal;
 }
 
 /* No button, no grid on the panels (the bars at the image's middle). */
