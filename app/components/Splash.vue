@@ -517,15 +517,17 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 // The images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY):
 // the strip still and set against the screen's right side, every image shut (no
 // width), then on their own, one every SPAWN_EVERY_MS from the splash's build,
-// opening the next one, from the last back (so the row grows from the right),
-// to a random width (SPAWN_MIN_VW to SPAWN_MAX_VW of the screen's), a gap
-// after it.
+// opening the next one at the row's right end (the row held against the
+// screen's right side, so each one comes in from the right and pushes the
+// others left), to a random width (SPAWN_MIN_VW to SPAWN_MAX_VW of the
+// screen's), a gap before it. The image keeps its size as it opens (only its
+// frame widens), so nothing rescales.
 // By default; /?images=scroll: the strip scrolling as before.
 const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
 const SPAWN_MIN_VW = 20
 const SPAWN_MAX_VW = 56
 const SPAWN_GAP_VW = 2
-const SPAWN_EVERY_MS = 650
+const SPAWN_EVERY_MS = 900
 const spawnOpen = ref<Record<number, number>>({}) // index: width (vw)
 let spawnTimer: ReturnType<typeof setInterval> | undefined
 function spawnNext() {
@@ -535,7 +537,7 @@ function spawnNext() {
     clearInterval(spawnTimer)
     return
   }
-  const index = count - 1 - opened
+  const index = opened
   spawnOpen.value = { ...spawnOpen.value, [index]: Math.floor(Math.random() * (SPAWN_MAX_VW - SPAWN_MIN_VW) + SPAWN_MIN_VW) }
 }
 function startSpawn() {
@@ -546,8 +548,11 @@ function startSpawn() {
 function spawnStyle(index: number) {
   if (!IMAGES_SPAWN) return undefined
   const width = spawnOpen.value[index]
-  const last = index === scrollingImages.value.length - 1
-  return { maxWidth: width ? `${width}vw` : '0px', marginRight: width && !last ? `${SPAWN_GAP_VW}vw` : '0px' }
+  return {
+    '--spawn-w': `${width ?? SPAWN_MIN_VW}vw`,
+    'width': width ? `${width}vw` : '0px',
+    'marginLeft': width && index > 0 ? `${SPAWN_GAP_VW}vw` : '0px',
+  }
 }
 const scrollingImages = computed(() => (IMAGES_SPAWN ? [...(images.value ?? [])] : [...(images.value ?? []), ...(images.value ?? [])]))
 
@@ -1354,9 +1359,12 @@ const FOLLOW_COUNT = 1
 // edge: a core round the pointer (an oval FOLLOW_CORE of its size across) stays
 // filled, and its noise drifts by FOLLOW_DRIFT every FOLLOW_DRIFT_MS, so the
 // cells round that core change a few at a time.
-const FOLLOW_CORE = 0.62
-const FOLLOW_DRIFT = 0.22
-const FOLLOW_DRIFT_MS = 420
+// The edge: a few waves round the core (FOLLOW_WAVES, by the seed), turning
+// round it by FOLLOW_TURN radians every FOLLOW_DRIFT_MS.
+const FOLLOW_CORE = 0.5
+const FOLLOW_TURN = 0.16
+const FOLLOW_DRIFT_MS = 180
+const FOLLOW_WAVES = [[2, 3], [3, 5], [2, 5], [3, 4]] as const
 let followDriftAt = 0
 const shapesHovered = ref(false)
 const colorShift = ref(0)
@@ -1389,14 +1397,25 @@ function shapeAt(state: ShapeState, index: number, x: number, y: number) {
   const clampEven = (v: number, lo: number, hi: number) => Math.min(Math.floor(hi / 2) * 2, Math.max(Math.ceil(lo / 2) * 2, Math.round(v / 2) * 2))
   const left = clampEven(shapeCol(x) - w / 2, inside.left, inside.right - w)
   const top = clampEven(shapeRow(y) - h / 2, inside.top, inside.bottom - h)
-  const squares = generateMass(state.seed ?? index * 7 + 3, w / 2, h / 2, state.phase)
-  // The core round the pointer, always in.
+  // The core round the pointer, always in (an oval FOLLOW_CORE of the size
+  // across); round it, the edge's reach at each angle, two waves turning round
+  // it with the phase (one each way, so its outline keeps changing).
   const sw = w / 2
   const sh = h / 2
-  squares.forEach((row, y) => row.forEach((_, x) => {
-    if (Math.hypot((x + 0.5 - sw / 2) / (sw / 2), (y + 0.5 - sh / 2) / (sh / 2)) < FOLLOW_CORE) row[x] = true
+  const seed = state.seed ?? index * 7 + 3
+  const [a, b] = FOLLOW_WAVES[seed % FOLLOW_WAVES.length]!
+  const offset = (seed % 97) / 97 * Math.PI * 2
+  const t = state.phase
+  const squares = Array.from({ length: sh }, (_, y) => Array.from({ length: sw }, (_, x) => {
+    const nx = (x + 0.5 - sw / 2) / (sw / 2)
+    const ny = (y + 0.5 - sh / 2) / (sh / 2)
+    const r = Math.hypot(nx, ny)
+    if (r < FOLLOW_CORE) return true
+    const angle = Math.atan2(ny, nx)
+    const wave = 0.5 + 0.3 * Math.sin(a * angle + offset + t) + 0.2 * Math.sin(b * angle - offset - t * 1.4)
+    return r < FOLLOW_CORE + (1 - FOLLOW_CORE) * wave
   }))
-  const mass = refineMass(squares, (state.seed ?? 0) + Math.round(state.phase * 3), SHAPE_EDGE_QUARTERS)
+  const mass = refineMass(squares, seed, SHAPE_EDGE_QUARTERS)
   return {
     key: `${left},${top},${state.seed},${state.phase.toFixed(2)}`,
     left,
@@ -1412,7 +1431,7 @@ function follow() {
   const now = performance.now()
   if (now - followDriftAt > FOLLOW_DRIFT_MS) {
     followDriftAt = now
-    for (const state of shapeStates) state.phase += FOLLOW_DRIFT * (0.6 + Math.random() * 0.8)
+    for (const state of shapeStates) state.phase += FOLLOW_TURN
   }
   const plans = shapeStates.map((state, index) => {
     if (index >= FOLLOW_COUNT) {
@@ -3624,23 +3643,31 @@ onUnmounted(() => {
   filter: var(--tone-dark);
 }
 
-/* /?images=spawn: the strip still, each image shut until it opens
-   (spawnNext), widening out; the image fills the width it's given. */
+/* The spawn (spawnNext): the strip still, each image shut until it opens,
+   its frame widening; the image inside at its final size, held to the frame's
+   right, so it slides in from the right. */
+.splash.is-spawn .splash-images {
+  /* Held against the screen's right side, overflowing off the left. */
+  justify-content: flex-end;
+}
+
 .splash.is-spawn .splash-images-track {
   animation: none;
   gap: 0;
-  /* Against the screen's right side: the row grows leftward from there. */
-  margin-left: auto;
 }
 
 .splash.is-spawn .splash-image-wrapper {
   overflow: hidden;
-  transition: max-width 0.7s cubic-bezier(0.7, 0, 0.2, 1), margin-right 0.7s cubic-bezier(0.7, 0, 0.2, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+  justify-content: flex-end;
+  will-change: width;
+  transition: width 1.2s cubic-bezier(0.65, 0, 0.25, 1), margin-left 1.2s cubic-bezier(0.65, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
 .splash.is-spawn .splash-images-track img {
-  min-width: 0;
-  max-width: 100%;
+  width: var(--spawn-w);
+  min-width: var(--spawn-w);
+  max-width: none;
+  max-height: 100%;
 }
 
 .splash-images-track img.is-hovered {
