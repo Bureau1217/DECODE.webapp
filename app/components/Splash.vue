@@ -275,7 +275,7 @@ const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
 //   country, the page's only colour; the headline flush left on the grid,
 //   without its box; no shapes.
 const SPLASH_BEAT = SPLASH_ALTS.has('beat')
-// - row: the images hanging from one line by their tops, each captioned
+// - row: the images centred on one line, each captioned
 //   10px under it, its number (01, 02… in Areal's other 0) left, its label
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
 const SPLASH_ROW = SPLASH_ALTS.has('row')
@@ -2972,6 +2972,8 @@ onUnmounted(() => {
 .splash-tab-ticker-link {
   min-width: 0;
   max-width: 100%;
+  /* The tab's whole width, still or sliding: its text starts in one place. */
+  width: 100%;
   color: inherit;
   text-decoration: none;
 }
@@ -2982,7 +2984,8 @@ onUnmounted(() => {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: center;
+  /* Where the sliding one starts: no jump on hover. */
+  text-align: left;
 }
 
 .splash-tab-ticker-link .splash-tab-ticker-slide {
@@ -3301,18 +3304,22 @@ onUnmounted(() => {
 }
 
 .splash.is-row .splash-images-track {
-  align-items: flex-start;
+  align-items: center;
 }
 
+/* The images centred on one line: the caption under each matched by as much
+   room over it (CAPTION: its 10px gap and 20px height). */
 .splash.is-row .splash-image-wrapper {
   flex-direction: column;
   align-items: flex-end;
+  padding-top: 30px;
 }
 
 .splash-image-caption {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
+  height: 20px;
   gap: 12px;
   flex-shrink: 0;
   margin-top: 10px;
@@ -3335,8 +3342,8 @@ onUnmounted(() => {
 .splash-side-bar {
   position: absolute;
   z-index: 3;
-  width: 108px;
-  height: 34px;
+  width: 170px;
+  height: 22px;
   transform: translateY(-50%);
   background-color: #c4c6c8;
   /* Grain. */
