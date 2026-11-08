@@ -1,7 +1,7 @@
 // /?splash=globe: a globe turning slowly behind the white splash, as graphic
 // composition (after the "Open Structures" poster): its graticule in grey
 // dotted lines, every coast in fainter dots, and a few countries here and
-// there in a silver halftone. Orthographic, drawn on a canvas, by hand (no
+// there in silver foil. Orthographic, drawn on a canvas, by hand (no
 // geo library): the far side is left out, a line breaking where it goes over
 // the edge.
 
@@ -9,8 +9,11 @@ type Ring = [number, number][]
 type Country = { name: string, rings: Ring[], centre: [number, number] }
 
 export type GlobeOptions = {
-  // Of the canvas's shorter side.
+  // Of the canvas's half diagonal: 1, the globe covers the whole canvas.
   radius?: number
+  // The lines on a canvas of their own (over the images, in difference): drawn
+  // in the complement of their grey, so they read the same over white.
+  lines?: HTMLCanvasElement
   // Where the globe's centre sits, as shares of the canvas.
   centreX?: number
   centreY?: number
@@ -27,7 +30,7 @@ export type GlobeOptions = {
 const RAD = Math.PI / 180
 
 export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOptions = {}) {
-  const { radius = 1.05, centreX = 0.56, centreY = 0.78, spin = 2.4, tilt = 24, countries: count = 9, avoid = () => [] } = options
+  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 9, avoid = () => [], lines } = options
   const data = (await import('~/data/world-countries.json')).default as { features: { properties: { name: string }, geometry: { type: string, coordinates: unknown } }[] }
   const world: Country[] = data.features.map((feature) => {
     const polygons = (feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates) as Ring[][]
@@ -42,6 +45,9 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
   const sizeable = world.filter((country) => country.rings.reduce((n, ring) => n + ring.length, 0) > 50)
 
   const ctx = canvas.getContext('2d')!
+  const lineCtx = lines?.getContext('2d') ?? ctx
+  // A grey as drawn: over white in difference, its complement shows it.
+  const grey = (hex: string) => (lines ? `#${(0xFFFFFF - Number.parseInt(hex.slice(1), 16)).toString(16).padStart(6, '0')}` : hex)
   let width = 0
   let height = 0
   let ratio = 1
@@ -49,30 +55,28 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     ratio = Math.min(2, window.devicePixelRatio || 1)
     width = canvas.clientWidth
     height = canvas.clientHeight
-    canvas.width = Math.round(width * ratio)
-    canvas.height = Math.round(height * ratio)
+    for (const c of lines ? [canvas, lines] : [canvas]) {
+      c.width = Math.round(width * ratio)
+      c.height = Math.round(height * ratio)
+    }
   }
-  resize()
-
-  // The halftone: grey dots on a silver ground, as a repeating tile.
-  const tile = document.createElement('canvas')
-  const tileSize = Math.round(6 * ratio)
-  tile.width = tile.height = tileSize
-  const t = tile.getContext('2d')!
-  t.fillStyle = '#d4d4d4'
-  t.fillRect(0, 0, tileSize, tileSize)
-  t.fillStyle = '#8a8a8a'
-  t.beginPath()
-  t.arc(tileSize / 2, tileSize / 2, tileSize * 0.34, 0, Math.PI * 2)
-  t.fill()
-  const halftone = ctx.createPattern(tile, 'repeat')!
+  const globeRadius = () => (Math.hypot(width, height) / 2) * radius
+  // The countries are cut from one sheet of silver (silverSheet), wider than
+  // the canvas, gliding sideways as the globe turns: the light runs on across
+  // them, as on a foil print.
+  let sheet: HTMLCanvasElement | null = null
+  const resizeAll = () => {
+    resize()
+    sheet = silverSheet(canvas.width * 1.6, canvas.height, ratio)
+  }
+  resizeAll()
 
   let lon0 = Math.random() * 360
   let picked: Country[] = []
   // Where a country's centre lands now (px), and whether it's in sight: on
   // our side, inside the canvas, clear of what lies over it.
   const inSight = (country: Country, margin = 40) => {
-    const r = Math.min(width, height) * radius
+    const r = globeRadius()
     const [x, y, front] = project(country.centre[0], country.centre[1], width * centreX, height * centreY, r)
     if (!front || x < 0 || y < 0 || x > width || y > height) return false
     return avoid().every((box) => x < box.left - margin || x > box.right + margin || y < box.top - margin || y > box.bottom + margin)
@@ -112,7 +116,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
         const length = Math.hypot(dx, dy)
         let d = carry
         while (d < length) {
-          ctx.fillRect(prev[0] + (dx * d) / length - size / 2, prev[1] + (dy * d) / length - size / 2, size, size)
+          lineCtx.fillRect(prev[0] + (dx * d) / length - size / 2, prev[1] + (dy * d) / length - size / 2, size, size)
           d += gap
         }
         carry = d - length
@@ -132,7 +136,14 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       }
       ctx.closePath()
     }
-    ctx.fill('evenodd')
+    if (!sheet) return
+    ctx.save()
+    ctx.clip('evenodd')
+    // Sliding with the turn, back and forth (never off its edge).
+    const travel = sheet.width - canvas.width
+    const shift = ((Math.sin((lon0 * RAD) / 2) + 1) / 2) * travel
+    ctx.drawImage(sheet, -shift, 0)
+    ctx.restore()
   }
 
   pick()
@@ -154,28 +165,25 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
   const draw = () => {
     keepFacing()
     canvas.dataset.countries = picked.map((country) => country.name).join(', ')
-    const r = Math.min(width, height) * radius * ratio
+    const r = globeRadius() * ratio
     const cx = width * centreX * ratio
     const cy = height * centreY * ratio
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (lines) lineCtx.clearRect(0, 0, lines.width, lines.height)
     // The disc's edge.
-    ctx.fillStyle = '#9a9a9a'
+    lineCtx.fillStyle = grey('#9a9a9a')
     const rim = Array.from({ length: 721 }, (_, i) => i * 0.5)
     for (const deg of rim) {
       if ((deg * 2) % 3) continue
-      ctx.fillRect(cx + Math.cos(deg * RAD) * r - 1.25 * ratio, cy + Math.sin(deg * RAD) * r - 1.25 * ratio, 2.5 * ratio, 2.5 * ratio)
+      lineCtx.fillRect(cx + Math.cos(deg * RAD) * r - 1.25 * ratio, cy + Math.sin(deg * RAD) * r - 1.25 * ratio, 2.5 * ratio, 2.5 * ratio)
     }
     // Graticule.
-    ctx.fillStyle = '#a8a8a8'
+    lineCtx.fillStyle = grey('#a8a8a8')
     for (const line of [...meridians, ...parallels]) dotLine(line, cx, cy, r, 6 * ratio, 2.2 * ratio)
-    // The picked countries, in halftone, edged in dots.
-    ctx.fillStyle = halftone
+    // The picked countries, in silver foil, edged in dots.
     for (const country of picked) fillShape(country.rings, cx, cy, r)
-    ctx.fillStyle = '#7a7a7a'
+    lineCtx.fillStyle = grey('#7a7a7a')
     for (const country of picked) for (const ring of country.rings) dotLine(ring, cx, cy, r, 3 * ratio, 1.6 * ratio)
-    // Every other coast, fainter.
-    ctx.fillStyle = '#c8c8c8'
-    for (const country of world) if (!picked.includes(country)) for (const ring of country.rings) dotLine(ring, cx, cy, r, 4 * ratio, 1.4 * ratio)
   }
 
   let frame = 0
@@ -199,7 +207,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       if (reduced) draw()
     },
     resize() {
-      resize()
+      resizeAll()
       draw()
     },
     stop() {
@@ -207,4 +215,107 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       cancelAnimationFrame(frame)
     },
   }
+}
+
+// A sheet of polished silver, as liquid-metal shaders do it (Paper's Liquid
+// Metal, shaders.com's Chrome): a gently rippling surface, each point
+// reflecting a studio "environment" (bright sky, a sharp dark horizon, a
+// darker floor) by its slope, so the light falls into true highlights and
+// reflections; then a fine brushed grain. Worked out at half size (it's all
+// soft), the grain at full.
+const CHROME: [number, [number, number, number]][] = [
+  [-1, [62, 64, 68]],
+  [-0.45, [108, 111, 116]],
+  [-0.12, [150, 153, 158]],
+  [-0.03, [52, 54, 58]],
+  [0.02, [236, 238, 241]],
+  [0.12, [255, 255, 255]],
+  [0.35, [206, 209, 213]],
+  [0.7, [172, 175, 180]],
+  [1, [196, 199, 203]],
+]
+function chrome(t: number) {
+  for (let i = 1; i < CHROME.length; i++) {
+    const [b, cb] = CHROME[i]!
+    if (t <= b) {
+      const [a, ca] = CHROME[i - 1]!
+      const f = (t - a) / (b - a)
+      return [ca[0] + (cb[0] - ca[0]) * f, ca[1] + (cb[1] - ca[1]) * f, ca[2] + (cb[2] - ca[2]) * f]
+    }
+  }
+  return CHROME[CHROME.length - 1]![1]
+}
+function silverSheet(w: number, h: number, ratio: number) {
+  const sheet = document.createElement('canvas')
+  sheet.width = Math.max(1, Math.round(w))
+  sheet.height = Math.max(1, Math.round(h))
+  const W = sheet.width
+  const H = sheet.height
+  // The surface: a few long waves, each its own way (px of the sheet).
+  const waves = Array.from({ length: 7 }, (_, k) => {
+    const angle = -0.6 + (Math.random() - 0.5) * 1.4
+    const length = (180 + Math.random() * 520) * ratio * (k < 2 ? 1.8 : 1)
+    return { kx: (Math.cos(angle) * Math.PI * 2) / length, ky: (Math.sin(angle) * Math.PI * 2) / length, phase: Math.random() * Math.PI * 2, height: (k < 2 ? 1.6 : 1) * (0.5 + Math.random() * 0.5) }
+  })
+  const steep = 0.5
+  const half = document.createElement('canvas')
+  const hw = Math.max(1, Math.round(W / 2))
+  const hh = Math.max(1, Math.round(H / 2))
+  half.width = hw
+  half.height = hh
+  const hg = half.getContext('2d')!
+  const image = hg.createImageData(hw, hh)
+  const data = image.data
+  for (let y = 0; y < hh; y++) {
+    for (let x = 0; x < hw; x++) {
+      const px = x * 2
+      const py = y * 2
+      // Its slope here.
+      let dx = 0
+      let dy = 0
+      for (const wave of waves) {
+        const c = Math.cos(wave.kx * px + wave.ky * py + wave.phase) * wave.height
+        dx += c * wave.kx
+        dy += c * wave.ky
+      }
+      dx *= 220 * steep * ratio
+      dy *= 220 * steep * ratio
+      // The normal, and the view reflected in it: up/down picks the sky, the
+      // horizon or the floor; sideways leans it a little.
+      const length = Math.hypot(dx, dy, 1)
+      const ny = -dy / length
+      const nx = -dx / length
+      const nz = 1 / length
+      const ry = 2 * nz * ny
+      const rx = 2 * nz * nx
+      const t = Math.max(-1, Math.min(1, ry * 0.9 + rx * 0.25 + (0.5 - y / hh) * 0.35))
+      const [r, g, b] = chrome(t)
+      const i = (y * hw + x) * 4
+      data[i] = r
+      data[i + 1] = g
+      data[i + 2] = b
+      data[i + 3] = 255
+    }
+  }
+  hg.putImageData(image, 0, 0)
+  const g = sheet.getContext('2d')!
+  g.imageSmoothingQuality = 'high'
+  g.drawImage(half, 0, 0, W, H)
+  // Brushed grain, along the light.
+  g.save()
+  g.translate(W / 2, H / 2)
+  g.rotate(-0.6)
+  const reach = Math.hypot(W, H) / 2
+  for (let i = 0; i < (W * H) / (1400 * ratio); i++) {
+    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(30,32,35,0.05)'
+    g.lineWidth = (0.4 + Math.random() * 0.8) * ratio
+    const x = (Math.random() * 2 - 1) * reach
+    const y = (Math.random() * 2 - 1) * reach
+    g.beginPath()
+    g.moveTo(x, y)
+    g.lineTo(x + (40 + Math.random() * 260) * ratio, y)
+    g.stroke()
+  }
+  g.restore()
+  return sheet
 }

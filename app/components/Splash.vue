@@ -271,7 +271,10 @@ const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
 //   its lines dotted, a few countries in a silver halftone, new ones with each
 //   headline.
 const ALT_GLOBE = SPLASH_ALTS.has('globe')
+// /?splash=globe,difference: its lines over the images, in difference.
+const ALT_GLOBE_DIFFERENCE = ALT_GLOBE && SPLASH_ALTS.has('difference')
 const globeCanvas = ref<HTMLCanvasElement | null>(null)
+const globeLines = ref<HTMLCanvasElement | null>(null)
 let globe: Awaited<ReturnType<typeof startGlobe>> | null = null
 const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells')
 // Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
@@ -692,6 +695,29 @@ const HEIGHT_VARIANTS = [1, 0.45, 0.8, 0.35, 0.95, 0.55, 0.7, 0.4]
 function imageVariant(index: number) {
   const n = images.value?.length || 1
   return HEIGHT_VARIANTS[(index % n) % HEIGHT_VARIANTS.length] ?? 1
+}
+// The spawn's images: each its own landscape shape (SPAWN_RATIOS, close to
+// one another, never upright), cropped to it, none shorter than
+// SPAWN_MIN_VARIANT of the band (the shortest of HEIGHT_VARIANTS, 20% taller),
+// between SPAWN_MIN_W and SPAWN_MAX_W wide.
+const SPAWN_RATIOS = [3 / 2, 4 / 3, 8 / 5, 5 / 3, 7 / 5]
+const SPAWN_MIN_VARIANT = 0.42
+const SPAWN_MIN_W = 240 // px
+const SPAWN_MAX_W = 380 // px
+function spawnImageStyle(index: number) {
+  if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return {}
+  const n = images.value?.length || 1
+  const ratio = SPAWN_RATIOS[(index % n) % SPAWN_RATIOS.length]!
+  const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
+  const band = imagesBandHeight.value ? `${imagesBandHeight.value}px` : `${shelfLayout ? SHELF_BAND_VH : 44}vh`
+  return {
+    width: `clamp(${SPAWN_MIN_W}px, calc(${band} * ${variant * ratio}), ${SPAWN_MAX_W}px)`,
+    height: 'auto',
+    aspectRatio: String(ratio),
+    minWidth: '0',
+    maxWidth: 'none',
+    maxHeight: 'none',
+  }
 }
 function imageHeight(index: number) {
   const variant = imageVariant(index)
@@ -2407,7 +2433,9 @@ onMounted(() => {
     globe?.stop()
     globe = null
     if (!canvas) return
+    await nextTick()
     const started = await startGlobe(canvas, {
+      lines: globeLines.value ?? undefined,
       // Clear of the headline and its subtitle.
       avoid: () => {
         const origin = canvas.getBoundingClientRect()
@@ -2460,6 +2488,7 @@ onUnmounted(() => {
       'alt-black': ALT_BLACK,
       'alt-cells': ALT_CELLS,
       'alt-hover': ALT_HOVER,
+      'is-globe-difference': ALT_GLOBE_DIFFERENCE,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -2548,6 +2577,9 @@ onUnmounted(() => {
     <div v-if="ALT_LINES && colorMode !== 'dark'" class="splash-map-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true" />
     <div v-if="ALT_GLOBE && colorMode !== 'dark'" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
       <canvas ref="globeCanvas" />
+    </div>
+    <div v-if="ALT_GLOBE_DIFFERENCE && colorMode !== 'dark'" class="splash-globe is-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
+      <canvas ref="globeLines" />
     </div>
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
       <!-- Dark mode's own gray duotone (app.vue's #duotone-dark: same
@@ -2735,7 +2767,7 @@ onUnmounted(() => {
             :src="image.url"
             :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
-            :style="{ maxHeight: imageHeight(index), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
+            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
             @load="onStripImageLoad"
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
@@ -3177,6 +3209,17 @@ onUnmounted(() => {
   z-index: 0;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* /?splash=globe,difference: the lines over the images (under the headline),
+   in difference; the splash keeps a ground of its own to differ from. */
+.splash-globe.is-lines {
+  z-index: 2;
+  mix-blend-mode: difference;
+}
+
+.splash.is-globe-difference {
+  background: var(--color-surface);
 }
 
 .splash-globe canvas {
