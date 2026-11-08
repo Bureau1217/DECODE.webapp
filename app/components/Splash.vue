@@ -2877,6 +2877,12 @@ onUnmounted(() => {
   color: var(--color-surface);
 }
 
+/* As the splash builds, it turns from the logo screen's white on black to its
+   own black on white smoothly, not at once (that read as a flicker). */
+.splash.intro-build .splash-subtitle-box {
+  transition: background-color 0.5s ease, color 0.5s ease, clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
 /* The frame opening out from its middle as its letters decipher (the logo
    screen's subtitle). */
 .splash.intro-logo .splash-subtitle-box.is-growing {
