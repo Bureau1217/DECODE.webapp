@@ -484,6 +484,52 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 // to translateX(-50%) ends exactly where the first copy started.
 const scrollingImages = computed(() => [...(images.value ?? []), ...(images.value ?? [])])
 
+// /?tone=auto: each image's duotone fitted to its own tones, so a mostly dark
+// photo doesn't turn mostly near-white in the negative. Its tones are measured
+// (through /api/cms-media: the CMS sends no CORS headers), then its darkest and
+// brightest (2nd and 98th percentiles) stretched across the whole silver band
+// (light: #f4f4f2 to #9fa1a3, dark: #e9e9e7 to #1c1c1c, as app.vue's
+// #duotone-silver and #duotone-dark), its median landing in the middle of it.
+const TONE_AUTO = useRoute().query.tone === 'auto'
+watch(() => images.value?.length, () => toneImages())
+const toneTables = ref<Record<string, { light: string[], dark: string[] }>>({})
+const toneId = (url: string) => `splash-tone-${Math.abs([...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`
+async function toneImages() {
+  if (!TONE_AUTO) return
+  for (const image of images.value ?? []) {
+    if (toneTables.value[image.url]) continue
+    try {
+      const blob = await (await fetch(`/api/cms-media?src=${encodeURIComponent(image.url)}`)).blob()
+      const bitmap = await createImageBitmap(blob)
+      const canvas = document.createElement('canvas')
+      canvas.width = 160
+      canvas.height = Math.max(1, Math.round(160 * bitmap.height / bitmap.width))
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+      const levels: number[] = []
+      for (let i = 0; i < d.length; i += 4) levels.push((0.299 * d[i]! + 0.587 * d[i + 1]! + 0.114 * d[i + 2]!) / 255)
+      levels.sort((a, b) => a - b)
+      const at = (share: number) => levels[Math.floor(share * (levels.length - 1))]!
+      const lo = at(0.02)
+      const hi = Math.max(lo + 0.05, at(0.98))
+      const mid = Math.min(0.9, Math.max(0.1, (at(0.5) - lo) / (hi - lo)))
+      const gamma = Math.min(2.5, Math.max(0.4, Math.log(0.5) / Math.log(mid)))
+      const band = (from: number[], to: number[]) => [0, 1, 2].map((ch) => Array.from({ length: 33 }, (_, k) => {
+        const t = Math.min(1, Math.max(0, (k / 32 - lo) / (hi - lo))) ** gamma
+        return ((from[ch]! + (to[ch]! - from[ch]!) * t) / 255).toFixed(4)
+      }).join(' '))
+      toneTables.value = {
+        ...toneTables.value,
+        [image.url]: { light: band([244, 244, 242], [159, 161, 163]), dark: band([233, 233, 231], [28, 28, 28]) },
+      }
+    }
+    catch {
+      // Left in the site's own duotone.
+    }
+  }
+}
+
 // Real photos here are nearly all landscape-ish — capping every image by
 // max-height alone and letting width follow its true ratio technically
 // preserves "true size", but in practice almost all of them hit the same
@@ -1870,6 +1916,7 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
+  toneImages()
   playIntro()
   handleResize()
   observeLines()
@@ -2103,6 +2150,19 @@ onUnmounted(() => {
     <!-- Behind .splash-info (lower z-index) — a background layer, not a
          band confined to the margin strip, now that it's centered in the
          viewport like the text is. -->
+    <!-- /?tone=auto: each image's own duotone (toneImages). -->
+    <svg v-if="TONE_AUTO" width="0" height="0" style="position: absolute" aria-hidden="true">
+      <template v-for="(tables, url) in toneTables" :key="url">
+        <filter v-for="mode in (['light', 'dark'] as const)" :id="`${toneId(String(url))}-${mode}`" :key="mode" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0" />
+          <feComponentTransfer>
+            <feFuncR type="table" :tableValues="tables[mode][0]" />
+            <feFuncG type="table" :tableValues="tables[mode][1]" />
+            <feFuncB type="table" :tableValues="tables[mode][2]" />
+          </feComponentTransfer>
+        </filter>
+      </template>
+    </svg>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="stripStyle" aria-hidden="true">
       <div class="splash-images-track">
         <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper">
@@ -2117,8 +2177,8 @@ onUnmounted(() => {
           <img
             :src="image.url"
             :alt="cleanAlt(image.alt)"
-            :class="{ 'is-hovered': hoveredIndex === index }"
-            :style="{ maxHeight: imageHeight(index) }"
+            :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
+            :style="{ maxHeight: imageHeight(index), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
             @load="onStripImageLoad"
             @mouseenter="hoveredIndex = canHover() ? index : null"
             @mouseleave="hoveredIndex = null"
@@ -3039,6 +3099,14 @@ onUnmounted(() => {
 
 .splash.is-shelf .splash-images-track {
   align-items: flex-end;
+}
+
+.splash-images-track img.is-toned {
+  filter: var(--tone-light);
+}
+
+:root[data-theme='dark'] .splash-images-track img.is-toned {
+  filter: var(--tone-dark);
 }
 
 .splash-images-track img.is-hovered {
