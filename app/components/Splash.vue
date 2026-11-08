@@ -294,7 +294,7 @@ let rowGlobes: Awaited<ReturnType<typeof startGlobe>>[] = []
 const SPLASH_PANELS = SPLASH_ALTS.has('panels')
 const panelImage = computed(() => {
   const list = images.value ?? []
-  return list.length ? list[headlineIndex.value % list.length] : null
+  return list.length ? list[panelIndex.value % list.length] : null
 })
 // The bars on the image strip's middle line (px from the splash's top).
 // The row as a whole (its tallest image and caption: ROW_CAPTION) centred on
@@ -2116,9 +2116,9 @@ function shuffleFrame(finalSeed: number, ticks: number[], locks: number[][], tar
 // ahead of the letters (so it's showing when they start), the two landing
 // together (.is-spawn's width transition: the letters' time and the lead).
 const SPAWN_LEAD_MS = 300
-async function nextHeadline() {
+async function nextHeadline(target?: number) {
   if (leaving.value || !splashEl.value) return
-  if (IMAGES_SPAWN) {
+  if (IMAGES_SPAWN && !SPLASH_PANELS) {
     spawnNext()
     // Beat: the globe turns with them, landing with the letters.
     globe?.beat(HEADLINE_MORPH_MS + SPAWN_LEAD_MS)
@@ -2126,7 +2126,7 @@ async function nextHeadline() {
     if (leaving.value || !splashEl.value) return
   }
   const previous = [...headlineWords.value]
-  headlineIndex.value = (headlineIndex.value + 1) % headlines.value.length
+  headlineIndex.value = target ?? (headlineIndex.value + 1) % headlines.value.length
   await nextTick()
   if (leaving.value) return
   const ticks = headlineTicks()
@@ -2147,7 +2147,30 @@ async function nextHeadline() {
   globe?.shuffle()
   // No pixel bursts any more (pixelBurst): only the map in the masses.
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
+  // Panels: the pointer chooses (onPanelsMove), no cycle.
+  if (SPLASH_PANELS) return
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + headlineHold() - (IMAGES_SPAWN ? SPAWN_LEAD_MS : 0))
+}
+// Panels: the pointer's x across the screen picks one of the headlines (as many
+// bands as there are): the image changes at once, the headline deciphers to
+// it (one at a time: the band it's on once the last one has landed).
+const panelIndex = ref(0)
+let panelBusy = false
+function onPanelsMove(event: MouseEvent) {
+  const count = headlines.value.length
+  if (!count || splashIntro.value !== 'done') return
+  const k = Math.min(count - 1, Math.max(0, Math.floor((event.clientX / window.innerWidth) * count)))
+  panelIndex.value = k
+  settlePanels()
+}
+async function settlePanels() {
+  if (panelBusy || panelIndex.value === headlineIndex.value) return
+  panelBusy = true
+  await nextHeadline(panelIndex.value)
+  setTimeout(() => {
+    panelBusy = false
+    settlePanels()
+  }, HEADLINE_MORPH_MS)
 }
 // With the spawn: a shorter hold, an image every change.
 const SPAWN_HOLD_MS = 2600
@@ -2241,7 +2264,7 @@ function revealCells(ticks: number[]) {
 function startHeadlineCycle() {
   clearTimeout(headlineTimer)
   if (!ALT_CELLS && !ALT_HOVER && !SPLASH_BEAT) startCrossing()
-  if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches || SPLASH_PANELS) return
   headlineTimer = setTimeout(nextHeadline, headlineHold())
 }
 function stopHeadlineCycle() {
@@ -2587,7 +2610,7 @@ onUnmounted(() => {
 <template>
   <section
     ref="splashEl"
-    @mousemove="ALT_HOVER && onSplashMove($event)"
+    @mousemove="ALT_HOVER ? onSplashMove($event) : SPLASH_PANELS && onPanelsMove($event)"
     @mouseleave="ALT_HOVER && onSplashLeave()"
     @click="ALT_HOVER && onSplashClick($event)"
     class="splash"
@@ -2972,6 +2995,10 @@ onUnmounted(() => {
             :style="{ '--tone-light': `url(#${toneId(panelImage.url)}-light)`, '--tone-dark': `url(#${toneId(panelImage.url)}-dark)` }"
           >
         </Transition>
+        <div class="splash-image-caption is-shown text-small">
+          <span class="splash-image-number">{{ imageNumber(panelIndex) }}</span>
+          <span v-if="imageLabel(panelIndex, panelImage.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(panelIndex) }">{{ imageLabel(panelIndex, panelImage.alt) }}</span>
+        </div>
       </div>
       <div v-if="subtitleLines.length" class="text-label splash-subtitle">
         <span class="splash-subtitle-box">
@@ -3407,9 +3434,9 @@ onUnmounted(() => {
 }
 
 /* /?splash=panels: three panels: the headline | one portrait image | the
-   subtitle, both texts flush left on the image's middle, small, unframed. */
-.splash.is-panels .splash-grid,
-.splash.is-panels .splash-grid-lines,
+   subtitle, both texts flush left on the image's middle, small, unframed,
+   each as far from the image (column-gap): the headline's block against its
+   column's right, the subtitle's against its left. */
 .splash.is-panels .splash-images,
 .splash.is-panels .splash-shapes {
   display: none;
@@ -3420,8 +3447,8 @@ onUnmounted(() => {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   justify-items: start;
-  column-gap: 4vw;
-  padding: 0 6vw;
+  column-gap: 3.5vw;
+  padding: 0 4vw;
   text-align: left;
   filter: none;
 }
@@ -3430,6 +3457,7 @@ onUnmounted(() => {
   font-size: clamp(22px, 2.6vw, 44px) !important;
   min-height: 0 !important;
   width: auto;
+  justify-self: end;
 }
 
 .splash.is-panels .sentence-masked {
@@ -3454,12 +3482,20 @@ onUnmounted(() => {
 
 .splash.is-panels .splash-subtitle-box {
   width: auto !important;
-  max-width: 22vw;
+  max-width: none;
   padding: 0;
   background: none;
-  font-size: 11pt;
+  font-size: 10pt;
   text-align: left;
-  text-wrap: pretty;
+  /* Its three lines as written. */
+  white-space: nowrap;
+}
+
+.splash-panel-image {
+  display: flex;
+  flex-direction: column;
+  /* The caption under it doesn't move it off the texts' middle. */
+  padding-top: 30px;
 }
 
 .splash-panel-image img {
