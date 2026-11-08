@@ -2919,7 +2919,7 @@ onUnmounted(() => {
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
-          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="SPLASH_ROW && measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)', transformOrigin: `right ${rowOriginY - spawnTargetWidth(index) / spawnRatio(index) - 10}px` } : undefined">
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
             <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
           </div>
@@ -3421,12 +3421,7 @@ onUnmounted(() => {
   transition: transform 1.8s cubic-bezier(0.37, 0, 0.63, 1);
 }
 
-.splash.is-row .splash-image-caption {
-  transition: transform 1.8s cubic-bezier(0.37, 0, 0.63, 1);
-}
-
-.splash.is-row.is-spawn-instant .splash-images-track img,
-.splash.is-row.is-spawn-instant .splash-image-caption {
+.splash.is-row.is-spawn-instant .splash-images-track img {
   transition: none;
 }
 
