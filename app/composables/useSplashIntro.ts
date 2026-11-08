@@ -15,7 +15,12 @@ export const useIntroSeen = () => useCookie<string | null>('decode-intro-seen', 
   sameSite: 'lax',
 })
 
+// For now, the intro plays on every load of '/', seen or not (false: only the
+// first time, as before).
+const INTRO_EVERY_LOAD = true
+
 export const useSplashIntro = () => useState<SplashIntroPhase>('splash-intro', () => {
   if (useRoute().path !== '/') return 'done'
+  if (INTRO_EVERY_LOAD) return 'logo'
   return useIntroSeen().value ? 'done' : 'logo'
 })

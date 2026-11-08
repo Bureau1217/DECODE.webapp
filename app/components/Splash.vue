@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { decipherFrom, decipherIn, scrambleOut } from '~/utils/decipher'
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
+import { boxReveal } from '~/utils/boxReveal'
 import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, refineMass, resizeMass, stampMass } from '~/utils/splashShape'
 
 // Decorative intro screen — fails soft (empty state, no thrown error) if
@@ -940,8 +941,13 @@ const subtitleMoving = ref(false)
 const headlineShown = ref(false)
 // How far up the subtitle sits (px) while it's next to the logo.
 const subtitleLift = ref(0)
+// The logo screen's DE.CO.DE as 2xA Studio's intro (2xa.studio), in black and
+// white: coming in letter by letter behind a cursor per segment, going behind
+// one steady cursor (utils/boxReveal.ts).
+let logoReveal: { stop: () => void } | null = null
+
 function measureSubtitleLift() {
-  const logo = splashEl.value?.querySelector('.splash-logo .decipher-text')?.getBoundingClientRect()
+  const logo = splashEl.value?.querySelector('.splash-logo-word')?.getBoundingClientRect()
   const subtitle = splashEl.value?.querySelector('.splash-subtitle')?.getBoundingClientRect()
   if (logo && subtitle) subtitleLift.value = Math.round(logo.bottom + 10 - subtitle.top)
 }
@@ -1759,8 +1765,9 @@ function playIntro() {
     if (box) decipherIn(box)
   })
   at(OUT_AT, () => {
-    const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo .decipher-text')
-    if (logo) scrambleOut(logo, OUT_MS)
+    const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo-word')
+    logoReveal?.stop()
+    if (logo) boxReveal(logo, { mode: 'out' })
   })
   at(MOVE_AT, () => { subtitleMoving.value = true })
   at(BUILD_AT, buildIn)
@@ -1946,6 +1953,12 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
+  if (logoVisible.value) {
+    document.fonts.ready.then(() => {
+      const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo-word')
+      if (logo) logoReveal = boxReveal(logo, { mode: 'in', delay: LOGO_START_MS })
+    })
+  }
   toneImages()
   playIntro()
   handleResize()
@@ -1992,7 +2005,8 @@ onUnmounted(() => {
   >
     <!-- Arrival: white screen, DE.CO.DE growing in from nothing. -->
     <div v-if="logoVisible" class="splash-logo" aria-hidden="true">
-      <DecipherText text="DE.CO.DE" grow :grow-max="2" :delay="LOGO_START_MS" />
+      <!-- DE.CO.DE letter by letter behind a cursor (boxReveal). -->
+      <span class="splash-logo-word box-waiting">DE.CO.DE</span>
     </div>
     <!-- Folder-tab silhouette, above the grid: 1/4 viewport width, 3.5%
          viewport height, 1.5% top margin. The path (folderTabPath) draws
@@ -2777,6 +2791,17 @@ onUnmounted(() => {
 
 /* Arrival (script, playIntro). The logo screen covers everything, in
    the display face, the word growing in the middle. */
+/* DE.CO.DE on the logo screen, at the screen's own size: hidden until its
+   letters start coming in. */
+.splash-logo-word {
+  display: inline-block;
+  line-height: 1;
+}
+
+.splash-logo-word.box-waiting {
+  visibility: hidden;
+}
+
 .splash-logo {
   position: fixed;
   inset: 0;
@@ -3310,5 +3335,43 @@ onUnmounted(() => {
     white-space: nowrap;
     font-size: min(12pt, 3.9vw);
   }
+}
+</style>
+
+<style>
+/* utils/boxReveal.ts's letters (made by script, so not scoped), in black and
+   white, playing on difference: the text's own colour and the page's. */
+.box-char {
+  position: relative;
+}
+
+.box-char[data-box='hidden'] {
+  visibility: hidden;
+}
+
+/* The cursor: a solid block of the text's colour over the letter. */
+.box-char[data-box='block']::after,
+.box-char[data-box='invert']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+}
+
+/* Inverted: a white box in difference over the letter and the page behind it,
+   so both flip (black on white turns white on black). */
+.box-char[data-box='invert']::after {
+  background: #fff;
+  mix-blend-mode: difference;
+}
+
+/* Dark mode: the site's warm ink in difference, not white (no blue cast). */
+:root[data-theme='dark'] .box-char[data-box='invert']::after {
+  background: var(--color-ink);
+}
+
+/* Only an outline round it. */
+.box-char[data-box='outline'] {
+  box-shadow: inset 0 0 0 max(1px, 0.025em) currentColor;
 }
 </style>
