@@ -1279,6 +1279,30 @@ const SHAPE_MOTION = {
 }
 // Dark mode: what fills each mass, through the duotone (.splash-shape-video).
 const SHAPE_VIDEOS = ['/videos/splash-1.mp4', '/videos/splash-2.mp4', '/videos/splash-3.mp4']
+// Hover, dark mode: under the mass, not one video across the grid but seven
+// small ones spread over it (four across the top, three across the bottom, so
+// their seams don't line up), the three clips each at another moment, so
+// moving reveals different ones.
+const HOVER_VIDEO_TILES = [
+  ...[0, 1, 2, 3].map((k) => ({ left: k * 25, top: 0, width: 25, height: 50 })),
+  ...[0, 1, 2].map((k) => ({ left: (k * 100) / 3, top: 50, width: 100 / 3, height: 50 })),
+]
+// Laid over the grid itself (px in the masses' layer: the grid's cells).
+const hoverTileBox = computed(() => {
+  const { cw, ch } = shapeGrid.value
+  const inside = gridCells()
+  if (!Number.isFinite(inside.left)) return null
+  return { left: inside.left * cw, top: inside.top * ch, width: (inside.right - inside.left) * cw, height: (inside.bottom - inside.top) * ch }
+})
+function hoverTileStyle(tile: { left: number, top: number, width: number, height: number }) {
+  const box = hoverTileBox.value
+  if (!box) return { left: `${tile.left}%`, top: `${tile.top}%`, width: `${tile.width}%`, height: `${tile.height}%` }
+  return { left: `${box.left + (box.width * tile.left) / 100}px`, top: `${box.top + (box.height * tile.top) / 100}px`, width: `${(box.width * tile.width) / 100}px`, height: `${(box.height * tile.height) / 100}px` }
+}
+function startTileAt(event: Event, k: number) {
+  const video = event.target as HTMLVideoElement
+  if (video.duration) video.currentTime = (video.duration * k) / HOVER_VIDEO_TILES.length
+}
 const SHAPE_CORNERS = [
   { right: false, bottom: false },
   { right: true, bottom: false },
@@ -2876,7 +2900,21 @@ onUnmounted(() => {
           />
         </div>
         <div v-if="colorMode === 'dark'" class="splash-shape-video" :style="{ clipPath: `url(#splash-shape-clip-${index})` }">
-          <video :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
+          <template v-if="ALT_HOVER">
+            <video
+              v-for="(tile, k) in HOVER_VIDEO_TILES"
+              :key="k"
+              class="is-tile"
+              :src="SHAPE_VIDEOS[k % SHAPE_VIDEOS.length]"
+              :style="hoverTileStyle(tile)"
+              autoplay
+              muted
+              loop
+              playsinline
+              @loadedmetadata="startTileAt($event, k)"
+            />
+          </template>
+          <video v-else :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
         </div>
         <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`" preserveAspectRatio="none">
           <path class="splash-shape-outline" :d="view.outline" :stroke="ALT_HOVER ? shapeColor(index) : BADGE_COLORS[index]" />
@@ -3767,6 +3805,11 @@ onUnmounted(() => {
   object-fit: cover;
   transition: left 1s ease, top 1s ease, width 1s ease, height 1s ease;
   filter: url(#duotone-dark);
+}
+
+/* The hover's small videos: still, edge to edge. */
+.splash-shape-video video.is-tile {
+  transition: none;
 }
 
 .splash-shape-fill {
