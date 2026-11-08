@@ -755,8 +755,7 @@ const SPAWN_MAX_W = 420 // px
 // grows in both ways at once (from the side and in height), not sliding in.
 const spawnRatio = (index: number) => SPAWN_RATIOS[(index % (images.value?.length || 1)) % SPAWN_RATIOS.length]!
 function spawnTargetWidth(index: number) {
-  // Not on the server (no window): the caption's width comes on the client.
-  if (!IMAGES_SPAWN || IMAGES_PORTRAIT || import.meta.server) return 0
+  if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return 0
   const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
   const band = imagesBandHeight.value || window.innerHeight * ((shelfLayout ? SHELF_BAND_VH : 44) / 100)
   return Math.min(SPAWN_MAX_W, Math.max(SPAWN_MIN_W, band * variant * spawnRatio(index)))
@@ -2861,7 +2860,7 @@ onUnmounted(() => {
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
-          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :class="{ 'is-shown': spawnWidths[index] !== undefined || !IMAGES_SPAWN }" :style="measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px` } : undefined">
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
             <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
           </div>
@@ -3340,9 +3339,6 @@ onUnmounted(() => {
 
 .splash-image-caption {
   width: 100%;
-  /* At its image's full width from the start, so nothing in it moves; shown
-     once its image has opened (the spawn's 1.8s), fading in where it stays. */
-  opacity: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3352,11 +3348,6 @@ onUnmounted(() => {
   margin-top: 10px;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-.splash-image-caption.is-shown {
-  opacity: 1;
-  transition: opacity 0.5s ease 1.7s;
 }
 
 /* Its label in its chip's colour, as the chips elsewhere: black on it. */
