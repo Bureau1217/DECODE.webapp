@@ -245,22 +245,26 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
 // Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
 // Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
-// Other splashes, to compare, as words in the address (combinable:
-// /?splash=hover,black):
+// The splash's mass follows the pointer, a window onto dark mode (hover), by
+// default; other splashes, to compare, as words in the address (combinable:
+// /?splash=shapes,black):
+// - shapes: the masses as before (round the headline, changing with it)
+//   instead of the one under the pointer.
 // - black: dark mode's map as an infrared weather satellite picture.
 // - cells: no masses; the grid's own cells light up while the headline
 //   scrambles (the map in light mode, the videos in dark), then go out
 //   closing in on the headline.
 // - lines: light mode, the map's coastlines and borders traced in light grey.
 // - numbers: dark mode, every line of the grid numbered in the left margin.
-// - hover: one mass under the pointer, only while it's over the grid, its core
-//   steady and its edge re-forming; a click changes its form and colour.
+// - (default) one mass under the pointer, only while it's over the grid, its
+//   core steady and its edge re-forming, showing dark mode's map in light mode;
+//   a click changes its form and colour.
 const SPLASH_ALTS = new Set(String(useRoute().query.splash ?? '').split(',').filter(Boolean))
 const ALT_BLACK = SPLASH_ALTS.has('black')
 const ALT_CELLS = SPLASH_ALTS.has('cells')
 const ALT_LINES = SPLASH_ALTS.has('lines')
 const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
-const ALT_HOVER = SPLASH_ALTS.has('hover')
+const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells')
 // Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
 // the Black Sea, public/nasa/europe-splash.jpg). Light mode shows it too,
 // inside the masses only, while the headline's letters scramble
@@ -510,13 +514,14 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 
 // Doubled so the track can loop seamlessly: animating from translateX(0)
 // to translateX(-50%) ends exactly where the first copy started.
-// /?images=spawn: the images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY):
+// The images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY):
 // the strip still and set against the screen's right side, every image shut (no
 // width), then on their own, one every SPAWN_EVERY_MS from the splash's build,
 // opening the next one, from the last back (so the row grows from the right),
 // to a random width (SPAWN_MIN_VW to SPAWN_MAX_VW of the screen's), a gap
 // after it.
-const IMAGES_SPAWN = useRoute().query.images === 'spawn'
+// By default; /?images=scroll: the strip scrolling as before.
+const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
 const SPAWN_MIN_VW = 20
 const SPAWN_MAX_VW = 56
 const SPAWN_GAP_VW = 2
