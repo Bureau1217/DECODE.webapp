@@ -522,7 +522,9 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 // so it slides in from the right. Those gone off the left are dropped.
 // By default; /?images=scroll: the strip scrolling as before.
 const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
-const SPAWN_GAP_VW = 2
+// /?images=portrait: every image the same, 5:6 upright and one height.
+const IMAGES_PORTRAIT = useRoute().query.images === 'portrait'
+const SPAWN_GAP_VW = 0.5
 const SPAWN_EVERY_MS = 3200
 const SPAWN_AFTER_MS = 2200
 // Shut ones rendered ahead (so they load, and can be measured).
@@ -2370,6 +2372,7 @@ onUnmounted(() => {
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
+      'is-portrait': IMAGES_PORTRAIT,
       'is-scrambling': headlineScrambling,
       'is-shelf': shelfLayout,
       'is-returning': returning,
@@ -3714,6 +3717,22 @@ onUnmounted(() => {
   justify-content: flex-end;
   will-change: width;
   transition: width 2.6s cubic-bezier(0.55, 0, 0.25, 1), margin-left 2.6s cubic-bezier(0.55, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
+/* Spawned, narrower: none wider than 400px (cropped to it). */
+.splash.is-spawn .splash-images-track img {
+  min-width: 80px;
+  max-width: min(var(--splash-image-max-width), 400px);
+}
+
+/* /?images=portrait: all 5:6 upright, one height, cropped to it. */
+.splash.is-spawn.is-portrait .splash-images-track img {
+  aspect-ratio: 5 / 6;
+  height: 30vh;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  max-height: none !important;
 }
 
 /* The first ones, filled at once (fillSpawn), arriving as ever: shut to a line
