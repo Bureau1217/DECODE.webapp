@@ -244,19 +244,11 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
 // Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
 // Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
-// Dark mode's map: one of SATELLITE_VIEWS views of NASA's Blue Marble, at random
-// on each visit (public/nasa/random/: Web Mercator close-ups as the original,
-// splash-0, picked round the world at random places and zooms and kept only
-// where land and sea are about even and there's little ice). The first load
-// in a browser session shows the original (splash-0, positioned by hand); each
-// reload after it, one at random. Chosen once mounted, so the server's page and
-// the browser's agree. /?nasa=3: that one.
-const SATELLITE_VIEWS = 10
-const satelliteView = ref<number | null>(null)
-const satelliteForced = Number(useRoute().query.nasa)
-// Light mode shows it too, inside the masses only, while the headline's
-// letters scramble (headlineScrambling, .is-scrambling, .splash-shape-map).
-const satelliteUrl = computed(() => (satelliteView.value !== null ? `/nasa/random/splash-${satelliteView.value}.jpg` : null))
+// Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
+// the Black Sea, public/nasa/europe-splash.jpg). Light mode shows it too,
+// inside the masses only, while the headline's letters scramble
+// (headlineScrambling, .is-scrambling, .splash-shape-map).
+const satelliteUrl = '/nasa/europe-splash.jpg'
 const headlineScrambling = ref(false)
 let scramblingTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -1954,17 +1946,6 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
-  let firstLoad = true
-  try {
-    firstLoad = !sessionStorage.getItem('decode-map-seen')
-    sessionStorage.setItem('decode-map-seen', '1')
-  }
-  catch {
-    // No storage: always the original.
-  }
-  satelliteView.value = Number.isInteger(satelliteForced) && satelliteForced >= 0 && satelliteForced < SATELLITE_VIEWS
-    ? satelliteForced
-    : firstLoad ? 0 : Math.floor(Math.random() * SATELLITE_VIEWS)
   toneImages()
   playIntro()
   handleResize()
@@ -2744,9 +2725,10 @@ onUnmounted(() => {
 
 /* Light mode: no map on the grid; inside the masses only, while the
    headline's letters scramble (.splash-shape-map). The layer stays, for its
-   filter (#splash-satellite-duotone). */
+   filter (#splash-satellite-duotone), hidden without a fade, so switching to
+   dark mode shows the map at once. */
 :root:not([data-theme='dark']) .splash-satellite {
-  opacity: 0;
+  visibility: hidden;
 }
 
 /* Light mode's map in the masses, while the headline scrambles: in quickly
