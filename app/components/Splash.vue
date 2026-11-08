@@ -267,7 +267,7 @@ const ALT_BLACK = SPLASH_ALTS.has('black')
 const ALT_CELLS = SPLASH_ALTS.has('cells')
 const ALT_LINES = SPLASH_ALTS.has('lines')
 const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
-// - globe: light mode, a globe turning slowly behind it all (splashGlobe.ts),
+// - globe: a globe turning slowly behind it all (over dark mode's map) (splashGlobe.ts),
 //   its lines dotted, a few countries in a silver halftone, new ones with each
 //   headline.
 const ALT_GLOBE = SPLASH_ALTS.has('globe')
@@ -2437,6 +2437,7 @@ onMounted(() => {
     await nextTick()
     const started = await startGlobe(canvas, {
       lines: globeLines.value ?? undefined,
+      dark: colorMode.value === 'dark',
       // Clear of the headline and its subtitle.
       avoid: () => {
         const origin = canvas.getBoundingClientRect()
@@ -2576,12 +2577,6 @@ onUnmounted(() => {
     <!-- Light mode: the map's coastlines and borders, traced in light grey across
          the grid, lined up with the map the masses show (same box, same fit). -->
     <div v-if="ALT_LINES && colorMode !== 'dark'" class="splash-map-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true" />
-    <div v-if="ALT_GLOBE && colorMode !== 'dark'" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
-      <canvas ref="globeCanvas" />
-    </div>
-    <div v-if="ALT_GLOBE_DIFFERENCE && colorMode !== 'dark'" class="splash-globe is-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
-      <canvas ref="globeLines" />
-    </div>
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
       <!-- Dark mode's own gray duotone (app.vue's #duotone-dark: same
            luma, same neutral grays), but not inverted: black lands on the
@@ -2603,6 +2598,13 @@ onUnmounted(() => {
           </feComponentTransfer>
         </filter>
       </svg>
+    </div>
+    <!-- The globe (/?splash=globe): over dark mode's map, under the grid. -->
+    <div v-if="ALT_GLOBE" :key="`globe-${colorMode}`" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
+      <canvas ref="globeCanvas" />
+    </div>
+    <div v-if="ALT_GLOBE_DIFFERENCE" :key="`lines-${colorMode}`" class="splash-globe is-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
+      <canvas ref="globeLines" />
     </div>
     <div v-if="GRID_FRAME" class="splash-grid-frame" :style="frameStyle" aria-hidden="true" />
     <div v-if="GRID_FRAME" class="splash-grid-ticks" aria-hidden="true">

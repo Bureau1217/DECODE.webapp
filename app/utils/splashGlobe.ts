@@ -14,6 +14,8 @@ export type GlobeOptions = {
   // The lines on a canvas of their own (over the images, in difference): drawn
   // in the complement of their grey, so they read the same over white.
   lines?: HTMLCanvasElement
+  // Dark mode: light lines over the dark map.
+  dark?: boolean
   // Where the globe's centre sits, as shares of the canvas.
   centreX?: number
   centreY?: number
@@ -30,7 +32,7 @@ export type GlobeOptions = {
 const RAD = Math.PI / 180
 
 export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOptions = {}) {
-  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 9, avoid = () => [], lines } = options
+  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 9, avoid = () => [], lines, dark = false } = options
   const data = (await import('~/data/world-countries.json')).default as { features: { properties: { name: string }, geometry: { type: string, coordinates: unknown } }[] }
   const world: Country[] = data.features.map((feature) => {
     const polygons = (feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates) as Ring[][]
@@ -47,7 +49,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
   const ctx = canvas.getContext('2d')!
   const lineCtx = lines?.getContext('2d') ?? ctx
   // A grey as drawn: over white in difference, its complement shows it.
-  const grey = (hex: string) => (lines ? `#${(0xFFFFFF - Number.parseInt(hex.slice(1), 16)).toString(16).padStart(6, '0')}` : hex)
+  const grey = (hex: string) => (lines && !dark ? `#${(0xFFFFFF - Number.parseInt(hex.slice(1), 16)).toString(16).padStart(6, '0')}` : hex)
   let width = 0
   let height = 0
   let ratio = 1
@@ -61,9 +63,12 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     }
   }
   const globeRadius = () => (Math.hypot(width, height) / 2) * radius
-  // The countries in one flat light silver: the site's silver duotone near its
-  // lightest (#f4f4f2, too close to the page's white to read on its own).
-  const SILVER = '#dedfe0'
+  // The countries in one flat light silver, see-through (SILVER_ALPHA): the
+  // site's silver duotone near its lightest; over dark mode's map, lighter.
+  const SILVER = dark ? '#d8dadc' : '#dedfe0'
+  const SILVER_ALPHA = dark ? 0.32 : 0.55
+  // The lines' greys, by mode.
+  const tone = (light: string, onDark: string) => grey(dark ? onDark : light)
   const resizeAll = resize
   resizeAll()
 
@@ -133,13 +138,17 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       ctx.closePath()
     }
     ctx.fillStyle = SILVER
+    ctx.globalAlpha = SILVER_ALPHA
     ctx.fill('evenodd')
+    ctx.globalAlpha = 1
   }
 
   pick()
 
-  const meridians = Array.from({ length: 24 }, (_, k) => Array.from({ length: 73 }, (_, i) => [k * 15, -90 + i * 2.5] as [number, number]))
-  const parallels = Array.from({ length: 11 }, (_, k) => Array.from({ length: 145 }, (_, i) => [-180 + i * 2.5, -75 + k * 15] as [number, number]))
+  // Every GRATICULE degrees.
+  const GRATICULE = 20
+  const meridians = Array.from({ length: 360 / GRATICULE }, (_, k) => Array.from({ length: 73 }, (_, i) => [k * GRATICULE, -90 + i * 2.5] as [number, number]))
+  const parallels = Array.from({ length: 180 / GRATICULE - 1 }, (_, k) => Array.from({ length: 145 }, (_, i) => [-180 + i * 2.5, -90 + (k + 1) * GRATICULE] as [number, number]))
 
   // As they turn out of sight, one at a time gives way to another coming in.
   const facingShare = (country: Country) => Math.cos(country.centre[1] * RAD) * Math.cos((country.centre[0] + lon0) * RAD)
@@ -161,19 +170,17 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (lines) lineCtx.clearRect(0, 0, lines.width, lines.height)
     // The disc's edge.
-    lineCtx.fillStyle = grey('#9a9a9a')
+    lineCtx.fillStyle = tone('#9a9a9a', '#8c8c8c')
     const rim = Array.from({ length: 721 }, (_, i) => i * 0.5)
     for (const deg of rim) {
       if ((deg * 2) % 3) continue
       lineCtx.fillRect(cx + Math.cos(deg * RAD) * r - 1.25 * ratio, cy + Math.sin(deg * RAD) * r - 1.25 * ratio, 2.5 * ratio, 2.5 * ratio)
     }
     // Graticule.
-    lineCtx.fillStyle = grey('#a8a8a8')
+    lineCtx.fillStyle = tone('#a8a8a8', '#7a7a7a')
     for (const line of [...meridians, ...parallels]) dotLine(line, cx, cy, r, 6 * ratio, 2.2 * ratio)
-    // The picked countries, in silver foil, edged in dots.
+    // The picked countries, in silver, no edge.
     for (const country of picked) fillShape(country.rings, cx, cy, r)
-    lineCtx.fillStyle = grey('#7a7a7a')
-    for (const country of picked) for (const ring of country.rings) dotLine(ring, cx, cy, r, 3 * ratio, 1.6 * ratio)
   }
 
   let frame = 0
