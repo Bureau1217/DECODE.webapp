@@ -333,15 +333,10 @@ const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * headlineFontSize.valu
 // Mobile: it also stays at least two steps inside the grid's sides, its text
 // shrinking only as far as it takes to wrap no more than it does at the grid's
 // full width (and a fifth at most).
-// While the intro deciphers the subtitle, its frame is left to hug the letters
-// as they come (subtitleGrowing), fitted to the grid once they're all in.
-let subtitleGrowing = false
-const SUBTITLE_GROW_MS = 1800
 function fitSubtitleBox() {
   const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
   if (!box) return
   box.style.width = ''
-  if (subtitleGrowing) return
   box.style.fontSize = ''
   const step = frameGrid()
   let limit = Infinity
@@ -1768,22 +1763,10 @@ function playIntro() {
     subtitleShown.value = true
     const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
     if (box) {
-      // Its frame grows with its letters, then settles on the grid.
-      subtitleGrowing = true
-      box.style.width = ''
-      decipherIn(box)
-      setTimeout(() => {
-        subtitleGrowing = false
-        // From the width its letters gave it to the grid's, eased.
-        const from = box.offsetWidth
-        fitSubtitleBox()
-        const to = box.style.width
-        box.style.width = `${from}px`
-        void box.offsetWidth
-        box.classList.add('is-settling')
-        box.style.width = to
-        setTimeout(() => box.classList.remove('is-settling'), 400)
-      }, SUBTITLE_GROW_MS)
+      // Its letters decipher in place (no letters added one by one: nothing
+      // reflows), its frame opening out from its middle as they come.
+      box.classList.add('is-growing')
+      decipherIn(box, { grow: false })
     }
   })
   at(OUT_AT, () => {
@@ -2894,9 +2877,15 @@ onUnmounted(() => {
   color: var(--color-surface);
 }
 
-/* Settling on the grid's width once its letters are in (fitSubtitleBox). */
-.splash-subtitle-box.is-settling {
-  transition: width 0.35s cubic-bezier(0.3, 0, 0.2, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+/* The frame opening out from its middle as its letters decipher (the logo
+   screen's subtitle). */
+.splash.intro-logo .splash-subtitle-box.is-growing {
+  animation: subtitle-frame-grow 1.2s cubic-bezier(0.25, 0.6, 0.3, 1) both;
+}
+
+@keyframes subtitle-frame-grow {
+  from { clip-path: inset(0 50% 0 50%); }
+  to { clip-path: inset(0 -2px 0 -2px); }
 }
 
 /* The subtitle shows above the logo screen for as long as that screen
