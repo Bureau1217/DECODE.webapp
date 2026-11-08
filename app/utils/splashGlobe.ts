@@ -16,6 +16,10 @@ export type GlobeOptions = {
   lines?: HTMLCanvasElement
   // Dark mode: light lines over the dark map.
   dark?: boolean
+  // /?splash=beat: still, but for a turn on each beat (beat()) bringing one
+  // country, in `accent`, into sight; no other countries, routes or marks.
+  beat?: boolean
+  accent?: string
   // Where the globe's centre sits, as shares of the canvas.
   centreX?: number
   centreY?: number
@@ -32,7 +36,7 @@ export type GlobeOptions = {
 const RAD = Math.PI / 180
 
 export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOptions = {}) {
-  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 6, avoid = () => [], lines, dark = false } = options
+  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 6, avoid = () => [], lines, dark = false, beat: beatMode = false, accent = '#FC7C6A' } = options
   const data = (await import('~/data/world-countries.json')).default as { features: { properties: { name: string }, geometry: { type: string, coordinates: unknown } }[] }
   const world: Country[] = data.features.map((feature) => {
     const polygons = (feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates) as Ring[][]
@@ -155,6 +159,20 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       prev = at
     }
   }
+  const fillPath = (rings: Ring[], cx: number, cy: number, r: number) => {
+    ctx.beginPath()
+    for (const ring of rings) {
+      let started = false
+      for (const [lon, lat] of ring) {
+        const [x, y, front] = project(lon, lat, cx, cy, r)
+        if (!front) { started = false; continue }
+        if (started) ctx.lineTo(x, y)
+        else { ctx.moveTo(x, y); started = true }
+      }
+      ctx.closePath()
+    }
+    ctx.fill('evenodd')
+  }
   const fillShape = (rings: Ring[], cx: number, cy: number, r: number, alpha: number) => {
     ctx.beginPath()
     for (const ring of rings) {
@@ -207,8 +225,73 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     previous = next
   }
 
+  // Where to turn for a country to land at `facing` degrees off the middle.
+  const lonFor = (country: Country, facing: number) => facing - country.centre[0]
+  // The next country: big enough to carry the page, landing clear of the
+  // headline, a turn of 40-160 degrees on (always the same way round).
+  const chooseTarget = () => {
+    const start = turn ? turn.to : lon0
+    const candidates = sizeable.filter((country) => country !== target && country.rings.reduce((n, ring) => n + ring.length, 0) > 110).sort(() => Math.random() - 0.5)
+    for (const country of candidates) {
+      for (const facing of [-38, 38, -22, 22, -50, 50].sort(() => Math.random() - 0.5)) {
+        let to = lonFor(country, facing)
+        while (to < start + 40) to += 360
+        while (to > start + 400) to -= 360
+        if (to - start > 160) continue
+        const keep = lon0
+        lon0 = to
+        const ok = facingShare(country) > 0.35 && inSight(country, 130)
+        lon0 = keep
+        if (ok) return { country, to }
+      }
+    }
+    return null
+  }
+  const drawBeat = (now: number) => {
+    const r = globeRadius() * ratio
+    const cx = width * centreX * ratio
+    const cy = height * centreY * ratio
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (lines) lineCtx.clearRect(0, 0, lines.width, lines.height)
+    lineCtx.fillStyle = tone('#9a9a9a', '#8c8c8c')
+    for (let deg = 0; deg < 360; deg += 0.75) lineCtx.fillRect(cx + Math.cos(deg * RAD) * r - 1.25 * ratio, cy + Math.sin(deg * RAD) * r - 1.25 * ratio, 2.5 * ratio, 2.5 * ratio)
+    lineCtx.fillStyle = tone('#a8a8a8', '#7a7a7a')
+    for (const line of [...meridians, ...parallels]) dotLine(line, cx, cy, r, 6 * ratio, 2.2 * ratio)
+    const t = turn ? (now - turn.start) / turn.ms : 1
+    ctx.fillStyle = accent
+    if (before && t < 0.4) {
+      ctx.globalAlpha = 1 - t / 0.4
+      fillPath(before.rings, cx, cy, r)
+    }
+    if (target) {
+      ctx.globalAlpha = turn ? ease((t - 0.6) / 0.4) : 1
+      fillPath(target.rings, cx, cy, r)
+    }
+    ctx.globalAlpha = 1
+    canvas.dataset.countries = target?.name ?? ''
+  }
+
+  // Beat mode: the country turned to (target), the one before it fading as
+  // the turn starts, the new one coming in as it ends (turn: from/to lon0).
+  let target: Country | null = null
+  let before: Country | null = null
+  let turn: { from: number, to: number, start: number, ms: number } | null = null
+  const ease = (t: number) => (1 - Math.cos(Math.PI * Math.min(1, Math.max(0, t)))) / 2
   const draw = () => {
     const now = performance.now()
+    if (beatMode) {
+      if (turn) {
+        const t = (now - turn.start) / turn.ms
+        lon0 = turn.from + (turn.to - turn.from) * ease(t)
+        if (t >= 1) {
+          lon0 = turn.to
+          turn = null
+          before = null
+        }
+      }
+      drawBeat(now)
+      return
+    }
     keepFacing(now)
     canvas.dataset.countries = picked.map((country) => country.name).join(', ')
     const r = globeRadius() * ratio
@@ -260,20 +343,42 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
   }
 
   let frame = 0
+  let drawnStill = false
   let last = performance.now()
   let stopped = false
   const loop = (now: number) => {
     if (stopped) return
-    lon0 = (lon0 + (spin * (now - last)) / 1000) % 360
+    if (!beatMode) lon0 = (lon0 + (spin * (now - last)) / 1000) % 360
     last = now
-    draw()
+    if (!beatMode || turn || !drawnStill) draw()
+    drawnStill = beatMode && !turn
+    if (beatMode && !turn) drawnStill = true
     frame = requestAnimationFrame(loop)
   }
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   if (reduced) draw()
   else frame = requestAnimationFrame(loop)
 
+  // Beat mode: the first country, there already.
+  if (beatMode) {
+    const first = chooseTarget()
+    if (first) {
+      target = first.country
+      lon0 = first.to
+    }
+  }
+
   return {
+    // Beat mode: turn, over `ms`, to the next country.
+    beat(ms: number) {
+      if (!beatMode) return
+      const next = chooseTarget()
+      if (!next) return
+      before = target
+      target = next.country
+      turn = { from: lon0, to: next.to, start: performance.now(), ms }
+      drawnStill = false
+    },
     // New countries (on each headline).
     // With each headline, the one there longest goes (another follows, in turn).
     shuffle() {
@@ -283,6 +388,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     },
     resize() {
       resizeAll()
+      drawnStill = false
       draw()
     },
     stop() {

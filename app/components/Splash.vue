@@ -71,7 +71,7 @@ function imageLabel(index: number, alt?: string) {
 const LINE_SHIFT_EM = 0.6
 const HEADLINE_SIDE_MARGIN = 0.04 // of the viewport's width, each side
 function sentenceOffset(index: number) {
-  if (headlineWords.value.length < 2) return '0px'
+  if (headlineWords.value.length < 2 || SPLASH_BEAT) return '0px'
   const fontSize = headlineFontSize.value
   const lineWidth = (lineWidthsEm.value[headlineIndex.value]?.[index] ?? 0) * fontSize
   const room = Math.max(0, (headlineMaxWidth.value - lineWidth) / 2)
@@ -270,13 +270,18 @@ const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
 // - globe: a globe turning slowly behind it all (over dark mode's map) (splashGlobe.ts),
 //   its lines dotted, a few countries in a silver halftone, new ones with each
 //   headline.
-const ALT_GLOBE = SPLASH_ALTS.has('globe')
+// - beat: impact by taking away. The page still, then moving once on each
+//   headline (the beat): the letters, one image, the globe turning to one
+//   country, the page's only colour; the headline flush left on the grid,
+//   without its box; no shapes.
+const SPLASH_BEAT = SPLASH_ALTS.has('beat')
+const ALT_GLOBE = SPLASH_ALTS.has('globe') || SPLASH_BEAT
 // /?splash=globe,difference: its lines over the images, in difference.
 const ALT_GLOBE_DIFFERENCE = ALT_GLOBE && SPLASH_ALTS.has('difference')
 const globeCanvas = ref<HTMLCanvasElement | null>(null)
 const globeLines = ref<HTMLCanvasElement | null>(null)
 let globe: Awaited<ReturnType<typeof startGlobe>> | null = null
-const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells')
+const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells') && !SPLASH_BEAT
 // Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
 // the Black Sea, public/nasa/europe-splash.jpg). Light mode shows it too,
 // inside the masses only, while the headline's letters scramble
@@ -808,7 +813,7 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 // proportion), the masses keeping their cells' size.
 const GRID_PARAM = Number(useRoute().query.grid) || 0
 // The globe's version: bigger squares, fewer of them.
-const SQUARE_TARGET = GRID_PARAM || (SPLASH_ALTS.has('globe') ? 120 : 80)
+const SQUARE_TARGET = GRID_PARAM || (SPLASH_ALTS.has('globe') || SPLASH_ALTS.has('beat') ? 120 : 80)
 const SQUARE_TARGET_MOBILE = GRID_PARAM ? Math.round(GRID_PARAM * 0.55) : 44
 const GRID_SPLIT = Math.max(2, 2 * Math.round(SQUARE_TARGET / 40))
 const GRID_FRAME = false
@@ -2054,6 +2059,8 @@ async function nextHeadline() {
   if (leaving.value || !splashEl.value) return
   if (IMAGES_SPAWN) {
     spawnNext()
+    // Beat: the globe turns with them, landing with the letters.
+    globe?.beat(HEADLINE_MORPH_MS + SPAWN_LEAD_MS)
     await new Promise((resolve) => { headlineTimer = setTimeout(resolve, SPAWN_LEAD_MS) })
     if (leaving.value || !splashEl.value) return
   }
@@ -2066,13 +2073,14 @@ async function nextHeadline() {
   const locks = headlineLocks(lines.map((el, i) => Math.max([...(previous[i] ?? '')].length, [...(el.textContent ?? '')].length)))
   // Still the new text as Vue rendered it, before the letters scramble.
   const targets = lines.map((el) => el.getBoundingClientRect())
+  placeBeatEdge([...targets, ...[...(splashEl.value?.querySelectorAll<HTMLElement>('.splash-subtitle-box') ?? [])].map((el) => el.getBoundingClientRect())])
   morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
   headlineScrambling.value = true
   clearTimeout(scramblingTimer)
   scramblingTimer = setTimeout(() => { headlineScrambling.value = false }, HEADLINE_MORPH_MS)
   if (ALT_CELLS) revealCells(ticks)
   // The masses follow the pointer instead (/?splash=hover).
-  else if (ALT_HOVER) { /* nothing */ }
+  else if (ALT_HOVER || SPLASH_BEAT) { /* nothing */ }
   else if (colorMode.value === 'dark' || shelfLayout) morphShapes()
   else scrambleShapes(ticks)
   globe?.shuffle()
@@ -2171,7 +2179,7 @@ function revealCells(ticks: number[]) {
 
 function startHeadlineCycle() {
   clearTimeout(headlineTimer)
-  if (!ALT_CELLS && !ALT_HOVER) startCrossing()
+  if (!ALT_CELLS && !ALT_HOVER && !SPLASH_BEAT) startCrossing()
   if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   headlineTimer = setTimeout(nextHeadline, headlineHold())
 }
@@ -2334,7 +2342,19 @@ function enterGuide(event: MouseEvent) {
 // subtitle is moved by a transform while it's next to the logo, and this is
 // where it ends up.
 const SHELF_CTA_GAP = 22
+// Beat: the image strip only right of the headline, cut on the first grid line
+// past its longest line (px from the splash's left), moving with each headline.
+const beatEdge = ref(0)
+function placeBeatEdge(lines?: DOMRect[]) {
+  const g = grid.value
+  const box = splashEl.value?.getBoundingClientRect()
+  if (!SPLASH_BEAT || !g || !box) return
+  const rects = lines ?? [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box') ?? [])].map((el) => el.getBoundingClientRect())
+  const right = Math.max(0, ...rects.map((r) => r.right - box.left))
+  beatEdge.value = g.left + Math.ceil((right - g.left + 12) / g.cellW) * g.cellW
+}
 function placeCta() {
+  placeBeatEdge()
   if (!splashEl.value || !grid.value) return
   const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')
   const cta = splashEl.value.querySelector<HTMLElement>('.splash-cta')
@@ -2431,6 +2451,8 @@ onMounted(() => {
   handleResize()
   // The tab's width hangs on its label's, in its own font.
   document.fonts.ready.then(() => computeGrid())
+  // Beat: the strip's edge once everything's in place.
+  if (SPLASH_BEAT) watch(splashIntro, (state) => { if (state === 'done') nextTick(() => placeBeatEdge()) }, { immediate: true })
   if (ALT_GLOBE) watch(globeCanvas, async (canvas) => {
     globe?.stop()
     globe = null
@@ -2439,6 +2461,8 @@ onMounted(() => {
     const started = await startGlobe(canvas, {
       lines: globeLines.value ?? undefined,
       dark: colorMode.value === 'dark',
+      beat: SPLASH_BEAT,
+      accent: BADGE_COLORS[0],
       // Clear of the headline and its subtitle.
       avoid: () => {
         const origin = canvas.getBoundingClientRect()
@@ -2492,6 +2516,7 @@ onUnmounted(() => {
       'alt-cells': ALT_CELLS,
       'alt-hover': ALT_HOVER,
       'is-globe-difference': ALT_GLOBE_DIFFERENCE,
+      'is-beat': SPLASH_BEAT,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -2750,7 +2775,7 @@ onUnmounted(() => {
         </filter>
       </template>
     </svg>
-    <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="stripStyle" aria-hidden="true">
+    <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="SPLASH_BEAT && beatEdge ? { ...stripStyle, clipPath: `inset(-50% 0 -50% ${beatEdge}px)` } : stripStyle" aria-hidden="true">
       <div class="splash-images-track">
         <div
           v-for="{ image, n: index } in scrollingImages"
@@ -2780,7 +2805,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="splash-info" :style="infoStyle">
+    <div class="splash-info" :style="SPLASH_BEAT && grid ? { ...infoStyle, paddingLeft: `${grid.left + grid.cellW}px`, paddingRight: `${grid.boxW - grid.right + grid.cellW}px` } : infoStyle">
       <div
         v-if="headlineWords.length"
         ref="sentencesEl"
@@ -2846,7 +2871,7 @@ onUnmounted(() => {
     <!-- Its own element (not inside .splash-info, which is centered on the
          full viewport) so its vertical position can be pinned to the
          grid's bottom line instead. -->
-    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="ctaStyle" @click.capture="enterGuide">
+    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="SPLASH_BEAT && grid ? { ...ctaStyle, left: `${grid.left + grid.cellW}px` } : ctaStyle" @click.capture="enterGuide">
       Enter the investigation guide
     </NuxtLink>
 
@@ -3224,6 +3249,49 @@ onUnmounted(() => {
 
 .splash.is-globe-difference {
   background: var(--color-surface);
+}
+
+/* The strip's edge right of the headline moves on the beat (placeBeatEdge),
+   along the letters' curve. */
+.splash.is-beat .splash-images {
+  transition: clip-path 1.8s cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+/* /?splash=beat: flush left on the grid, no boxes, no outline, no shapes,
+   one colour (the globe's country): the button black, no chips. */
+.splash.is-beat .splash-info {
+  align-items: flex-start;
+  text-align: left;
+  filter: none;
+}
+
+.splash.is-beat .sentence-masked {
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+.splash.is-beat .sentence-fill,
+.splash.is-beat .splash-shapes,
+.splash.is-beat .image-label {
+  display: none;
+}
+
+.splash.is-beat .sentence-line {
+  text-align: left;
+}
+
+.splash.is-beat .splash-subtitle-box {
+  background: none;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.splash.is-beat .splash-cta {
+  transform: translate(0, -50%);
+  background: var(--color-ink);
+  color: var(--color-surface);
 }
 
 .splash-globe canvas {
