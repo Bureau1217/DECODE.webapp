@@ -302,6 +302,7 @@ const panelImage = computed(() => {
 // down the band that line is).
 const sideBarTop = ref(0)
 const rowTop = ref(0)
+const rowOriginY = ref(0)
 const ROW_CAPTION = 30 // px, the caption's gap and height
 function placeSideBars() {
   const strip = imagesEl.value?.getBoundingClientRect()
@@ -310,6 +311,8 @@ function placeSideBars() {
   sideBarTop.value = strip.top + strip.height / 2 - box.top
   const tallest = Math.max(0, ...(images.value ?? []).map((_, i) => spawnTargetWidth(i) / spawnRatio(i))) + ROW_CAPTION
   rowTop.value = Math.max(0, (strip.height - tallest) / 2)
+  // The bar's middle, from the images' top line: where each grows out of.
+  rowOriginY.value = strip.height / 2 - rowTop.value
 }
 const imageNumber = (index: number) => String(((index % (images.value?.length || 1)) + 1)).padStart(2, '0')
 const ALT_GLOBE = SPLASH_ALTS.has('globe') || SPLASH_BEAT
@@ -2154,19 +2157,19 @@ async function nextHeadline(target?: number, from?: string[]) {
 // Panels: the pointer's x across the screen picks one of the headlines (as many
 // bands as there are): the image changes at once, the headline deciphers to
 // it (one at a time: the band it's on once the last one has landed).
-// A new band while the letters are still changing: they go straight on to the
-// new headline, from whatever they show at that moment.
+// Narrow bands (PANEL_BAND px): a little movement brings the next picture, and
+// its headline with it at once (no deciphering), round the lists.
+const PANEL_BAND = 48
 const panelIndex = ref(0)
 function onPanelsMove(event: MouseEvent) {
   const count = headlines.value.length
   if (!count || splashIntro.value !== 'done') return
-  const k = Math.min(count - 1, Math.max(0, Math.floor((event.clientX / window.innerWidth) * count)))
+  const k = Math.max(0, Math.floor(event.clientX / PANEL_BAND))
   if (k === panelIndex.value) return
   panelIndex.value = k
-  const shown = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])].map((el) => el.textContent ?? '')
   morphStops.forEach((stop) => stop())
   morphStops = []
-  nextHeadline(k, shown)
+  headlineIndex.value = k % count
 }
 // With the spawn: a shorter hold, an image every change.
 const SPAWN_HOLD_MS = 2600
@@ -2891,7 +2894,7 @@ onUnmounted(() => {
       </template>
     </svg>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="SPLASH_BEAT && beatEdge ? { ...stripStyle, clipPath: `inset(-50% 0 -50% ${beatEdge}px)` } : stripStyle" aria-hidden="true">
-      <div class="splash-images-track" :style="SPLASH_ROW ? { paddingTop: `${rowTop}px` } : undefined">
+      <div class="splash-images-track" :style="SPLASH_ROW ? { 'paddingTop': `${rowTop}px`, '--row-origin-y': `${rowOriginY}px` } : undefined">
         <div
           v-for="{ image, n: index } in scrollingImages"
           :key="index"
@@ -2911,12 +2914,12 @@ onUnmounted(() => {
             :src="image.url"
             :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
-            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
+            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
             @load="onStripImageLoad"
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
-          <div v-if="SPLASH_ROW" class="splash-image-caption text-small">
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="SPLASH_ROW && measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)', transformOrigin: `right ${rowOriginY - spawnTargetWidth(index) / spawnRatio(index) - 10}px` } : undefined">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
             <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
           </div>
@@ -3411,6 +3414,23 @@ onUnmounted(() => {
   align-items: flex-end;
 }
 
+/* Each image at its full size, growing out of a point: the right bar's inner
+   edge at its middle (--row-origin-y, from the top line), over the spawn's
+   time and curve, while its frame opens and pushes the row on. */
+.splash.is-row .splash-images-track img {
+  transform-origin: right var(--row-origin-y);
+  transition: transform 1.8s cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+.splash.is-row .splash-image-caption {
+  transition: transform 1.8s cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+.splash.is-row.is-spawn-instant .splash-images-track img,
+.splash.is-row.is-spawn-instant .splash-image-caption {
+  transition: none;
+}
+
 /* No grid; the two globes over the whole splash, under the images. */
 .splash.is-row .splash-grid,
 .splash.is-row .splash-grid-lines {
@@ -3429,6 +3449,11 @@ onUnmounted(() => {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* No button on the panels. */
+.splash.is-panels .splash-cta {
+  display: none;
 }
 
 /* /?splash=panels: three panels inside the grid: the headline | one
