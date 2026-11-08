@@ -2116,7 +2116,7 @@ function shuffleFrame(finalSeed: number, ticks: number[], locks: number[][], tar
 // ahead of the letters (so it's showing when they start), the two landing
 // together (.is-spawn's width transition: the letters' time and the lead).
 const SPAWN_LEAD_MS = 300
-async function nextHeadline(target?: number) {
+async function nextHeadline(target?: number, from?: string[]) {
   if (leaving.value || !splashEl.value) return
   if (IMAGES_SPAWN && !SPLASH_PANELS) {
     spawnNext()
@@ -2125,7 +2125,7 @@ async function nextHeadline(target?: number) {
     await new Promise((resolve) => { headlineTimer = setTimeout(resolve, SPAWN_LEAD_MS) })
     if (leaving.value || !splashEl.value) return
   }
-  const previous = [...headlineWords.value]
+  const previous = from ?? [...headlineWords.value]
   headlineIndex.value = target ?? (headlineIndex.value + 1) % headlines.value.length
   await nextTick()
   if (leaving.value) return
@@ -2154,23 +2154,19 @@ async function nextHeadline(target?: number) {
 // Panels: the pointer's x across the screen picks one of the headlines (as many
 // bands as there are): the image changes at once, the headline deciphers to
 // it (one at a time: the band it's on once the last one has landed).
+// A new band while the letters are still changing: they go straight on to the
+// new headline, from whatever they show at that moment.
 const panelIndex = ref(0)
-let panelBusy = false
 function onPanelsMove(event: MouseEvent) {
   const count = headlines.value.length
   if (!count || splashIntro.value !== 'done') return
   const k = Math.min(count - 1, Math.max(0, Math.floor((event.clientX / window.innerWidth) * count)))
+  if (k === panelIndex.value) return
   panelIndex.value = k
-  settlePanels()
-}
-async function settlePanels() {
-  if (panelBusy || panelIndex.value === headlineIndex.value) return
-  panelBusy = true
-  await nextHeadline(panelIndex.value)
-  setTimeout(() => {
-    panelBusy = false
-    settlePanels()
-  }, HEADLINE_MORPH_MS)
+  const shown = [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text') ?? [])].map((el) => el.textContent ?? '')
+  morphStops.forEach((stop) => stop())
+  morphStops = []
+  nextHeadline(k, shown)
 }
 // With the spawn: a shorter hold, an image every change.
 const SPAWN_HOLD_MS = 2600
@@ -2928,7 +2924,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="splash-info" :style="SPLASH_BEAT && grid ? { ...infoStyle, paddingLeft: `${grid.left + grid.cellW}px`, paddingRight: `${grid.boxW - grid.right + grid.cellW}px` } : infoStyle">
+    <div class="splash-info" :style="SPLASH_BEAT && grid ? { ...infoStyle, paddingLeft: `${grid.left + grid.cellW}px`, paddingRight: `${grid.boxW - grid.right + grid.cellW}px` } : SPLASH_PANELS && grid ? { ...infoStyle, paddingLeft: `${grid.left}px`, paddingRight: `${grid.boxW - grid.right}px` } : infoStyle">
       <div
         v-if="headlineWords.length"
         ref="sentencesEl"
@@ -2986,15 +2982,13 @@ onUnmounted(() => {
       <!-- Lines as typed in the CMS (Sous-titre). -->
       <!-- /?splash=panels: the middle panel. -->
       <div v-if="SPLASH_PANELS && panelImage" class="splash-panel-image">
-        <Transition name="splash-panel-fade" mode="out-in">
-          <img
-            :key="panelImage.url"
-            :src="panelImage.url"
-            :alt="cleanAlt(panelImage.alt)"
-            :class="{ 'is-toned': toneTables[panelImage.url] }"
-            :style="{ '--tone-light': `url(#${toneId(panelImage.url)}-light)`, '--tone-dark': `url(#${toneId(panelImage.url)}-dark)` }"
-          >
-        </Transition>
+        <img
+          :key="panelImage.url"
+          :src="panelImage.url"
+          :alt="cleanAlt(panelImage.alt)"
+          :class="{ 'is-toned': toneTables[panelImage.url] }"
+          :style="{ '--tone-light': `url(#${toneId(panelImage.url)}-light)`, '--tone-dark': `url(#${toneId(panelImage.url)}-dark)` }"
+        >
         <div class="splash-image-caption is-shown text-small">
           <span class="splash-image-number">{{ imageNumber(panelIndex) }}</span>
           <span v-if="imageLabel(panelIndex, panelImage.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(panelIndex) }">{{ imageLabel(panelIndex, panelImage.alt) }}</span>
@@ -3437,10 +3431,9 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* /?splash=panels: three panels: the headline | one portrait image | the
-   subtitle, both texts flush left on the image's middle, small, unframed,
-   each as far from the image (column-gap): the headline's block against its
-   column's right, the subtitle's against its left. */
+/* /?splash=panels: three panels inside the grid: the headline | one
+   portrait image | the subtitle; each text, small, unframed and flush left,
+   centred in its side (across and on the image's middle). */
 .splash.is-panels .splash-images,
 .splash.is-panels .splash-shapes {
   display: none;
@@ -3450,9 +3443,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-items: start;
-  column-gap: 3.5vw;
-  padding: 0 4vw;
+  justify-items: center;
+  column-gap: 0;
   text-align: left;
   filter: none;
 }
@@ -3461,7 +3453,6 @@ onUnmounted(() => {
   font-size: clamp(22px, 2.6vw, 44px) !important;
   min-height: 0 !important;
   width: auto;
-  justify-self: end;
 }
 
 .splash.is-panels .sentence-masked {
@@ -3516,16 +3507,6 @@ onUnmounted(() => {
 
 :root[data-theme='dark'] .splash-panel-image img.is-toned {
   filter: var(--tone-dark);
-}
-
-.splash-panel-fade-enter-active,
-.splash-panel-fade-leave-active {
-  transition: opacity 0.6s ease;
-}
-
-.splash-panel-fade-enter-from,
-.splash-panel-fade-leave-to {
-  opacity: 0;
 }
 
 .splash-image-caption {
