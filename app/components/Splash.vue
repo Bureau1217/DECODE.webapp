@@ -30,6 +30,10 @@ const emit = defineEmits<{ continue: [] }>()
 const TAB_TEXT = 'Graduate Institute - Albert Hirschman Centre on Democracy'
 // Written still in the tab; the full TAB_TEXT slides past only on hover.
 const TAB_SHORT = 'Graduate Institute - Albert Hirschman'
+// Sliding from the hover on; once the pointer's gone, on until it's round to
+// where it started (the end of a loop), and only then still again.
+const tabSliding = ref(false)
+const tabHovered = ref(false)
 const TAB_LINK = 'https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons'
 
 // Which composition: the images in a band through the middle, behind the headline,
@@ -275,7 +279,7 @@ const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
 //   country, the page's only colour; the headline flush left on the grid,
 //   without its box; no shapes.
 const SPLASH_BEAT = SPLASH_ALTS.has('beat')
-// - row: the images centred on one line, each captioned
+// - row: the images hanging from one line by their tops, each captioned
 //   10px under it, its number (01, 02… in Areal's other 0) left, its label
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
 const SPLASH_ROW = SPLASH_ALTS.has('row')
@@ -566,7 +570,9 @@ const spawnWidths = ref<Record<number, number>>({}) // n: px
 let spawnTimer: ReturnType<typeof setInterval> | undefined
 function spawnWidth(n: number) {
   const img = imagesEl.value?.querySelector<HTMLImageElement>(`[data-n="${n}"] img`)
-  return img?.complete && img.naturalWidth ? img.getBoundingClientRect().width : 0
+  if (!img?.complete || !img.naturalWidth) return 0
+  // Its width to be (it grows into it, so it can't be measured shut).
+  return spawnTargetWidth(n) || img.getBoundingClientRect().width
 }
 // As many open as cross the screen, at once.
 function fillSpawn() {
@@ -737,14 +743,20 @@ const SPAWN_RATIOS = [3 / 2, 4 / 3, 8 / 5, 5 / 3, 7 / 5]
 const SPAWN_MIN_VARIANT = 0.6
 const SPAWN_MIN_W = 280 // px
 const SPAWN_MAX_W = 420 // px
+// As GGGGab's pen: the image fills its frame's width as the frame opens, so it
+// grows in both ways at once (from the side and in height), not sliding in.
+const spawnRatio = (index: number) => SPAWN_RATIOS[(index % (images.value?.length || 1)) % SPAWN_RATIOS.length]!
+function spawnTargetWidth(index: number) {
+  if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return 0
+  const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
+  const band = imagesBandHeight.value || window.innerHeight * ((shelfLayout ? SHELF_BAND_VH : 44) / 100)
+  return Math.min(SPAWN_MAX_W, Math.max(SPAWN_MIN_W, band * variant * spawnRatio(index)))
+}
 function spawnImageStyle(index: number) {
   if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return {}
-  const n = images.value?.length || 1
-  const ratio = SPAWN_RATIOS[(index % n) % SPAWN_RATIOS.length]!
-  const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
-  const band = imagesBandHeight.value ? `${imagesBandHeight.value}px` : `${shelfLayout ? SHELF_BAND_VH : 44}vh`
+  const ratio = spawnRatio(index)
   return {
-    width: `clamp(${SPAWN_MIN_W}px, calc(${band} * ${variant * ratio}), ${SPAWN_MAX_W}px)`,
+    width: '100%',
     height: 'auto',
     aspectRatio: String(ratio),
     minWidth: '0',
@@ -2616,13 +2628,16 @@ onUnmounted(() => {
         target="_blank"
         rel="noopener"
         class="splash-tab-ticker-link"
+        :class="{ 'is-sliding': tabSliding }"
         :aria-label="TAB_TEXT"
+        @mouseenter="tabHovered = true; tabSliding = true"
+        @mouseleave="tabHovered = false"
       >
       <div class="splash-tab-ticker-track text-small">
         <span class="splash-tab-ticker-still">{{ TAB_SHORT }}</span>
         <!-- Too long for the tab: it slides past endlessly — three copies (always
              enough to fill the tab), the loop jumps back by exactly one of them. -->
-        <span class="splash-tab-ticker-slide">
+        <span class="splash-tab-ticker-slide" @animationiteration="tabHovered || (tabSliding = false)">
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
@@ -2837,7 +2852,7 @@ onUnmounted(() => {
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
-          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="{ width: spawnImageStyle(index).width }">
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
             <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
           </div>
@@ -2992,11 +3007,11 @@ onUnmounted(() => {
   display: none;
 }
 
-.splash-tab-ticker-link:hover .splash-tab-ticker-still {
+.splash-tab-ticker-link.is-sliding .splash-tab-ticker-still {
   display: none;
 }
 
-.splash-tab-ticker-link:hover .splash-tab-ticker-slide {
+.splash-tab-ticker-link.is-sliding .splash-tab-ticker-slide {
   display: inline-flex;
 }
 
@@ -3304,18 +3319,18 @@ onUnmounted(() => {
 }
 
 .splash.is-row .splash-images-track {
-  align-items: center;
+  align-items: flex-start;
 }
 
-/* The images centred on one line: the caption under each matched by as much
-   room over it (CAPTION: its 10px gap and 20px height). */
+/* The images hanging from one line by their tops (growing down as they
+   open), each with its caption under it. */
 .splash.is-row .splash-image-wrapper {
   flex-direction: column;
   align-items: flex-end;
-  padding-top: 30px;
 }
 
 .splash-image-caption {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -3342,7 +3357,7 @@ onUnmounted(() => {
 .splash-side-bar {
   position: absolute;
   z-index: 3;
-  width: 170px;
+  width: 85px;
   height: 22px;
   transform: translateY(-50%);
   background-color: #c4c6c8;
