@@ -579,6 +579,9 @@ let spawnStartTimer: ReturnType<typeof setTimeout> | undefined
 function startSpawn() {
   if (!IMAGES_SPAWN || spawnTimer || spawnStartTimer) return
   fillSpawn()
+  // With a headline cycle, each new one brings the next image (nextHeadline);
+  // without, they come on their own.
+  if (headlines.value.length > 1) return
   spawnStartTimer = setTimeout(() => {
     spawnNext()
     spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
@@ -1975,6 +1978,8 @@ async function nextHeadline() {
   // Still the new text as Vue rendered it, before the letters scramble.
   const targets = lines.map((el) => el.getBoundingClientRect())
   morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
+  // The next image opens with the letters, over the same time (spawnNext).
+  if (IMAGES_SPAWN) spawnNext()
   headlineScrambling.value = true
   clearTimeout(scramblingTimer)
   scramblingTimer = setTimeout(() => { headlineScrambling.value = false }, HEADLINE_MORPH_MS)
@@ -1985,8 +1990,11 @@ async function nextHeadline() {
   else scrambleShapes(ticks)
   // No pixel bursts any more (pixelBurst): only the map in the masses.
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
-  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
+  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + headlineHold())
 }
+// With the spawn: a shorter hold, an image every change.
+const SPAWN_HOLD_MS = 2600
+const headlineHold = () => (IMAGES_SPAWN ? SPAWN_HOLD_MS : shapeMotion().holdMs)
 // /?splash=cells: no pixel masses. While the headline scrambles, some of the grid's
 // own cells light up, one by one on the letters' beats, then go out after it
 // lands: in light mode, the map (most dark, as dark mode's; some light, in the
@@ -2077,7 +2085,7 @@ function startHeadlineCycle() {
   clearTimeout(headlineTimer)
   if (!ALT_CELLS && !ALT_HOVER) startCrossing()
   if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  headlineTimer = setTimeout(nextHeadline, shapeMotion().holdMs)
+  headlineTimer = setTimeout(nextHeadline, headlineHold())
 }
 function stopHeadlineCycle() {
   if (ALT_CELLS) clearCells()
@@ -2109,23 +2117,24 @@ function playIntro() {
     subtitleShown.value = true
     const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
     if (box) {
-      // Its frame grows with its letters, then settles on the grid.
-      subtitleGrowing = true
+      // Its frame grows with its letters, landing on the grid's width with the
+      // last of them (no expanding after): the width the grid gives it, less
+      // the letters' own, goes into its sides while they come in.
+      fitSubtitleBox()
+      const to = parseFloat(box.style.width)
       box.style.width = ''
+      const natural = box.getBoundingClientRect().width
+      const { paddingLeft, paddingRight } = getComputedStyle(box)
+      const extra = Number.isFinite(to) ? Math.max(0, to - natural) / 2 : 0
+      box.style.paddingLeft = `${parseFloat(paddingLeft) + extra}px`
+      box.style.paddingRight = `${parseFloat(paddingRight) + extra}px`
+      subtitleGrowing = true
       decipherIn(box)
       setTimeout(() => {
         subtitleGrowing = false
-        // From the width its letters gave it to the grid's, eased.
-        // Rounded up (offsetWidth rounds, sometimes down: a word then wraps
-        // onto a fourth line for a frame, the box flashing taller).
-        const from = Math.ceil(box.getBoundingClientRect().width)
+        box.style.paddingLeft = ''
+        box.style.paddingRight = ''
         fitSubtitleBox()
-        const to = box.style.width
-        box.style.width = `${from}px`
-        void box.offsetWidth
-        box.classList.add('is-settling')
-        box.style.width = to
-        setTimeout(() => box.classList.remove('is-settling'), 400)
       }, SUBTITLE_GROW_MS)
     }
   })
@@ -3039,6 +3048,11 @@ onUnmounted(() => {
   transition: opacity 0.8s ease;
 }
 
+/* The mass under the pointer over the images too (still under the headline). */
+.splash.alt-hover .splash-shapes {
+  z-index: 2;
+}
+
 .splash-grid-numbers {
   position: absolute;
   top: 0;
@@ -3716,7 +3730,7 @@ onUnmounted(() => {
   overflow: hidden;
   justify-content: flex-end;
   will-change: width;
-  transition: width 2.6s cubic-bezier(0.55, 0, 0.25, 1), margin-left 2.6s cubic-bezier(0.55, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+  transition: width 1.5s cubic-bezier(0.3, 0, 0.2, 1), margin-left 1.5s cubic-bezier(0.3, 0, 0.2, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
 /* Spawned, narrower: none wider than 400px (cropped to it). */
@@ -3728,7 +3742,7 @@ onUnmounted(() => {
 /* /?images=portrait: all 5:6 upright, one height, cropped to it. */
 .splash.is-spawn.is-portrait .splash-images-track img {
   aspect-ratio: 5 / 6;
-  height: 30vh;
+  height: 37.5vh;
   width: auto;
   min-width: 0;
   max-width: none;
@@ -3743,7 +3757,7 @@ onUnmounted(() => {
 }
 
 .splash.is-spawn.intro-build .splash-image-wrapper {
-  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 2.6s cubic-bezier(0.55, 0, 0.25, 1), margin-left 2.6s cubic-bezier(0.55, 0, 0.25, 1);
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 1.5s cubic-bezier(0.3, 0, 0.2, 1), margin-left 1.5s cubic-bezier(0.3, 0, 0.2, 1);
 }
 
 .splash.is-spawn.intro-build.is-spawn-instant .splash-image-wrapper {
