@@ -594,8 +594,12 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 //   (SHAPE_EDGE_QUARTERS, buildShapes).
 // Its colours are CSS variables on .splash (--grid-line, --grid-frame, and the
 // bars' --grid-tick).
-const SQUARE_TARGET = 40
-const SQUARE_TARGET_MOBILE = 24
+// The original grid: big squares, no frame, no bars (GRID_FRAME). The masses
+// keep their cells' size: each square split GRID_SPLIT times each way.
+const SQUARE_TARGET = 80
+const SQUARE_TARGET_MOBILE = 44
+const GRID_SPLIT = 4
+const GRID_FRAME = false
 const GRID_FRAME_GAP = 14
 const GRID_FRAME_GAP_MOBILE = 8
 const GRID_NUMBERS = false
@@ -1115,12 +1119,13 @@ function buildShapes() {
   const g = grid.value
   if (!g) return
   const unit = Math.max(5, Math.round(window.innerHeight * (window.innerWidth <= 1150 ? SHAPE_FULL_CELL_MOBILE : SHAPE_FULL_CELL)))
-  // Quarters of the grid's squares, laid from one of its lines so that every
-  // even cell starts a square, carried on past the screen's edges.
-  const cw = g.cellW / 2
-  const ch = g.cellH / 2
-  const across = 2 * Math.ceil((g.left / cw + SHAPE_GRID_PAD) / 2)
-  const down = 2 * Math.ceil(g.top / ch / 2)
+  // The grid's squares split GRID_SPLIT times each way, laid from one of its
+  // lines so that every GRID_SPLIT-th cell starts a square, carried on past the
+  // screen's edges.
+  const cw = g.cellW / GRID_SPLIT
+  const ch = g.cellH / GRID_SPLIT
+  const across = GRID_SPLIT * Math.ceil((g.left / cw + SHAPE_GRID_PAD) / GRID_SPLIT)
+  const down = GRID_SPLIT * Math.ceil(g.top / ch / GRID_SPLIT)
   const x0 = g.left - across * cw
   const y0 = g.top - down * ch
   shapeGrid.value = { cw, ch, x0, y0, unit, pad: Math.round(-x0 / cw), cols: Math.ceil((width - x0) / cw) + SHAPE_GRID_PAD, rows: Math.ceil((height - y0) / ch) + SHAPE_GRID_PAD }
@@ -1441,13 +1446,13 @@ function drawPixels() {
       context.fillStyle = rgbCss(pixelShade(palette, level(pixel), pixel.t))
       context.fillRect(pixel.x, pixel.y, pixel.size, pixel.size)
     }
-    // The grid's squares (two cells each way), in the shapes only.
+    // The grid's squares (GRID_SPLIT cells each way), in the shapes only.
     context.strokeStyle = 'rgba(28, 28, 28, 0.14)'
     context.lineWidth = 1 / cw
     context.beginPath()
-    const firstX = Math.floor(box.x / 2) * 2, firstY = Math.floor(box.y / 2) * 2
-    for (let x = firstX; x <= box.x + box.w; x += 2) { context.moveTo(x, box.y); context.lineTo(x, box.y + box.h) }
-    for (let y = firstY; y <= box.y + box.h; y += 2) { context.moveTo(box.x, y); context.lineTo(box.x + box.w, y) }
+    const firstX = Math.floor(box.x / GRID_SPLIT) * GRID_SPLIT, firstY = Math.floor(box.y / GRID_SPLIT) * GRID_SPLIT
+    for (let x = firstX; x <= box.x + box.w; x += GRID_SPLIT) { context.moveTo(x, box.y); context.lineTo(x, box.y + box.h) }
+    for (let y = firstY; y <= box.y + box.h; y += GRID_SPLIT) { context.moveTo(box.x, y); context.lineTo(box.x + box.w, y) }
     context.stroke()
     context.restore()
   })
@@ -1992,8 +1997,8 @@ onUnmounted(() => {
         </filter>
       </svg>
     </div>
-    <div class="splash-grid-frame" :style="frameStyle" aria-hidden="true" />
-    <div class="splash-grid-ticks" aria-hidden="true">
+    <div v-if="GRID_FRAME" class="splash-grid-frame" :style="frameStyle" aria-hidden="true" />
+    <div v-if="GRID_FRAME" class="splash-grid-ticks" aria-hidden="true">
       <span
         v-for="(tick, index) in gridTicks"
         :key="index"
@@ -2031,7 +2036,7 @@ onUnmounted(() => {
         :y2="y + 0.5"
       />
       <!-- The frame too, on arrival only: it draws itself just after the grid. -->
-      <template v-if="!leaving">
+      <template v-if="!leaving && GRID_FRAME">
         <line v-for="(side, k) in frameSides" :key="`f${k}`" class="splash-grid-frame-line" v-bind="side" />
       </template>
     </svg>
