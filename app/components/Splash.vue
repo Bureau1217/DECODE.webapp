@@ -247,8 +247,10 @@ const colorMode = useColorMode()
 // Dark mode's map: one of SATELLITE_VIEWS views of NASA's Blue Marble, at random
 // on each visit (public/nasa/random/: Web Mercator close-ups as the original,
 // splash-0, picked round the world at random places and zooms and kept only
-// where land and sea are about even and there's little ice). Chosen once
-// mounted, so the server's page and the browser's agree. /?nasa=3: that one.
+// where land and sea are about even and there's little ice). The first load
+// in a browser session shows the original (splash-0, positioned by hand); each
+// reload after it, one at random. Chosen once mounted, so the server's page and
+// the browser's agree. /?nasa=3: that one.
 const SATELLITE_VIEWS = 10
 const satelliteView = ref<number | null>(null)
 const satelliteForced = Number(useRoute().query.nasa)
@@ -1927,7 +1929,17 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
-  satelliteView.value = Number.isInteger(satelliteForced) && satelliteForced >= 0 && satelliteForced < SATELLITE_VIEWS ? satelliteForced : Math.floor(Math.random() * SATELLITE_VIEWS)
+  let firstLoad = true
+  try {
+    firstLoad = !sessionStorage.getItem('decode-map-seen')
+    sessionStorage.setItem('decode-map-seen', '1')
+  }
+  catch {
+    // No storage: always the original.
+  }
+  satelliteView.value = Number.isInteger(satelliteForced) && satelliteForced >= 0 && satelliteForced < SATELLITE_VIEWS
+    ? satelliteForced
+    : firstLoad ? 0 : Math.floor(Math.random() * SATELLITE_VIEWS)
   toneImages()
   playIntro()
   handleResize()
