@@ -244,7 +244,9 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
 // Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
 // Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
-const satelliteUrl = computed(() => (colorMode.value === 'dark' ? '/nasa/europe-splash.jpg' : null))
+// /?nasa=world or /?nasa=south: dark mode's map less centred on Europe, to compare.
+const NASA_VIEW = ['world', 'south'].includes(String(useRoute().query.nasa)) ? String(useRoute().query.nasa) : 'europe'
+const satelliteUrl = computed(() => (colorMode.value === 'dark' ? `/nasa/${NASA_VIEW}-splash.jpg` : null))
 
 // The CMS headline list (site_infos.yml's "sentences"), which the splash
 // cycles through. Each row is one headline, and a line break in it is a line

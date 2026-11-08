@@ -37,7 +37,18 @@ const TOOL_VISUALS = [
   { url: '/tool-visuals/extension.jpg', width: 900, height: 589, band: [0.5, 1], soft: 1, amount: 0.45 },
   { url: '/tool-visuals/bot.jpg', width: 720, height: 900, band: [0.65, 1], soft: 1, amount: 1 },
 ] as const
-const visual = computed(() => TOOL_VISUALS[props.index % TOOL_VISUALS.length]!)
+// /?nasa=world or /?nasa=south: the map less centred on Europe (the whole world,
+// or Africa with Europe above it), to compare; the coral band starts higher,
+// above each one's larger share of sea.
+const NASA_VIEWS: Record<string, { url: string, band: readonly [number, number] }> = {
+  world: { url: '/nasa/world-card.jpg', band: [0.75, 1] },
+  south: { url: '/nasa/south-card.jpg', band: [0.65, 1] },
+}
+const nasaView = NASA_VIEWS[String(useRoute().query.nasa ?? '')]
+const visual = computed(() => {
+  const base = TOOL_VISUALS[props.index % TOOL_VISUALS.length]!
+  return props.index % TOOL_VISUALS.length === 0 && nasaView ? { ...base, ...nasaView } : base
+})
 
 // The photo in the site's silver (app.vue's #duotone-silver, as on the splash: a
 // negative, black showing near white, white showing cool grey), one band of its
