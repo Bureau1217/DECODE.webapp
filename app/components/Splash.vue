@@ -2,6 +2,7 @@
 import { decipherFrom, decipherIn, scrambleOut } from '~/utils/decipher'
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
 import { boxReveal } from '~/utils/boxReveal'
+import { startGlobe } from '~/utils/splashGlobe'
 import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, refineMass, resizeMass, stampMass } from '~/utils/splashShape'
 
 // Decorative intro screen — fails soft (empty state, no thrown error) if
@@ -266,6 +267,12 @@ const ALT_BLACK = SPLASH_ALTS.has('black')
 const ALT_CELLS = SPLASH_ALTS.has('cells')
 const ALT_LINES = SPLASH_ALTS.has('lines')
 const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
+// - globe: light mode, a globe turning slowly behind it all (splashGlobe.ts),
+//   its lines dotted, a few countries in a silver halftone, new ones with each
+//   headline.
+const ALT_GLOBE = SPLASH_ALTS.has('globe')
+const globeCanvas = ref<HTMLCanvasElement | null>(null)
+let globe: Awaited<ReturnType<typeof startGlobe>> | null = null
 const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells')
 // Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
 // the Black Sea, public/nasa/europe-splash.jpg). Light mode shows it too,
@@ -2041,6 +2048,7 @@ async function nextHeadline() {
   else if (ALT_HOVER) { /* nothing */ }
   else if (colorMode.value === 'dark' || shelfLayout) morphShapes()
   else scrambleShapes(ticks)
+  globe?.shuffle()
   // No pixel bursts any more (pixelBurst): only the map in the masses.
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + headlineHold() - (IMAGES_SPAWN ? SPAWN_LEAD_MS : 0))
@@ -2366,6 +2374,7 @@ function onStripImageLoad() {
 function handleResize() {
   computeGrid()
   fitHeadlines()
+  nextTick(() => globe?.resize())
   nextTick(() => {
     fitSubtitleBox()
     buildSentenceMasks()
@@ -2394,6 +2403,23 @@ onMounted(() => {
   handleResize()
   // The tab's width hangs on its label's, in its own font.
   document.fonts.ready.then(() => computeGrid())
+  if (ALT_GLOBE) watch(globeCanvas, async (canvas) => {
+    globe?.stop()
+    globe = null
+    if (!canvas) return
+    const started = await startGlobe(canvas, {
+      // Clear of the headline and its subtitle.
+      avoid: () => {
+        const origin = canvas.getBoundingClientRect()
+        return [...(splashEl.value?.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box') ?? [])].map((el) => {
+          const r = el.getBoundingClientRect()
+          return { left: r.left - origin.left, top: r.top - origin.top, right: r.right - origin.left, bottom: r.bottom - origin.top }
+        })
+      },
+    })
+    if (globeCanvas.value === canvas) globe = started
+    else started.stop()
+  }, { immediate: true, flush: 'post' })
   observeLines()
   nextTick(() => { measured.value = true })
   window.addEventListener('resize', handleResize)
@@ -2407,6 +2433,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  globe?.stop()
   clearTimeout(followTimer)
   clearInterval(spawnTimer)
   clearTimeout(spawnStartTimer)
@@ -2519,6 +2546,9 @@ onUnmounted(() => {
     <!-- Light mode: the map's coastlines and borders, traced in light grey across
          the grid, lined up with the map the masses show (same box, same fit). -->
     <div v-if="ALT_LINES && colorMode !== 'dark'" class="splash-map-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true" />
+    <div v-if="ALT_GLOBE && colorMode !== 'dark'" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
+      <canvas ref="globeCanvas" />
+    </div>
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
       <!-- Dark mode's own gray duotone (app.vue's #duotone-dark: same
            luma, same neutral grays), but not inverted: black lands on the
@@ -3138,6 +3168,21 @@ onUnmounted(() => {
 
 .splash-shapes {
   transition: opacity 0.8s ease;
+}
+
+/* /?splash=globe (splashGlobe.ts): the globe's layer, inside the grid, under
+   its lines. */
+.splash-globe {
+  position: absolute;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.splash-globe canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* The images keep still under the pointer (no colour on hover). */
