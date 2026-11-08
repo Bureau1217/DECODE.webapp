@@ -1418,6 +1418,12 @@ const FOLLOW_CORE = 0.5
 const FOLLOW_TURN = 0.16
 const FOLLOW_DRIFT_MS = 180
 const FOLLOW_WAVES = [[2, 3], [3, 5], [2, 5], [3, 4]] as const
+// Moving, it leaves a trail along the pointer's path: the cells it leaves stay
+// on a while (FOLLOW_TRAIL_LIFE, give or take half), going in the order they
+// were left, so the trail shortens behind it.
+const FOLLOW_TRAIL_LIFE = 280
+let followTrail = new Map<number, number>() // cell: when it goes
+let followCore = new Set<number>()
 let followDriftAt = 0
 const shapesHovered = ref(false)
 const colorShift = ref(0)
@@ -1494,9 +1500,19 @@ function follow() {
     }
     const at = trailAt(index * FOLLOW_TRAIL_MS)!
     const target = shapeAt(state, index, at.x, at.y)
-    if (followSpots[index] === target.key) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
-    followSpots[index] = target.key
-    return { steps: morphSteps(shapeCells[index]!, target.cells, 1, 0, Math.floor(Math.random() * 1e6)), next: 0, video: target.video }
+    // The trail: what it just left, staying on a while; what's run out, gone.
+    for (const cell of followCore) {
+      if (!target.cells.has(cell) && !followTrail.has(cell)) followTrail.set(cell, now + FOLLOW_TRAIL_LIFE * (0.5 + Math.random()))
+    }
+    for (const cell of target.cells) followTrail.delete(cell)
+    for (const [cell, until] of followTrail) if (until < now) followTrail.delete(cell)
+    followCore = target.cells
+    const cells = new Set([...target.cells, ...followTrail.keys()])
+    const key = `${target.key}|${[...followTrail.keys()].join(',')}`
+    if (followSpots[index] === key) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
+    followSpots[index] = key
+    // Dark mode: the video over the whole grid, so the trail shows it too.
+    return { steps: morphSteps(shapeCells[index]!, cells, 1, 0, Math.floor(Math.random() * 1e6)), next: 0, video: { left: '0px', top: '0px', width: '100%', height: '100%' } }
   })
   if (plans.every((plan) => !plan.steps.length)) return
   shapeViews.value = shapeViews.value.map((view, index) => ({ ...view, video: plans[index]!.video ?? view.video }))
@@ -1505,6 +1521,15 @@ function follow() {
 }
 function onSplashMove(event: MouseEvent) {
   if (splashIntro.value !== 'done') return
+  // The image under the pointer, by where it is (the headline's lines lie
+  // over the strip, so the images never get the pointer themselves).
+  if (canHover()) {
+    const hit = [...(imagesEl.value?.querySelectorAll<HTMLElement>('.splash-image-wrapper') ?? [])].find((wrapper) => {
+      const r = wrapper.getBoundingClientRect()
+      return r.width > 0 && event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom
+    })
+    hoveredIndex.value = hit ? Number(hit.dataset.n) : null
+  }
   const at = pointerInSplash(event)
   if (at) {
     pointerTrail.push({ ...at, t: performance.now() })
@@ -1520,6 +1545,8 @@ function onSplashMove(event: MouseEvent) {
     shapeCells = shapeStates.map(() => new Set<number>())
     shapeViews.value = shapeViews.value.map((view) => ({ ...view, fill: '', outline: '' }))
     followSpots = []
+    followTrail = new Map()
+    followCore = new Set()
     clearTimeout(followTimer)
     follow()
   }
@@ -1528,6 +1555,7 @@ function onSplashMove(event: MouseEvent) {
   }
 }
 function onSplashLeave() {
+  hoveredIndex.value = null
   shapesHovered.value = false
   clearTimeout(followTimer)
 }
@@ -2629,7 +2657,14 @@ onUnmounted(() => {
     </svg>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="stripStyle" aria-hidden="true">
       <div class="splash-images-track">
-        <div v-for="{ image, n: index } in scrollingImages" :key="index" class="splash-image-wrapper" :data-n="index" :style="spawnStyle(index)">
+        <div
+          v-for="{ image, n: index } in scrollingImages"
+          :key="index"
+          class="splash-image-wrapper"
+          :class="{ 'is-tinted': ALT_HOVER && hoveredIndex === index }"
+          :data-n="index"
+          :style="{ ...spawnStyle(index), '--tint': shapeColor(0) }"
+        >
           <span
             v-if="imageLabel(index, image.alt)"
             class="image-label text-small"
@@ -3046,6 +3081,21 @@ onUnmounted(() => {
 
 .splash-shapes {
   transition: opacity 0.8s ease;
+}
+
+/* Hovered, an image turns to the mass's stroke colour (shapeColor), in its
+   own greys. */
+.splash.alt-hover .splash-images-track img.is-hovered {
+  filter: grayscale(1) contrast(1.1) !important;
+}
+
+.splash-image-wrapper.is-tinted::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--tint);
+  mix-blend-mode: multiply;
+  pointer-events: none;
 }
 
 /* The mass under the pointer over the images too (still under the headline). */
@@ -3730,7 +3780,7 @@ onUnmounted(() => {
   overflow: hidden;
   justify-content: flex-end;
   will-change: width;
-  transition: width 1.5s cubic-bezier(0.3, 0, 0.2, 1), margin-left 1.5s cubic-bezier(0.3, 0, 0.2, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+  transition: width 1.5s cubic-bezier(0.37, 0, 0.63, 1), margin-left 1.5s cubic-bezier(0.37, 0, 0.63, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
 /* Spawned, narrower: none wider than 400px (cropped to it). */
@@ -3757,7 +3807,7 @@ onUnmounted(() => {
 }
 
 .splash.is-spawn.intro-build .splash-image-wrapper {
-  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 1.5s cubic-bezier(0.3, 0, 0.2, 1), margin-left 1.5s cubic-bezier(0.3, 0, 0.2, 1);
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 1.5s cubic-bezier(0.37, 0, 0.63, 1), margin-left 1.5s cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 .splash.is-spawn.intro-build.is-spawn-instant .splash-image-wrapper {
