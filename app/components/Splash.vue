@@ -244,10 +244,15 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
 // Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
 // Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
-// /?nasa=world, /?nasa=south or /?nasa=broad: dark mode's map less centred on
-// Europe, to compare (ToolCard.vue).
-const NASA_VIEW = ['world', 'south', 'broad'].includes(String(useRoute().query.nasa)) ? String(useRoute().query.nasa) : 'europe'
-const satelliteUrl = computed(() => (colorMode.value === 'dark' ? `/nasa/${NASA_VIEW}-splash.jpg` : null))
+// Dark mode's map: one of SATELLITE_VIEWS views of NASA's Blue Marble, at random
+// on each visit (public/nasa/random/: Web Mercator close-ups as the original,
+// splash-0, picked round the world at random places and zooms and kept only
+// where land and sea are about even and there's little ice). Chosen once
+// mounted, so the server's page and the browser's agree. /?nasa=3: that one.
+const SATELLITE_VIEWS = 10
+const satelliteView = ref<number | null>(null)
+const satelliteForced = Number(useRoute().query.nasa)
+const satelliteUrl = computed(() => (colorMode.value === 'dark' && satelliteView.value !== null ? `/nasa/random/splash-${satelliteView.value}.jpg` : null))
 
 // The CMS headline list (site_infos.yml's "sentences"), which the splash
 // cycles through. Each row is one headline, and a line break in it is a line
@@ -1921,6 +1926,7 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
+  satelliteView.value = Number.isInteger(satelliteForced) && satelliteForced >= 0 && satelliteForced < SATELLITE_VIEWS ? satelliteForced : Math.floor(Math.random() * SATELLITE_VIEWS)
   toneImages()
   playIntro()
   handleResize()
