@@ -292,6 +292,13 @@ let rowGlobes: Awaited<ReturnType<typeof startGlobe>>[] = []
 //   headline), the headline small at its left, the subtitle at its right, both
 //   flush left on the image's middle; no grid, no strip, no shapes.
 const SPLASH_PANELS = SPLASH_ALTS.has('panels')
+// /?title=silver (with any splash): the headline's letters in embossed silver,
+// as Kunsthalle Basel's: a pale silver lit from the top left, each letter
+// pillowed (its edges rounded: a white highlight on the upper left inside it,
+// shade on the lower right), a thin dark line round it, a fine grain (the
+// #splash-title-silver filter: the letters' shape as a bump map under two
+// lights, a soft one and a sharp one).
+const TITLE_SILVER = useRoute().query.title === 'silver'
 const panelImage = computed(() => {
   const list = images.value ?? []
   return list.length ? list[panelIndex.value % list.length] : null
@@ -2679,6 +2686,7 @@ onUnmounted(() => {
       'is-beat': SPLASH_BEAT,
       'is-row': SPLASH_ROW,
       'is-panels': SPLASH_PANELS,
+      'is-title-silver': TITLE_SILVER,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -3028,6 +3036,41 @@ onUnmounted(() => {
         <!-- Literal #fff/#000, never theme tokens: a mask reads luminance
              (white = shown, black = hidden), not a color — a token that
              turns near-black in dark mode hid the whole headline. -->
+        <svg v-if="TITLE_SILVER" width="0" height="0" style="position: absolute" aria-hidden="true">
+          <filter id="splash-title-silver" x="-5%" y="-10%" width="110%" height="120%" color-interpolation-filters="sRGB">
+            <!-- The letters as a surface: high inside, falling off at the edges. -->
+            <feGaussianBlur in="SourceAlpha" stdDeviation="2.6" result="bump" />
+            <!-- Soft light from the upper left: the silver's body. -->
+            <feDiffuseLighting in="bump" surfaceScale="5" diffuseConstant="1.05" lighting-color="#e4e5e7" result="body">
+              <feDistantLight azimuth="225" elevation="48" />
+            </feDiffuseLighting>
+            <!-- Sharp light: the bright rims on the upper left edges. -->
+            <feSpecularLighting in="bump" surfaceScale="5" specularConstant="1.2" specularExponent="26" lighting-color="#ffffff" result="shine">
+              <feDistantLight azimuth="225" elevation="38" />
+            </feSpecularLighting>
+            <feComposite in="body" in2="shine" operator="arithmetic" k1="0" k2="1" k3="0.85" k4="0" result="lit" />
+            <!-- Across the whole word, a little lighter top left than bottom right. -->
+            <feFlood flood-color="#ffffff" flood-opacity="0.12" result="haze" />
+            <feComposite in="lit" in2="haze" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="lit2" />
+            <!-- Grain. -->
+            <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="4" result="noise" />
+            <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.10 0" result="grain" />
+            <!-- The word's own tone (the letters' gradient, .is-title-silver):
+                 pale top left to a deeper grey bottom right. -->
+            <feBlend in="lit2" in2="SourceGraphic" mode="multiply" result="toned" />
+            <feBlend in="grain" in2="toned" mode="overlay" result="grained" />
+            <feComposite in="grained" in2="SourceAlpha" operator="in" result="letters" />
+            <!-- The thin dark line round each letter. -->
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.3" result="grown" />
+            <feComposite in="grown" in2="SourceAlpha" operator="out" result="ring" />
+            <feFlood flood-color="#26272a" result="ink" />
+            <feComposite in="ink" in2="ring" operator="in" result="line" />
+            <feMerge>
+              <feMergeNode in="line" />
+              <feMergeNode in="letters" />
+            </feMerge>
+          </filter>
+        </svg>
         <svg class="sentence-mask-defs" aria-hidden="true">
           <mask id="splash-headline-mask" maskUnits="userSpaceOnUse" x="-500" y="-500" width="8000" height="2000">
             <rect
@@ -3516,6 +3559,16 @@ onUnmounted(() => {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* /?title=silver: the headline's letters through the silver filter. */
+.splash.is-title-silver .sentence-text {
+  /* The tone the filter's light falls on (only its colour counts there). */
+  background: linear-gradient(165deg, #ffffff 0%, #e2e3e5 35%, #a7a9ad 75%, #c9cbce 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: url(#splash-title-silver);
 }
 
 /* No button, no grid on the panels (the bars at the image's middle). */
