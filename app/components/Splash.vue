@@ -2546,10 +2546,10 @@ onMounted(() => {
       if (!a || !b) return
       const dark = colorMode.value === 'dark'
       // Still in place, overlapping, each turning on itself the other way.
-      const shared = { radius: 0.5, countries: 0, dark, tilt: 20 }
+      const shared = { radius: 0.62, countries: 0, dark, tilt: 20 }
       rowGlobes = await Promise.all([
-        startGlobe(a, { ...shared, centreX: 0.38, spin: 3 }),
-        startGlobe(b, { ...shared, centreX: 0.62, spin: -3 }),
+        startGlobe(a, { ...shared, centreX: 0.27, spin: 3 }),
+        startGlobe(b, { ...shared, centreX: 0.73, spin: -3 }),
       ])
     }, { immediate: true, flush: 'post' })
   }
@@ -3397,9 +3397,13 @@ onUnmounted(() => {
    under it; small silver bars at the sides, grained. */
 
 .splash.is-row .splash-images {
-  /* The captions hang below the band: cut at the sides only. */
+  /* The row runs between the bars: each image opens out of the right one and
+     goes into the left one (cut at their inner edges, --bar-edge); the
+     captions hang below the band (no cut there). */
+  --bar-edge: 103px;
   overflow: visible;
-  clip-path: inset(-50% 0 -50% 0);
+  padding: 0 var(--bar-edge);
+  clip-path: inset(-50% var(--bar-edge) -50% var(--bar-edge));
 }
 
 .splash.is-row .splash-images-track {
