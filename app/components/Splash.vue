@@ -1446,6 +1446,12 @@ function overGrid(event: MouseEvent) {
   const at = pointerInSplash(event)
   return !!g && !!at && at.x >= g.left && at.x <= g.right && at.y >= g.top && at.y <= g.bottom
 }
+function overImage(event: MouseEvent) {
+  return [...(imagesEl.value?.querySelectorAll<HTMLElement>('.splash-image-wrapper') ?? [])].some((wrapper) => {
+    const r = wrapper.getBoundingClientRect()
+    return r.width > 0 && event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom
+  })
+}
 // Where the pointer was `ago` ms back (the oldest point kept, if not that old).
 function trailAt(ago: number) {
   const t = performance.now() - ago
@@ -1532,7 +1538,8 @@ function onSplashMove(event: MouseEvent) {
     pointerTrail.push({ ...at, t: performance.now() })
     if (pointerTrail.length > 60) pointerTrail = pointerTrail.slice(-60)
   }
-  const over = overGrid(event)
+  // On the grid only, not over an image.
+  const over = overGrid(event) && !overImage(event)
   if (over === shapesHovered.value) return
   shapesHovered.value = over
   if (over) {
@@ -2005,8 +2012,17 @@ function shuffleFrame(finalSeed: number, ticks: number[], locks: number[][], tar
   jump(0)
 }
 
+// The new image comes in from off the screen's right: it opens SPAWN_LEAD_MS
+// ahead of the letters (so it's showing when they start), the two landing
+// together (.is-spawn's width transition: the letters' time and the lead).
+const SPAWN_LEAD_MS = 300
 async function nextHeadline() {
   if (leaving.value || !splashEl.value) return
+  if (IMAGES_SPAWN) {
+    spawnNext()
+    await new Promise((resolve) => { headlineTimer = setTimeout(resolve, SPAWN_LEAD_MS) })
+    if (leaving.value || !splashEl.value) return
+  }
   const previous = [...headlineWords.value]
   headlineIndex.value = (headlineIndex.value + 1) % headlines.value.length
   await nextTick()
@@ -2017,8 +2033,6 @@ async function nextHeadline() {
   // Still the new text as Vue rendered it, before the letters scramble.
   const targets = lines.map((el) => el.getBoundingClientRect())
   morphStops = lines.map((el, i) => decipherFrom(el, previous[i] ?? '', HEADLINE_MORPH_MS, ticks, locks[i]))
-  // The next image opens with the letters, over the same time (spawnNext).
-  if (IMAGES_SPAWN) spawnNext()
   headlineScrambling.value = true
   clearTimeout(scramblingTimer)
   scramblingTimer = setTimeout(() => { headlineScrambling.value = false }, HEADLINE_MORPH_MS)
@@ -2029,7 +2043,7 @@ async function nextHeadline() {
   else scrambleShapes(ticks)
   // No pixel bursts any more (pixelBurst): only the map in the masses.
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
-  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + headlineHold())
+  headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + headlineHold() - (IMAGES_SPAWN ? SPAWN_LEAD_MS : 0))
 }
 // With the spawn: a shorter hold, an image every change.
 const SPAWN_HOLD_MS = 2600
@@ -2853,9 +2867,16 @@ onUnmounted(() => {
 }
 
 .splash-tab-ticker-link:hover .splash-tab-ticker-slide span {
-  text-decoration: underline dotted;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 0.3em;
+  text-decoration: underline dotted currentColor;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  text-decoration-skip-ink: none;
+}
+
+/* Room under the letters for the dots (the track clips). */
+.splash-tab-ticker-link .splash-tab-ticker-track {
+  padding: 2px 0 6px;
+  line-height: 1.2;
 }
 
 /* Keeps the track's own line, cut or sliding, inside the tab. */
@@ -3128,10 +3149,7 @@ onUnmounted(() => {
   filter: var(--tone-dark) !important;
 }
 
-/* The mass under the pointer over the images too (still under the headline). */
-.splash.alt-hover .splash-shapes {
-  z-index: 2;
-}
+
 
 .splash-grid-numbers {
   position: absolute;
@@ -3810,7 +3828,7 @@ onUnmounted(() => {
   overflow: hidden;
   justify-content: flex-end;
   will-change: width;
-  transition: width 1.5s cubic-bezier(0.37, 0, 0.63, 1), margin-left 1.5s cubic-bezier(0.37, 0, 0.63, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+  transition: width 1.8s cubic-bezier(0.37, 0, 0.63, 1), margin-left 1.8s cubic-bezier(0.37, 0, 0.63, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
 /* Spawned, narrower: none wider than 400px (cropped to it). */
@@ -3837,7 +3855,7 @@ onUnmounted(() => {
 }
 
 .splash.is-spawn.intro-build .splash-image-wrapper {
-  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 1.5s cubic-bezier(0.37, 0, 0.63, 1), margin-left 1.5s cubic-bezier(0.37, 0, 0.63, 1);
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 1.8s cubic-bezier(0.37, 0, 0.63, 1), margin-left 1.8s cubic-bezier(0.37, 0, 0.63, 1);
 }
 
 .splash.is-spawn.intro-build.is-spawn-instant .splash-image-wrapper {
