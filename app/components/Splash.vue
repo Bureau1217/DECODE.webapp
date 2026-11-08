@@ -244,8 +244,9 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
 // Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
 // Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
-// /?nasa=world or /?nasa=south: dark mode's map less centred on Europe, to compare.
-const NASA_VIEW = ['world', 'south'].includes(String(useRoute().query.nasa)) ? String(useRoute().query.nasa) : 'europe'
+// /?nasa=world, /?nasa=south or /?nasa=broad: dark mode's map less centred on
+// Europe, to compare (ToolCard.vue).
+const NASA_VIEW = ['world', 'south', 'broad'].includes(String(useRoute().query.nasa)) ? String(useRoute().query.nasa) : 'europe'
 const satelliteUrl = computed(() => (colorMode.value === 'dark' ? `/nasa/${NASA_VIEW}-splash.jpg` : null))
 
 // The CMS headline list (site_infos.yml's "sentences"), which the splash

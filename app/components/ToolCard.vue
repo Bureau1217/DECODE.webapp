@@ -37,12 +37,16 @@ const TOOL_VISUALS = [
   { url: '/tool-visuals/extension.jpg', width: 900, height: 589, band: [0.5, 1], soft: 1, amount: 0.45 },
   { url: '/tool-visuals/bot.jpg', width: 720, height: 900, band: [0.65, 1], soft: 1, amount: 1 },
 ] as const
-// /?nasa=world or /?nasa=south: the map less centred on Europe (the whole world,
-// or Africa with Europe above it), to compare; the coral band starts higher,
+// /?nasa=world, /?nasa=south or /?nasa=broad: the map less centred on Europe
+// (the whole world, Africa with Europe above it, or the Old World and Australia
+// round the Indian Ocean in an equal-area projection), to compare; the coral band starts higher,
 // above each one's larger share of sea.
 const NASA_VIEWS: Record<string, { url: string, band: readonly [number, number] }> = {
   world: { url: '/nasa/world-card.jpg', band: [0.75, 1] },
   south: { url: '/nasa/south-card.jpg', band: [0.65, 1] },
+  // Equal Earth (no continent inflated, unlike Mercator's north), round the
+  // Indian Ocean: Africa, Asia, Europe and Australia.
+  broad: { url: '/nasa/broad-card.jpg', band: [0.74, 1] },
 }
 const nasaView = NASA_VIEWS[String(useRoute().query.nasa ?? '')]
 const visual = computed(() => {
