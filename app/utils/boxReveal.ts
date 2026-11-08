@@ -19,6 +19,10 @@ export interface BoxRevealOptions {
   delay?: number // ms before the first segment
   segmentGap?: number // ms between segments starting
   lettersPerSecond?: number // the front's mean speed
+  // One even front through the whole text (no jumps, stalls, offsets or
+  // flicker), drawn every `stepMs` (default STEP_MS): smooth, not stepped.
+  steady?: boolean
+  stepMs?: number
 }
 
 const STEP_MS = 50
@@ -78,19 +82,19 @@ function frontTimes(count: number, start: number, perLetter: number, steady = fa
 }
 
 export function boxReveal(root: HTMLElement, options: BoxRevealOptions) {
-  const { mode, delay = 0, segmentGap = 140, lettersPerSecond = 16 } = options
+  const { mode, delay = 0, segmentGap = 140, lettersPerSecond = 16, steady = false, stepMs = STEP_MS } = options
   const wrapped = wrap(root)
   root.classList.remove('box-waiting')
   // Going: all the letters as one segment, one steady front.
-  const segments = mode === 'in' ? wrapped : [wrapped.flat()]
+  const segments = mode === 'in' && !steady ? wrapped : [wrapped.flat()]
   const perLetter = 1000 / (mode === 'in' ? lettersPerSecond : OUT_LETTERS_PER_SECOND)
   // Each segment's front, and each letter's own slight offset on the trail.
   const plans = segments.map((chars, s) => ({
     chars,
-    times: frontTimes(chars.length, delay + s * segmentGap * (0.8 + Math.random() * 0.4), perLetter, mode === 'out'),
-    jitter: chars.map(() => (Math.random() * 2 - 1) * (mode === 'in' ? 0.35 : 0.1)),
+    times: frontTimes(chars.length, delay + s * segmentGap * (0.8 + Math.random() * 0.4), perLetter, mode === 'out' || steady),
+    jitter: chars.map(() => (steady ? 0 : (Math.random() * 2 - 1) * (mode === 'in' ? 0.35 : 0.1))),
   }))
-  const end = Math.max(...plans.map((plan) => plan.times[plan.times.length - 1]!)) + STEP_MS
+  const end = Math.max(...plans.map((plan) => plan.times[plan.times.length - 1]!)) + stepMs
   // Where the front is (in letters) at a time: between the letters it has reached.
   const frontAt = (times: number[], t: number) => {
     if (t < times[0]!) return -Infinity
@@ -117,7 +121,7 @@ export function boxReveal(root: HTMLElement, options: BoxRevealOptions) {
       const front = frontAt(plan.times, t)
       plan.chars.forEach((c, i) => {
         let next = state(front - i + plan.jitter[i]!)
-        if (mode === 'in' && next === 'plain' && front - i < 8 && Math.random() < FLICKER) next = 'invert'
+        if (mode === 'in' && !steady && next === 'plain' && front - i < 8 && Math.random() < FLICKER) next = 'invert'
         if (c.dataset.box !== next) c.dataset.box = next
       })
     }
@@ -127,13 +131,16 @@ export function boxReveal(root: HTMLElement, options: BoxRevealOptions) {
   const tick = () => {
     const t = performance.now() - started
     draw(t)
-    if (t < end) timer = setTimeout(tick, STEP_MS)
+    if (t < end) timer = setTimeout(tick, stepMs)
     else for (const plan of plans) for (const c of plan.chars) c.dataset.box = mode === 'in' ? 'plain' : 'hidden'
   }
   if (mode === 'in') for (const plan of plans) for (const c of plan.chars) c.dataset.box = 'hidden'
   tick()
   return {
     duration: end,
+    // The front's own time (steady: one letter every perLetter).
+    perLetter,
+    letters: segments.flat().length,
     stop: () => clearTimeout(timer),
   }
 }

@@ -312,11 +312,10 @@ function revealLabel(n: number, after: number) {
   labelTimers.push(setTimeout(() => {
     const chip = imagesEl.value?.querySelector<HTMLElement>(`[data-n="${n}"] .splash-image-name`)
     if (!chip) return
-    const { duration } = boxReveal(chip, { mode: 'in', lettersPerSecond: 26, segmentGap: 90 })
+    const { duration, perLetter, letters } = boxReveal(chip, { mode: 'in', lettersPerSecond: 24, steady: true, stepMs: 16 })
     // The chip builds up behind the letters as they come, left to right, one
-    // continuous fill over their time (not added at the end).
-    // The front ends before its trail does: the fill keeps up with the front.
-    chip.style.setProperty('--build-ms', `${Math.round(duration * 0.72)}ms`)
+    // continuous fill at the front's own even pace (it ends with the front).
+    chip.style.setProperty('--build-ms', `${Math.round((letters + 1) * perLetter)}ms`)
     requestAnimationFrame(() => chip.classList.add('is-building'))
     labelTimers.push(setTimeout(() => { framedLabels.value = new Set([...framedLabels.value, n]) }, duration))
   }, after))
@@ -2761,11 +2760,6 @@ onUnmounted(() => {
       <div class="splash-side-bar is-left" style="top: 50%" aria-hidden="true" />
       <div class="splash-side-bar is-right" style="top: 50%" aria-hidden="true" />
     </template>
-    <!-- /?splash=row: two globes, Venn-like. -->
-    <div v-if="SPLASH_ROW" :key="`row-globes-${colorMode}`" class="splash-row-globes" aria-hidden="true">
-      <canvas ref="rowGlobeA" />
-      <canvas ref="rowGlobeB" />
-    </div>
     <!-- The globe (/?splash=globe): over dark mode's map, under the grid. -->
     <div v-if="ALT_GLOBE" :key="`globe-${colorMode}`" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
       <canvas ref="globeCanvas" />
@@ -3460,11 +3454,6 @@ onUnmounted(() => {
   transition: none;
 }
 
-/* No grid; the two globes over the whole splash, under the images. */
-.splash.is-row .splash-grid,
-.splash.is-row .splash-grid-lines {
-  display: none;
-}
 
 .splash-row-globes {
   position: absolute;
