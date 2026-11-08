@@ -1299,6 +1299,17 @@ function hoverTileStyle(tile: { left: number, top: number, width: number, height
   if (!box) return { left: `${tile.left}%`, top: `${tile.top}%`, width: `${tile.width}%`, height: `${tile.height}%` }
   return { left: `${box.left + (box.width * tile.left) / 100}px`, top: `${box.top + (box.height * tile.top) / 100}px`, width: `${(box.width * tile.width) / 100}px`, height: `${(box.height * tile.height) / 100}px` }
 }
+// Their clips: scenes that read whole at that size (no faces filling the
+// frame, as splash-2's Zelensky; no screens of captions), each its own.
+const HOVER_VIDEOS = [
+  '/videos/splash-1.mp4',
+  '/videos/splash/iran-01.mp4',
+  '/videos/splash/iran-03.mp4',
+  '/videos/splash/iran-04.mp4',
+  '/videos/splash-3.mp4',
+  '/videos/splash/iran-09.mp4',
+  '/videos/splash/iran-10.mp4',
+]
 function startTileAt(event: Event, k: number) {
   const video = event.target as HTMLVideoElement
   if (video.duration) video.currentTime = (video.duration * k) / HOVER_VIDEO_TILES.length
@@ -2905,7 +2916,7 @@ onUnmounted(() => {
               v-for="(tile, k) in HOVER_VIDEO_TILES"
               :key="k"
               class="is-tile"
-              :src="SHAPE_VIDEOS[k % SHAPE_VIDEOS.length]"
+              :src="HOVER_VIDEOS[k % HOVER_VIDEOS.length]"
               :style="hoverTileStyle(tile)"
               autoplay
               muted
