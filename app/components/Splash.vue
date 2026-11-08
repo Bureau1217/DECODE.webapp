@@ -650,15 +650,15 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 //   (SHAPE_EDGE_QUARTERS, buildShapes).
 // Its colours are CSS variables on .splash (--grid-line, --grid-frame, and the
 // bars' --grid-tick).
-// 40px squares (24px on mobile), framed, with the frame's little bars
-// (GRID_FRAME), each split in two each way for the masses' cells (GRID_SPLIT).
-// /?grid=120 (or any size, px): other squares, to compare (mobile in
-// proportion), the masses keeping their cells' size.
+// 200px squares (110px on mobile), no frame round the grid nor bars on it
+// (GRID_FRAME), each split GRID_SPLIT times each way for the masses' cells (so
+// they keep their size). /?grid=120 (or any size, px): other squares, to
+// compare (mobile in proportion).
 const GRID_PARAM = Number(useRoute().query.grid) || 0
-const SQUARE_TARGET = GRID_PARAM || 40
-const SQUARE_TARGET_MOBILE = GRID_PARAM ? Math.round(GRID_PARAM * 0.55) : 24
+const SQUARE_TARGET = GRID_PARAM || 200
+const SQUARE_TARGET_MOBILE = Math.round(SQUARE_TARGET * 0.55)
 const GRID_SPLIT = Math.max(2, 2 * Math.round(SQUARE_TARGET / 40))
-const GRID_FRAME = true
+const GRID_FRAME = false
 const GRID_FRAME_GAP = 14
 const GRID_FRAME_GAP_MOBILE = 8
 const GRID_NUMBERS = false
