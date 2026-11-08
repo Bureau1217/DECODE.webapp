@@ -2919,7 +2919,7 @@ onUnmounted(() => {
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
-          <div v-if="SPLASH_ROW" class="splash-image-caption text-small">
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? `translateY(${-spawnTargetWidth(index) / spawnRatio(index)}px)` : 'none' } : undefined">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
             <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
           </div>
@@ -3413,15 +3413,22 @@ onUnmounted(() => {
   align-items: flex-end;
 }
 
-/* Each image at its full size, growing out of a point: the row's right end
-   at the band's middle (--row-origin-y, from the top line), over the spawn's
-   time and curve, while its frame opens and pushes the row on. */
+/* Each image at its full size, growing from its top right corner on the
+   row's top line (down and leftwards), over the spawn's time and curve, while
+   its frame opens and pushes the row on. */
 .splash.is-row .splash-images-track img {
-  transform-origin: right var(--row-origin-y);
+  transform-origin: right top;
   transition: transform 1.8s cubic-bezier(0.37, 0, 0.63, 1);
 }
 
-.splash.is-row.is-spawn-instant .splash-images-track img {
+/* The caption under the image's bottom edge as it grows (same time and
+   curve: that edge moves in step with the growth), at its own size. */
+.splash.is-row .splash-image-caption {
+  transition: transform 1.8s cubic-bezier(0.37, 0, 0.63, 1);
+}
+
+.splash.is-row.is-spawn-instant .splash-images-track img,
+.splash.is-row.is-spawn-instant .splash-image-caption {
   transition: none;
 }
 
