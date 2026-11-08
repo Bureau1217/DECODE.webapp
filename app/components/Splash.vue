@@ -489,7 +489,30 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 
 // Doubled so the track can loop seamlessly: animating from translateX(0)
 // to translateX(-50%) ends exactly where the first copy started.
-const scrollingImages = computed(() => [...(images.value ?? []), ...(images.value ?? [])])
+// /?images=spawn: the images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY):
+// the strip still, every image shut (no width) until a click anywhere on the
+// splash opens the next one, from the last back, to a random width
+// (SPAWN_MIN_VW to SPAWN_MAX_VW of the screen's), a gap after it.
+const IMAGES_SPAWN = useRoute().query.images === 'spawn'
+const SPAWN_MIN_VW = 20
+const SPAWN_MAX_VW = 56
+const SPAWN_GAP_VW = 2
+const spawnOpen = ref<Record<number, number>>({}) // index: width (vw)
+function spawnNext(event: MouseEvent) {
+  if (!IMAGES_SPAWN || (event.target as HTMLElement).closest('a, button')) return
+  const count = scrollingImages.value.length
+  const opened = Object.keys(spawnOpen.value).length
+  if (opened >= count) return
+  const index = count - 1 - opened
+  spawnOpen.value = { ...spawnOpen.value, [index]: Math.floor(Math.random() * (SPAWN_MAX_VW - SPAWN_MIN_VW) + SPAWN_MIN_VW) }
+}
+function spawnStyle(index: number) {
+  if (!IMAGES_SPAWN) return undefined
+  const width = spawnOpen.value[index]
+  const last = index === scrollingImages.value.length - 1
+  return { maxWidth: width ? `${width}vw` : '0px', marginRight: width && !last ? `${SPAWN_GAP_VW}vw` : '0px' }
+}
+const scrollingImages = computed(() => (IMAGES_SPAWN ? [...(images.value ?? [])] : [...(images.value ?? []), ...(images.value ?? [])]))
 
 // The splash's images (only these: not the tool cards' and the rest of the
 // site's): each one's duotone fitted to its own tones, so a mostly dark
@@ -1994,9 +2017,11 @@ onUnmounted(() => {
 <template>
   <section
     ref="splashEl"
+    @click="spawnNext"
     class="splash"
     :class="[{
       'is-leaving': leaving,
+      'is-spawn': IMAGES_SPAWN,
       'is-scrambling': headlineScrambling,
       'is-shelf': shelfLayout,
       'is-returning': returning,
@@ -2223,7 +2248,7 @@ onUnmounted(() => {
     </svg>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="stripStyle" aria-hidden="true">
       <div class="splash-images-track">
-        <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper">
+        <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper" :style="spawnStyle(index)">
           <span
             v-if="imageLabel(index, image.alt)"
             class="image-label text-small"
@@ -3222,6 +3247,23 @@ onUnmounted(() => {
 
 :root[data-theme='dark'] .splash-images-track img.is-toned {
   filter: var(--tone-dark);
+}
+
+/* /?images=spawn: the strip still, each image shut until a click opens it
+   (spawnNext), widening out; the image fills the width it's given. */
+.splash.is-spawn .splash-images-track {
+  animation: none;
+  gap: 0;
+}
+
+.splash.is-spawn .splash-image-wrapper {
+  overflow: hidden;
+  transition: max-width 0.7s cubic-bezier(0.7, 0, 0.2, 1), margin-right 0.7s cubic-bezier(0.7, 0, 0.2, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
+.splash.is-spawn .splash-images-track img {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .splash-images-track img.is-hovered {
