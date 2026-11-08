@@ -283,8 +283,8 @@ const SPLASH_BEAT = SPLASH_ALTS.has('beat')
 //   10px under it, its number (01, 02… in Areal's other 0) left, its label
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
 const SPLASH_ROW = SPLASH_ALTS.has('row')
-// Row: no grid; two dotted globes turning, drifting across each other like
-// the circles of a Venn diagram.
+// Row: no grid; two big dotted globes overlapping like the circles of a Venn
+// diagram, each turning on itself.
 const rowGlobeA = ref<HTMLCanvasElement | null>(null)
 const rowGlobeB = ref<HTMLCanvasElement | null>(null)
 let rowGlobes: Awaited<ReturnType<typeof startGlobe>>[] = []
@@ -2522,10 +2522,11 @@ onMounted(() => {
       rowGlobes = []
       if (!a || !b) return
       const dark = colorMode.value === 'dark'
-      const shared = { radius: 0.36, countries: 0, dark, tilt: 20, sway: 0.13, swayMs: 18000 }
+      // Still in place, overlapping, each turning on itself the other way.
+      const shared = { radius: 0.5, countries: 0, dark, tilt: 20 }
       rowGlobes = await Promise.all([
-        startGlobe(a, { ...shared, centreX: 0.37, spin: 3, swayPhase: 0 }),
-        startGlobe(b, { ...shared, centreX: 0.63, spin: -3, swayPhase: 0.5 }),
+        startGlobe(a, { ...shared, centreX: 0.38, spin: 3 }),
+        startGlobe(b, { ...shared, centreX: 0.62, spin: -3 }),
       ])
     }, { immediate: true, flush: 'post' })
   }
