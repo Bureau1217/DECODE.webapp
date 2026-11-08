@@ -13,26 +13,6 @@
   font-display: swap;
 }
 
-/* OT Parallel, Omnitype's trial font (unlicensed: not for a public repository
-   nor production as it is; the files are gitignored), for the --font-serif text.
-   Only a regular and an italic: each covers every weight the site asks for,
-   so the browser doesn't fake a bold. Without the files: Times New Roman. */
-@font-face {
-  font-family: 'OT Parallel';
-  src: url('/fonts/OTParallelUnlicensedTrial-Regular.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'OT Parallel';
-  src: url('/fonts/OTParallelUnlicensedTrial-Italic.woff2') format('woff2');
-  font-weight: 100 900;
-  font-style: italic;
-  font-display: swap;
-}
-
 /* ABC Areal, Dinamo's free fonts. Their licence forbids public repositories, and
    this one is public: the files are gitignored, and uploaded to the server's
    public/fonts by hand. Without them the site falls back to Arial and monospace. */
@@ -230,7 +210,7 @@ body {
      is used for. */
   --font-mono: 'ABC Areal Mono', monospace;
   --font-text: 'ABC Areal', Arial, Helvetica, sans-serif;
-  --font-serif: 'OT Parallel', 'Times New Roman', Times, serif;
+  --font-serif: 'Times New Roman', Times, serif;
 }
 
 /*
