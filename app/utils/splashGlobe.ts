@@ -32,7 +32,7 @@ export type GlobeOptions = {
 const RAD = Math.PI / 180
 
 export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOptions = {}) {
-  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 9, avoid = () => [], lines, dark = false } = options
+  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 4, avoid = () => [], lines, dark = false } = options
   const data = (await import('~/data/world-countries.json')).default as { features: { properties: { name: string }, geometry: { type: string, coordinates: unknown } }[] }
   const world: Country[] = data.features.map((feature) => {
     const polygons = (feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates) as Ring[][]
@@ -82,14 +82,37 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     if (!front || x < 0 || y < 0 || x > width || y > height) return false
     return avoid().every((box) => x < box.left - margin || x > box.right + margin || y < box.top - margin || y > box.bottom + margin)
   }
-  const apart = (country: Country) => picked.every((other) => Math.hypot(other.centre[0] - country.centre[0], other.centre[1] - country.centre[1]) > 16)
-  // A few on the side facing us, in sight, apart from one another.
+  // A few, far apart (APART degrees at least), one coming in at a time, at
+  // least APPEAR_GAP_MS after the one before, fading in and out over FADE_MS.
+  const APART = 42
+  const APPEAR_GAP_MS = 2600
+  const FADE_MS = 900
+  const life = new Map<Country, { born: number, dying?: number }>()
+  let lastAdded = -Infinity
+  // The last few gone, not back straight away.
+  let recent: Country[] = []
+  const live = () => picked.filter((country) => !life.get(country)?.dying)
+  const apart = (country: Country) => live().every((other) => Math.hypot(other.centre[0] - country.centre[0], other.centre[1] - country.centre[1]) > APART)
+  const going = (country: Country, now: number) => {
+    const state = life.get(country)
+    if (state && !state.dying) state.dying = now
+  }
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  // Still (reduced motion): all at once, there to stay.
   const pick = () => {
-    picked = []
     for (const country of sizeable.filter((c) => inSight(c)).sort(() => Math.random() - 0.5)) {
       if (picked.length >= count) break
-      if (apart(country)) picked.push(country)
+      if (apart(country)) {
+        picked.push(country)
+        life.set(country, { born: -Infinity })
+      }
     }
+  }
+  const fadeOf = (country: Country, now: number) => {
+    const state = life.get(country)
+    if (!state) return 0
+    const into = Math.min(1, (now - state.born) / FADE_MS)
+    return state.dying === undefined ? into : into * Math.max(0, 1 - (now - state.dying) / FADE_MS)
   }
 
   // [x, y, facing us] for a point.
@@ -125,7 +148,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       prev = at
     }
   }
-  const fillShape = (rings: Ring[], cx: number, cy: number, r: number) => {
+  const fillShape = (rings: Ring[], cx: number, cy: number, r: number, alpha: number) => {
     ctx.beginPath()
     for (const ring of rings) {
       let started = false
@@ -138,12 +161,12 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       ctx.closePath()
     }
     ctx.fillStyle = SILVER
-    ctx.globalAlpha = SILVER_ALPHA
+    ctx.globalAlpha = SILVER_ALPHA * alpha
     ctx.fill('evenodd')
     ctx.globalAlpha = 1
   }
 
-  pick()
+  if (reducedMotion) pick()
 
   // Every GRATICULE degrees.
   const GRATICULE = 20
@@ -152,17 +175,29 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
 
   // As they turn out of sight, one at a time gives way to another coming in.
   const facingShare = (country: Country) => Math.cos(country.centre[1] * RAD) * Math.cos((country.centre[0] + lon0) * RAD)
-  const keepFacing = () => {
-    const going = picked.findIndex((country) => facingShare(country) < 0.2 || !inSight(country, 0))
-    if (going >= 0) picked.splice(going, 1)
-    if (picked.length >= count) return
-    const coming = sizeable.filter((country) => !picked.includes(country) && facingShare(country) > 0.2 && inSight(country) && apart(country))
+  const keepFacing = (now: number) => {
+    for (const country of picked) if (facingShare(country) < 0.2 || !inSight(country, 0)) going(country, now)
+    picked = picked.filter((country) => {
+      const dying = life.get(country)?.dying
+      if (dying !== undefined && now - dying > FADE_MS) {
+        life.delete(country)
+        recent = [country, ...recent].slice(0, 8)
+        return false
+      }
+      return true
+    })
+    if (reducedMotion || live().length >= count || now - lastAdded < APPEAR_GAP_MS) return
+    const coming = sizeable.filter((country) => !picked.includes(country) && !recent.includes(country) && facingShare(country) > 0.2 && inSight(country) && apart(country))
     const next = coming[Math.floor(Math.random() * coming.length)]
-    if (next) picked.push(next)
+    if (!next) return
+    picked.push(next)
+    life.set(next, { born: now })
+    lastAdded = now
   }
 
   const draw = () => {
-    keepFacing()
+    const now = performance.now()
+    keepFacing(now)
     canvas.dataset.countries = picked.map((country) => country.name).join(', ')
     const r = globeRadius() * ratio
     const cx = width * centreX * ratio
@@ -180,7 +215,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     lineCtx.fillStyle = tone('#a8a8a8', '#7a7a7a')
     for (const line of [...meridians, ...parallels]) dotLine(line, cx, cy, r, 6 * ratio, 2.2 * ratio)
     // The picked countries, in silver, no edge.
-    for (const country of picked) fillShape(country.rings, cx, cy, r)
+    for (const country of picked) fillShape(country.rings, cx, cy, r, fadeOf(country, now))
   }
 
   let frame = 0
@@ -199,9 +234,11 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
 
   return {
     // New countries (on each headline).
+    // With each headline, the one there longest goes (another follows, in turn).
     shuffle() {
-      pick()
-      if (reduced) draw()
+      if (reducedMotion) return
+      const oldest = live().sort((a, b) => life.get(a)!.born - life.get(b)!.born)[0]
+      if (oldest) going(oldest, performance.now())
     },
     resize() {
       resizeAll()

@@ -2341,7 +2341,8 @@ function placeCta() {
   if (!subtitle || !cta) return
   const subtitleBottom = subtitle.offsetTop + subtitle.offsetHeight
   if (shelfLayout) ctaStyle.value = { top: `${subtitleBottom + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
-  else if (window.innerWidth > 1150) ctaStyle.value = { top: `${(subtitleBottom + grid.value.bottom) / 2}px` }
+  // Centred on the grid's bottom line.
+  else if (window.innerWidth > 1150) ctaStyle.value = { top: `${grid.value.bottom}px` }
 }
 
 // The strip's height for every image to stand within `room`. An image stands at its
