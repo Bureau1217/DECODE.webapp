@@ -27,6 +27,8 @@ const emit = defineEmits<{ continue: [] }>()
 
 // The top-left tab.
 const TAB_TEXT = 'Graduate Institute - Albert Hirschman Centre on Democracy'
+// Written still in the tab; the full TAB_TEXT slides past only on hover.
+const TAB_SHORT = 'Graduate Institute - Albert Hirschman'
 const TAB_LINK = 'https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons'
 
 // Which composition: the images in a band through the middle, behind the headline,
@@ -916,8 +918,12 @@ function computeGrid() {
   // offset is also a top-of-splash offset.
   // Mobile: half the width (the ticker inside needs the room), the same
   // as SiteNav's own mobile MENU tab.
-  tabWidth.value = window.innerWidth * (isMobile ? 0.5 : 0.25)
   tabHeight.value = window.innerHeight * 0.035
+  // Wide enough for the still label (TAB_SHORT), its 2% sides and shoulders.
+  const still = splashEl.value.querySelector<HTMLElement>('.splash-tab-ticker-still')
+  const stillWidth = still ? still.scrollWidth + 8 : 0
+  const fitted = stillWidth / 0.96 + tabHeight.value * (TAB_LEFT_DX_RATIO + TAB_RIGHT_DX_RATIO)
+  tabWidth.value = Math.min(window.innerWidth * 0.9, Math.max(window.innerWidth * (isMobile ? 0.5 : 0.25), fitted))
   tabTop.value = window.innerHeight * 0.015
   pageWidth.value = window.innerWidth
 
@@ -1521,15 +1527,6 @@ function follow() {
 }
 function onSplashMove(event: MouseEvent) {
   if (splashIntro.value !== 'done') return
-  // The image under the pointer, by where it is (the headline's lines lie
-  // over the strip, so the images never get the pointer themselves).
-  if (canHover()) {
-    const hit = [...(imagesEl.value?.querySelectorAll<HTMLElement>('.splash-image-wrapper') ?? [])].find((wrapper) => {
-      const r = wrapper.getBoundingClientRect()
-      return r.width > 0 && event.clientX >= r.left && event.clientX <= r.right && event.clientY >= r.top && event.clientY <= r.bottom
-    })
-    hoveredIndex.value = hit ? Number(hit.dataset.n) : null
-  }
   const at = pointerInSplash(event)
   if (at) {
     pointerTrail.push({ ...at, t: performance.now() })
@@ -1555,7 +1552,6 @@ function onSplashMove(event: MouseEvent) {
   }
 }
 function onSplashLeave() {
-  hoveredIndex.value = null
   shapesHovered.value = false
   clearTimeout(followTimer)
 }
@@ -1946,7 +1942,16 @@ function scrambleShapes(ticks: number[]) {
 const HEADLINE_MORPH_MS = 1500
 // How long the letters hold between changes: a quick flurry, slowing as it lands.
 const HEADLINE_LETTER_GAP = { first: 70, last: 300 }
+// The letters land along the same curve the images open on (.is-spawn's width
+// transition, cubic-bezier(0.37, 0, 0.63, 1), near enough a sine in and out):
+// slowly, then most of them, then slowly the last; the beats likewise, closest
+// mid-way. SPAWN_EASE_AT: when, of the time, a share u of it is done.
+const SPAWN_EASE_AT = (u: number) => Math.acos(1 - 2 * Math.min(1, Math.max(0, u))) / Math.PI
+const HEADLINE_BEATS = 20
 function headlineTicks() {
+  if (IMAGES_SPAWN) {
+    return Array.from({ length: HEADLINE_BEATS }, (_, k) => HEADLINE_MORPH_MS * SPAWN_EASE_AT(k / HEADLINE_BEATS))
+  }
   const ticks = [0]
   let t = 0
   for (;;) {
@@ -1963,6 +1968,12 @@ function headlineLocks(lengths: number[]) {
   const raw = lengths.map((length, line) => Array.from({ length }, (_, i) =>
     (i / Math.max(1, length - 1)) * 0.5 + Math.random() * 0.35 + (line / Math.max(1, lengths.length - 1)) * 0.15))
   const latest = Math.max(...raw.flat(), 0.01)
+  if (IMAGES_SPAWN) {
+    // In the same order, but spread along the spawn's curve: by rank.
+    const sorted = raw.flat().sort((a, b) => a - b)
+    const rank = (value: number) => (sorted.indexOf(value) + 1) / sorted.length
+    return raw.map((row) => row.map((value) => HEADLINE_MORPH_MS * SPAWN_EASE_AT(rank(value))))
+  }
   return raw.map((row) => row.map((value) => HEADLINE_MORPH_MS * (0.15 + 0.85 * (value / latest))))
 }
 let headlineTimer: ReturnType<typeof setTimeout> | undefined
@@ -2367,6 +2378,8 @@ onMounted(() => {
   toneImages()
   playIntro()
   handleResize()
+  // The tab's width hangs on its label's, in its own font.
+  document.fonts.ready.then(() => computeGrid())
   observeLines()
   nextTick(() => { measured.value = true })
   window.addEventListener('resize', handleResize)
@@ -2474,12 +2487,14 @@ onUnmounted(() => {
         target="_blank"
         rel="noopener"
         class="splash-tab-ticker-link"
+        :aria-label="TAB_TEXT"
       >
       <div class="splash-tab-ticker-track text-small">
+        <span class="splash-tab-ticker-still">{{ TAB_SHORT }}</span>
         <!-- Too long for the tab: it slides past endlessly — three copies (always
              enough to fill the tab), the loop jumps back by exactly one of them. -->
         <span class="splash-tab-ticker-slide">
-          <span>{{ TAB_TEXT }}</span>
+          <span aria-hidden="true">{{ TAB_TEXT }}</span>
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
         </span>
@@ -2661,9 +2676,8 @@ onUnmounted(() => {
           v-for="{ image, n: index } in scrollingImages"
           :key="index"
           class="splash-image-wrapper"
-          :class="{ 'is-tinted': ALT_HOVER && hoveredIndex === index }"
           :data-n="index"
-          :style="{ ...spawnStyle(index), '--tint': shapeColor(0) }"
+          :style="spawnStyle(index)"
         >
           <span
             v-if="imageLabel(index, image.alt)"
@@ -2679,7 +2693,7 @@ onUnmounted(() => {
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
             :style="{ maxHeight: imageHeight(index), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
             @load="onStripImageLoad"
-            @mouseenter="hoveredIndex = canHover() ? index : null"
+            @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
         </div>
@@ -2817,9 +2831,31 @@ onUnmounted(() => {
   text-decoration: none;
 }
 
-.splash-tab-ticker-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
+/* Still, the short label; on hover the full one slides past, underlined in
+   dots (a link). */
+.splash-tab-ticker-still {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.splash-tab-ticker-link .splash-tab-ticker-slide {
+  display: none;
+}
+
+.splash-tab-ticker-link:hover .splash-tab-ticker-still {
+  display: none;
+}
+
+.splash-tab-ticker-link:hover .splash-tab-ticker-slide {
+  display: inline-flex;
+}
+
+.splash-tab-ticker-link:hover .splash-tab-ticker-slide span {
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.3em;
 }
 
 /* Keeps the track's own line, cut or sliding, inside the tab. */
@@ -3083,19 +3119,13 @@ onUnmounted(() => {
   transition: opacity 0.8s ease;
 }
 
-/* Hovered, an image turns to the mass's stroke colour (shapeColor), in its
-   own greys. */
+/* The images keep still under the pointer (no colour on hover). */
 .splash.alt-hover .splash-images-track img.is-hovered {
-  filter: grayscale(1) contrast(1.1) !important;
+  filter: var(--tone-light) !important;
 }
 
-.splash-image-wrapper.is-tinted::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--tint);
-  mix-blend-mode: multiply;
-  pointer-events: none;
+:root[data-theme='dark'] .splash.alt-hover .splash-images-track img.is-hovered {
+  filter: var(--tone-dark) !important;
 }
 
 /* The mass under the pointer over the images too (still under the headline). */
