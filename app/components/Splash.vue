@@ -513,25 +513,54 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 )
 
 // The images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY), endless:
-// the strip still and held against the screen's right side, and on their own,
-// one every SPAWN_EVERY_MS from the splash's build, the next image (round the
+// the strip still and held against the screen's right side, filled across the
+// screen at once (fillSpawn) to arrive as they always have (opening from their
+// middle with the build), then, SPAWN_AFTER_MS on, one every SPAWN_EVERY_MS, the
+// next image (round the
 // list, forever) opening at the row's right end, pushing the others left. Each
 // keeps its own size and ratio: only its frame widens, to the image's width,
 // so it slides in from the right. Those gone off the left are dropped.
 // By default; /?images=scroll: the strip scrolling as before.
 const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
 const SPAWN_GAP_VW = 2
-const SPAWN_EVERY_MS = 1800
+const SPAWN_EVERY_MS = 3200
+const SPAWN_AFTER_MS = 2200
+// Shut ones rendered ahead (so they load, and can be measured).
+const SPAWN_AHEAD = 6
+// While the row is filled at once: no widening.
+const spawnInstant = ref(false)
 const spawnBase = ref(0) // the first still kept
 const spawnCount = ref(0) // how many opened; the one after waits shut
 const spawnWidths = ref<Record<number, number>>({}) // n: px
 let spawnTimer: ReturnType<typeof setInterval> | undefined
+function spawnWidth(n: number) {
+  const img = imagesEl.value?.querySelector<HTMLImageElement>(`[data-n="${n}"] img`)
+  return img?.complete && img.naturalWidth ? img.getBoundingClientRect().width : 0
+}
+// As many open as cross the screen, at once.
+function fillSpawn() {
+  if (!IMAGES_SPAWN || spawnCount.value) return
+  const gap = (window.innerWidth * SPAWN_GAP_VW) / 100
+  const widths: Record<number, number> = {}
+  let total = 0
+  let n = 0
+  for (; n < SPAWN_AHEAD && total < window.innerWidth; n++) {
+    const width = spawnWidth(n)
+    if (!width) break
+    widths[n] = width
+    total += width + gap
+  }
+  if (!n) return
+  spawnInstant.value = true
+  spawnWidths.value = widths
+  spawnCount.value = n
+  requestAnimationFrame(() => requestAnimationFrame(() => (spawnInstant.value = false)))
+}
 function spawnNext() {
   const strip = imagesEl.value
   if (!strip || !images.value?.length) return
   const n = spawnCount.value
-  const img = strip.querySelector<HTMLImageElement>(`[data-n="${n}"] img`)
-  const width = img?.complete ? img.getBoundingClientRect().width : 0
+  const width = spawnWidth(n)
   if (!width) return // not loaded yet: next time
   spawnWidths.value = { ...spawnWidths.value, [n]: width }
   spawnCount.value = n + 1
@@ -544,10 +573,14 @@ function spawnNext() {
     spawnBase.value++
   }
 }
+let spawnStartTimer: ReturnType<typeof setTimeout> | undefined
 function startSpawn() {
-  if (!IMAGES_SPAWN || spawnTimer) return
-  spawnNext()
-  spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
+  if (!IMAGES_SPAWN || spawnTimer || spawnStartTimer) return
+  fillSpawn()
+  spawnStartTimer = setTimeout(() => {
+    spawnNext()
+    spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
+  }, SPAWN_AFTER_MS)
 }
 function spawnStyle(n: number) {
   if (!IMAGES_SPAWN) return undefined
@@ -563,7 +596,7 @@ const scrollingImages = computed(() => {
   const list = images.value ?? []
   if (!list.length) return []
   if (IMAGES_SPAWN) {
-    return Array.from({ length: spawnCount.value - spawnBase.value + 1 }, (_, k) => {
+    return Array.from({ length: spawnCount.value - spawnBase.value + SPAWN_AHEAD }, (_, k) => {
       const n = spawnBase.value + k
       return { image: list[n % list.length]!, n }
     })
@@ -2100,6 +2133,7 @@ function playIntro() {
     if (logo) boxReveal(logo, { mode: 'out' })
   })
   at(MOVE_AT, () => { subtitleMoving.value = true })
+  at(BUILD_AT - 400, fillSpawn)
   at(BUILD_AT, buildIn)
   at(HEADLINE_AT, headlineIn)
   at(TAB_AT, () => { splashIntro.value = 'tab' })
@@ -2309,6 +2343,7 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimeout(followTimer)
   clearInterval(spawnTimer)
+  clearTimeout(spawnStartTimer)
   clearPixels()
   for (const video of pixelVideos) video.pause()
   introTimers.forEach(clearTimeout)
@@ -2334,6 +2369,7 @@ onUnmounted(() => {
       'alt-hover': ALT_HOVER,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
+      'is-spawn-instant': spawnInstant,
       'is-scrambling': headlineScrambling,
       'is-shelf': shelfLayout,
       'is-returning': returning,
@@ -3677,7 +3713,22 @@ onUnmounted(() => {
   overflow: hidden;
   justify-content: flex-end;
   will-change: width;
-  transition: width 1.6s cubic-bezier(0.6, 0, 0.25, 1), margin-left 1.6s cubic-bezier(0.6, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+  transition: width 2.6s cubic-bezier(0.55, 0, 0.25, 1), margin-left 2.6s cubic-bezier(0.55, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
+/* The first ones, filled at once (fillSpawn), arriving as ever: shut to a line
+   through their middle with the logo, opening with the build. */
+.splash.is-spawn.intro-logo .splash-image-wrapper,
+.splash.is-spawn.is-spawn-instant .splash-image-wrapper {
+  transition: none;
+}
+
+.splash.is-spawn.intro-build .splash-image-wrapper {
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s, width 2.6s cubic-bezier(0.55, 0, 0.25, 1), margin-left 2.6s cubic-bezier(0.55, 0, 0.25, 1);
+}
+
+.splash.is-spawn.intro-build.is-spawn-instant .splash-image-wrapper {
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s;
 }
 
 .splash-images-track img.is-hovered {
