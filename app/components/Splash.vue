@@ -596,9 +596,11 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 // bars' --grid-tick).
 // The original grid: big squares, no frame, no bars (GRID_FRAME). The masses
 // keep their cells' size: each square split GRID_SPLIT times each way.
-const SQUARE_TARGET = 80
-const SQUARE_TARGET_MOBILE = 44
-const GRID_SPLIT = 4
+// /?grid=120 (or any size, px): bigger squares, to compare; mobile in proportion.
+const GRID_PARAM = Number(useRoute().query.grid) || 0
+const SQUARE_TARGET = GRID_PARAM || 80
+const SQUARE_TARGET_MOBILE = Math.round(SQUARE_TARGET * 0.55)
+const GRID_SPLIT = Math.max(2, 2 * Math.round(SQUARE_TARGET / 40))
 const GRID_FRAME = false
 const GRID_FRAME_GAP = 14
 const GRID_FRAME_GAP_MOBILE = 8
