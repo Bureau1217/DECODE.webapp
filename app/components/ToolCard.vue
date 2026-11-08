@@ -38,13 +38,14 @@ const TOOL_VISUALS = [
   { url: '/tool-visuals/bot.jpg', width: 720, height: 900, band: [0.65, 1], soft: 1, amount: 1 },
 ] as const
 // /?nasa=world, /?nasa=south or /?nasa=broad: the map less centred on Europe
-// (the whole world, Africa with Europe above it, or, flat, the Old World and
-// Australia round the Indian Ocean), to compare; the coral band starts higher,
+// (the whole world, Africa with Europe above it, or, in Equal Earth, the Old
+// World and Australia round the Indian Ocean), to compare; the coral band starts higher,
 // above each one's larger share of sea.
 const NASA_VIEWS: Record<string, { url: string, band: readonly [number, number], baked?: boolean }> = {
   world: { url: '/nasa/world-card.jpg', band: [0.75, 1] },
   south: { url: '/nasa/south-card.jpg', band: [0.65, 1] },
-  // Flat (equirectangular, not Mercator), round the Indian Ocean: Africa, Asia,
+  // Equal Earth (flat, true proportions: not Mercator, nor the lat/long grid that
+  // stretches the north sideways), round the Indian Ocean: Africa, Asia,
   // Europe and Australia. Already in the card's silver and coral (baked: sea
   // and land parted along the coastlines, the land's relief in the coral), so
   // shown without the filter.
