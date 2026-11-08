@@ -20,6 +20,12 @@ export type GlobeOptions = {
   // country, in `accent`, into sight; no other countries, routes or marks.
   beat?: boolean
   accent?: string
+  // Drifting from side to side, by `sway` of the canvas's width each way, over
+  // `swayMs`, starting `swayPhase` (0-1) of the way through (two drifting
+  // against each other cross like the circles of a Venn diagram).
+  sway?: number
+  swayMs?: number
+  swayPhase?: number
   // Where the globe's centre sits, as shares of the canvas.
   centreX?: number
   centreY?: number
@@ -36,7 +42,8 @@ export type GlobeOptions = {
 const RAD = Math.PI / 180
 
 export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOptions = {}) {
-  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 6, avoid = () => [], lines, dark = false, beat: beatMode = false, accent = '#FC7C6A' } = options
+  const { radius = 1, centreX = 0.5, centreY = 0.5, spin = 2.4, tilt = 24, countries: count = 6, avoid = () => [], lines, dark = false, beat: beatMode = false, accent = '#FC7C6A', sway = 0, swayMs = 16000, swayPhase = 0 } = options
+  const swayAt = (now: number) => sway * Math.sin(((now / swayMs) + swayPhase) * Math.PI * 2)
   const data = (await import('~/data/world-countries.json')).default as { features: { properties: { name: string }, geometry: { type: string, coordinates: unknown } }[] }
   const world: Country[] = data.features.map((feature) => {
     const polygons = (feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates) as Ring[][]
@@ -295,7 +302,7 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     keepFacing(now)
     canvas.dataset.countries = picked.map((country) => country.name).join(', ')
     const r = globeRadius() * ratio
-    const cx = width * centreX * ratio
+    const cx = width * (centreX + swayAt(now)) * ratio
     const cy = height * centreY * ratio
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (lines) lineCtx.clearRect(0, 0, lines.width, lines.height)

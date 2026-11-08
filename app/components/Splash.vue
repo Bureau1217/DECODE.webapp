@@ -75,7 +75,7 @@ function imageLabel(index: number, alt?: string) {
 const LINE_SHIFT_EM = 0.6
 const HEADLINE_SIDE_MARGIN = 0.04 // of the viewport's width, each side
 function sentenceOffset(index: number) {
-  if (headlineWords.value.length < 2 || SPLASH_BEAT) return '0px'
+  if (headlineWords.value.length < 2 || SPLASH_BEAT || SPLASH_PANELS) return '0px'
   const fontSize = headlineFontSize.value
   const lineWidth = (lineWidthsEm.value[headlineIndex.value]?.[index] ?? 0) * fontSize
   const room = Math.max(0, (headlineMaxWidth.value - lineWidth) / 2)
@@ -283,6 +283,19 @@ const SPLASH_BEAT = SPLASH_ALTS.has('beat')
 //   10px under it, its number (01, 02… in Areal's other 0) left, its label
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
 const SPLASH_ROW = SPLASH_ALTS.has('row')
+// Row: no grid; two dotted globes turning, drifting across each other like
+// the circles of a Venn diagram.
+const rowGlobeA = ref<HTMLCanvasElement | null>(null)
+const rowGlobeB = ref<HTMLCanvasElement | null>(null)
+let rowGlobes: Awaited<ReturnType<typeof startGlobe>>[] = []
+// - panels: three panels. One portrait image in the middle (the next with each
+//   headline), the headline small at its left, the subtitle at its right, both
+//   flush left on the image's middle; no grid, no strip, no shapes.
+const SPLASH_PANELS = SPLASH_ALTS.has('panels')
+const panelImage = computed(() => {
+  const list = images.value ?? []
+  return list.length ? list[headlineIndex.value % list.length] : null
+})
 // The bars on the image strip's middle line (px from the splash's top).
 // The row as a whole (its tallest image and caption: ROW_CAPTION) centred on
 // the bars' line, its images still hanging from one top line (rowTop: how far
@@ -305,7 +318,7 @@ const ALT_GLOBE_DIFFERENCE = ALT_GLOBE && SPLASH_ALTS.has('difference')
 const globeCanvas = ref<HTMLCanvasElement | null>(null)
 const globeLines = ref<HTMLCanvasElement | null>(null)
 let globe: Awaited<ReturnType<typeof startGlobe>> | null = null
-const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells') && !SPLASH_BEAT
+const ALT_HOVER = !SPLASH_ALTS.has('shapes') && !SPLASH_ALTS.has('cells') && !SPLASH_BEAT && !SPLASH_ALTS.has('panels')
 // Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
 // the Black Sea, public/nasa/europe-splash.jpg). Light mode shows it too,
 // inside the masses only, while the headline's letters scramble
@@ -2471,7 +2484,10 @@ function onStripImageLoad() {
 function handleResize() {
   computeGrid()
   fitHeadlines()
-  nextTick(() => globe?.resize())
+  nextTick(() => {
+    globe?.resize()
+    rowGlobes.forEach((g) => g.resize())
+  })
   nextTick(() => {
     fitSubtitleBox()
     buildSentenceMasks()
@@ -2500,6 +2516,19 @@ onMounted(() => {
   handleResize()
   // The tab's width hangs on its label's, in its own font.
   document.fonts.ready.then(() => computeGrid())
+  if (SPLASH_ROW) {
+    watch([rowGlobeA, rowGlobeB], async ([a, b]) => {
+      rowGlobes.forEach((g) => g.stop())
+      rowGlobes = []
+      if (!a || !b) return
+      const dark = colorMode.value === 'dark'
+      const shared = { radius: 0.36, countries: 0, dark, tilt: 20, sway: 0.13, swayMs: 18000 }
+      rowGlobes = await Promise.all([
+        startGlobe(a, { ...shared, centreX: 0.37, spin: 3, swayPhase: 0 }),
+        startGlobe(b, { ...shared, centreX: 0.63, spin: -3, swayPhase: 0.5 }),
+      ])
+    }, { immediate: true, flush: 'post' })
+  }
   // Beat: the strip's edge once everything's in place.
   if (SPLASH_BEAT) watch(splashIntro, (state) => { if (state === 'done') nextTick(() => placeBeatEdge()) }, { immediate: true })
   if (SPLASH_ROW) watch(splashIntro, () => nextTick(() => placeSideBars()), { immediate: true })
@@ -2539,6 +2568,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   globe?.stop()
+  rowGlobes.forEach((g) => g.stop())
   clearTimeout(followTimer)
   clearInterval(spawnTimer)
   clearTimeout(spawnStartTimer)
@@ -2568,6 +2598,7 @@ onUnmounted(() => {
       'is-globe-difference': ALT_GLOBE_DIFFERENCE,
       'is-beat': SPLASH_BEAT,
       'is-row': SPLASH_ROW,
+      'is-panels': SPLASH_PANELS,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -2684,6 +2715,11 @@ onUnmounted(() => {
       <div class="splash-side-bar is-left" :style="{ top: `${sideBarTop}px` }" aria-hidden="true" />
       <div class="splash-side-bar is-right" :style="{ top: `${sideBarTop}px` }" aria-hidden="true" />
     </template>
+    <!-- /?splash=row: two globes, Venn-like. -->
+    <div v-if="SPLASH_ROW" :key="`row-globes-${colorMode}`" class="splash-row-globes" aria-hidden="true">
+      <canvas ref="rowGlobeA" />
+      <canvas ref="rowGlobeB" />
+    </div>
     <!-- The globe (/?splash=globe): over dark mode's map, under the grid. -->
     <div v-if="ALT_GLOBE" :key="`globe-${colorMode}`" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
       <canvas ref="globeCanvas" />
@@ -2924,6 +2960,18 @@ onUnmounted(() => {
         </svg>
       </div>
       <!-- Lines as typed in the CMS (Sous-titre). -->
+      <!-- /?splash=panels: the middle panel. -->
+      <div v-if="SPLASH_PANELS && panelImage" class="splash-panel-image">
+        <Transition name="splash-panel-fade" mode="out-in">
+          <img
+            :key="panelImage.url"
+            :src="panelImage.url"
+            :alt="cleanAlt(panelImage.alt)"
+            :class="{ 'is-toned': toneTables[panelImage.url] }"
+            :style="{ '--tone-light': `url(#${toneId(panelImage.url)}-light)`, '--tone-dark': `url(#${toneId(panelImage.url)}-dark)` }"
+          >
+        </Transition>
+      </div>
       <div v-if="subtitleLines.length" class="text-label splash-subtitle">
         <span class="splash-subtitle-box">
           {{ subtitleLines[0] }}<span v-if="subtitleLines.length > 1" class="splash-subtitle-rest"><template v-for="(line, index) in subtitleLines.slice(1)" :key="index"><br>{{ line }}</template></span>
@@ -3335,6 +3383,108 @@ onUnmounted(() => {
 .splash.is-row .splash-image-wrapper {
   flex-direction: column;
   align-items: flex-end;
+}
+
+/* No grid; the two globes over the whole splash, under the images. */
+.splash.is-row .splash-grid,
+.splash.is-row .splash-grid-lines {
+  display: none;
+}
+
+.splash-row-globes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.splash-row-globes canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* /?splash=panels: three panels: the headline | one portrait image | the
+   subtitle, both texts flush left on the image's middle, small, unframed. */
+.splash.is-panels .splash-grid,
+.splash.is-panels .splash-grid-lines,
+.splash.is-panels .splash-images,
+.splash.is-panels .splash-shapes {
+  display: none;
+}
+
+.splash.is-panels .splash-info {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  justify-items: start;
+  column-gap: 4vw;
+  padding: 0 6vw;
+  text-align: left;
+  filter: none;
+}
+
+.splash.is-panels .splash-sentences {
+  font-size: clamp(22px, 2.6vw, 44px) !important;
+  min-height: 0 !important;
+  width: auto;
+}
+
+.splash.is-panels .sentence-masked {
+  mask-image: none;
+  -webkit-mask-image: none;
+  padding: 0;
+  margin: 0;
+}
+
+.splash.is-panels .sentence-fill {
+  display: none;
+}
+
+.splash.is-panels .sentence-line {
+  text-align: left;
+}
+
+.splash.is-panels .splash-subtitle {
+  margin: 0;
+  transform: none !important;
+}
+
+.splash.is-panels .splash-subtitle-box {
+  width: auto !important;
+  max-width: 22vw;
+  padding: 0;
+  background: none;
+  font-size: 11pt;
+  text-align: left;
+  text-wrap: pretty;
+}
+
+.splash-panel-image img {
+  display: block;
+  height: 62vh;
+  width: auto;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+}
+
+.splash-panel-image img.is-toned {
+  filter: var(--tone-light);
+}
+
+:root[data-theme='dark'] .splash-panel-image img.is-toned {
+  filter: var(--tone-dark);
+}
+
+.splash-panel-fade-enter-active,
+.splash-panel-fade-leave-active {
+  transition: opacity 0.6s ease;
+}
+
+.splash-panel-fade-enter-from,
+.splash-panel-fade-leave-to {
+  opacity: 0;
 }
 
 .splash-image-caption {
