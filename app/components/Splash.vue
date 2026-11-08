@@ -1142,6 +1142,13 @@ function shapeArea(corner: number) {
   }
 }
 
+// The grid's rectangle in the masses' cells, which they keep inside.
+function gridCells() {
+  const g = grid.value
+  if (!g) return { left: -Infinity, right: Infinity, top: -Infinity, bottom: Infinity }
+  return { left: Math.ceil(shapeCol(g.left + 1) - 0.01), right: Math.floor(shapeCol(g.right) + 0.01), top: Math.ceil(shapeRow(g.top + 1) - 0.01), bottom: Math.floor(shapeRow(g.bottom) + 0.01) }
+}
+
 function shapeTarget(state: ShapeState) {
   const { cols, rows, pad, cw, ch } = shapeGrid.value
   const area = shapeArea(state.corner)
@@ -1152,10 +1159,17 @@ function shapeTarget(state: ShapeState) {
   const height = Math.max(6, toEven(whole ? area.rows : area.rows * state.height))
   const spareX = whole ? 0 : Math.round((area.cols - width) * state.slackX)
   const spareY = whole ? 0 : Math.round((area.rows - height) * state.slackY)
-  // Towards the screen's corner, the slack opening towards the headline.
-  const left = Math.round((area.right ? area.left + area.cols - width - spareX : area.left + spareX) / 2) * 2
-  const top = Math.round((area.bottom ? area.top + area.rows - height - spareY : area.top + spareY) / 2) * 2
-  const squares = state.seed === null ? resizeMass(SHAPE_DRAWN, width / 2, height / 2) : generateMass(state.seed, width / 2, height / 2, state.phase)
+  // Towards the screen's corner, the slack opening towards the headline, and
+  // inside the grid: no bigger than it (on its own lines), moved back into it.
+  const inside = gridCells()
+  const fitW = Math.min(width, Math.floor((inside.right - inside.left) / 2) * 2)
+  const fitH = Math.min(height, Math.floor((inside.bottom - inside.top) / 2) * 2)
+  const clampEven = (v: number, lo: number, hi: number) => Math.min(Math.floor(hi / 2) * 2, Math.max(Math.ceil(lo / 2) * 2, Math.round(v / 2) * 2))
+  const left = clampEven(area.right ? area.left + area.cols - fitW - spareX : area.left + spareX, inside.left, inside.right - fitW)
+  const top = clampEven(area.bottom ? area.top + area.rows - fitH - spareY : area.top + spareY, inside.top, inside.bottom - fitH)
+  const widthIn = fitW
+  const heightIn = fitH
+  const squares = state.seed === null ? resizeMass(SHAPE_DRAWN, widthIn / 2, heightIn / 2) : generateMass(state.seed, widthIn / 2, heightIn / 2, state.phase)
   const mass = refineMass(squares, (state.seed ?? 0) + Math.round(state.phase * 10), SHAPE_EDGE_QUARTERS)
   return {
     left,
@@ -1164,8 +1178,8 @@ function shapeTarget(state: ShapeState) {
     video: {
       left: `${left * cw}px`,
       top: `${top * ch}px`,
-      width: `${width * cw}px`,
-      height: `${height * ch}px`,
+      width: `${widthIn * cw}px`,
+      height: `${heightIn * ch}px`,
     },
     pad,
   }
@@ -1211,7 +1225,9 @@ function crossHop() {
   if (shelfLayout || !cells) return
   const state = shapeStates[index]!
   crossLeft += toEven(SHAPE_CROSS_HOP * shapeGrid.value.unit / shapeGrid.value.cw)
-  if (crossLeft >= shapeGrid.value.cols - shapeGrid.value.pad) crossLeft = -crossCols()
+  // Past the grid's right side, back in at its left.
+  const inside = gridCells()
+  if (crossLeft + shapeGrid.value.pad + crossCols() > inside.right) crossLeft = inside.left - shapeGrid.value.pad
   crossLeft = Math.round(crossLeft / 2) * 2
   state.seed = Math.floor(Math.random() * 1e6)
   const target = shapeTarget(state)
