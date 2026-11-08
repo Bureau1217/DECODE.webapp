@@ -828,8 +828,7 @@ function computeGrid() {
 
   const square = isMobile ? SQUARE_TARGET_MOBILE : SQUARE_TARGET
   const cols = Math.max(1, Math.round(usableW / square))
-  // One row more than the squares would give: a little shorter cells.
-  const rows = Math.max(1, Math.round(usableH / square)) + 1
+  const rows = Math.max(1, Math.round(usableH / square))
   const cellWidth = usableW / cols
   const cellHeight = usableH / rows
 
