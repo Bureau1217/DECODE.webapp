@@ -38,15 +38,17 @@ const TOOL_VISUALS = [
   { url: '/tool-visuals/bot.jpg', width: 720, height: 900, band: [0.65, 1], soft: 1, amount: 1 },
 ] as const
 // /?nasa=world, /?nasa=south or /?nasa=broad: the map less centred on Europe
-// (the whole world, Africa with Europe above it, or the Old World and Australia
-// round the Indian Ocean in an equal-area projection), to compare; the coral band starts higher,
+// (the whole world, Africa with Europe above it, or, flat, the Old World and
+// Australia round the Indian Ocean), to compare; the coral band starts higher,
 // above each one's larger share of sea.
-const NASA_VIEWS: Record<string, { url: string, band: readonly [number, number] }> = {
+const NASA_VIEWS: Record<string, { url: string, band: readonly [number, number], baked?: boolean }> = {
   world: { url: '/nasa/world-card.jpg', band: [0.75, 1] },
   south: { url: '/nasa/south-card.jpg', band: [0.65, 1] },
-  // Equal Earth (no continent inflated, unlike Mercator's north), round the
-  // Indian Ocean: Africa, Asia, Europe and Australia.
-  broad: { url: '/nasa/broad-card.jpg', band: [0.74, 1] },
+  // Flat (equirectangular, not Mercator), round the Indian Ocean: Africa, Asia,
+  // Europe and Australia. Already in the card's silver and coral (baked: sea
+  // and land parted along the coastlines, the land's relief in the coral), so
+  // shown without the filter.
+  broad: { url: '/nasa/broad-card.jpg', band: [0.7, 1], baked: true },
 }
 const nasaView = NASA_VIEWS[String(useRoute().query.nasa ?? '')]
 const visual = computed(() => {
@@ -140,7 +142,7 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
         :height="visual.height"
         :alt="item.title"
         :style="{
-          '--tool-filter': tableValues ? `url(#${filterId})` : 'url(#duotone-silver)',
+          '--tool-filter': 'baked' in visual && visual.baked ? 'none' : tableValues ? `url(#${filterId})` : 'url(#duotone-silver)',
           '--tool-filter-hover': cardHoverFilter(badgeColor),
         }"
       >
