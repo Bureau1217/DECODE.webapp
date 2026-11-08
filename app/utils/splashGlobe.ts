@@ -1,7 +1,7 @@
 // /?splash=globe: a globe turning slowly behind the white splash, as graphic
 // composition (after the "Open Structures" poster): its graticule in grey
 // dotted lines, every coast in fainter dots, and a few countries here and
-// there in silver foil. Orthographic, drawn on a canvas, by hand (no
+// there in light silver. Orthographic, drawn on a canvas, by hand (no
 // geo library): the far side is left out, a line breaking where it goes over
 // the edge.
 
@@ -61,14 +61,10 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
     }
   }
   const globeRadius = () => (Math.hypot(width, height) / 2) * radius
-  // The countries are cut from one sheet of silver (silverSheet), wider than
-  // the canvas, gliding sideways as the globe turns: the light runs on across
-  // them, as on a foil print.
-  let sheet: HTMLCanvasElement | null = null
-  const resizeAll = () => {
-    resize()
-    sheet = silverSheet(canvas.width * 1.6, canvas.height, ratio)
-  }
+  // The countries in one flat light silver: the site's silver duotone near its
+  // lightest (#f4f4f2, too close to the page's white to read on its own).
+  const SILVER = '#dedfe0'
+  const resizeAll = resize
   resizeAll()
 
   let lon0 = Math.random() * 360
@@ -136,14 +132,8 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       }
       ctx.closePath()
     }
-    if (!sheet) return
-    ctx.save()
-    ctx.clip('evenodd')
-    // Sliding with the turn, back and forth (never off its edge).
-    const travel = sheet.width - canvas.width
-    const shift = ((Math.sin((lon0 * RAD) / 2) + 1) / 2) * travel
-    ctx.drawImage(sheet, -shift, 0)
-    ctx.restore()
+    ctx.fillStyle = SILVER
+    ctx.fill('evenodd')
   }
 
   pick()
@@ -215,107 +205,4 @@ export async function startGlobe(canvas: HTMLCanvasElement, options: GlobeOption
       cancelAnimationFrame(frame)
     },
   }
-}
-
-// A sheet of polished silver, as liquid-metal shaders do it (Paper's Liquid
-// Metal, shaders.com's Chrome): a gently rippling surface, each point
-// reflecting a studio "environment" (bright sky, a sharp dark horizon, a
-// darker floor) by its slope, so the light falls into true highlights and
-// reflections; then a fine brushed grain. Worked out at half size (it's all
-// soft), the grain at full.
-const CHROME: [number, [number, number, number]][] = [
-  [-1, [62, 64, 68]],
-  [-0.45, [108, 111, 116]],
-  [-0.12, [150, 153, 158]],
-  [-0.03, [52, 54, 58]],
-  [0.02, [236, 238, 241]],
-  [0.12, [255, 255, 255]],
-  [0.35, [206, 209, 213]],
-  [0.7, [172, 175, 180]],
-  [1, [196, 199, 203]],
-]
-function chrome(t: number) {
-  for (let i = 1; i < CHROME.length; i++) {
-    const [b, cb] = CHROME[i]!
-    if (t <= b) {
-      const [a, ca] = CHROME[i - 1]!
-      const f = (t - a) / (b - a)
-      return [ca[0] + (cb[0] - ca[0]) * f, ca[1] + (cb[1] - ca[1]) * f, ca[2] + (cb[2] - ca[2]) * f]
-    }
-  }
-  return CHROME[CHROME.length - 1]![1]
-}
-function silverSheet(w: number, h: number, ratio: number) {
-  const sheet = document.createElement('canvas')
-  sheet.width = Math.max(1, Math.round(w))
-  sheet.height = Math.max(1, Math.round(h))
-  const W = sheet.width
-  const H = sheet.height
-  // The surface: a few long waves, each its own way (px of the sheet).
-  const waves = Array.from({ length: 7 }, (_, k) => {
-    const angle = -0.6 + (Math.random() - 0.5) * 1.4
-    const length = (180 + Math.random() * 520) * ratio * (k < 2 ? 1.8 : 1)
-    return { kx: (Math.cos(angle) * Math.PI * 2) / length, ky: (Math.sin(angle) * Math.PI * 2) / length, phase: Math.random() * Math.PI * 2, height: (k < 2 ? 1.6 : 1) * (0.5 + Math.random() * 0.5) }
-  })
-  const steep = 0.5
-  const half = document.createElement('canvas')
-  const hw = Math.max(1, Math.round(W / 2))
-  const hh = Math.max(1, Math.round(H / 2))
-  half.width = hw
-  half.height = hh
-  const hg = half.getContext('2d')!
-  const image = hg.createImageData(hw, hh)
-  const data = image.data
-  for (let y = 0; y < hh; y++) {
-    for (let x = 0; x < hw; x++) {
-      const px = x * 2
-      const py = y * 2
-      // Its slope here.
-      let dx = 0
-      let dy = 0
-      for (const wave of waves) {
-        const c = Math.cos(wave.kx * px + wave.ky * py + wave.phase) * wave.height
-        dx += c * wave.kx
-        dy += c * wave.ky
-      }
-      dx *= 220 * steep * ratio
-      dy *= 220 * steep * ratio
-      // The normal, and the view reflected in it: up/down picks the sky, the
-      // horizon or the floor; sideways leans it a little.
-      const length = Math.hypot(dx, dy, 1)
-      const ny = -dy / length
-      const nx = -dx / length
-      const nz = 1 / length
-      const ry = 2 * nz * ny
-      const rx = 2 * nz * nx
-      const t = Math.max(-1, Math.min(1, ry * 0.9 + rx * 0.25 + (0.5 - y / hh) * 0.35))
-      const [r, g, b] = chrome(t)
-      const i = (y * hw + x) * 4
-      data[i] = r
-      data[i + 1] = g
-      data[i + 2] = b
-      data[i + 3] = 255
-    }
-  }
-  hg.putImageData(image, 0, 0)
-  const g = sheet.getContext('2d')!
-  g.imageSmoothingQuality = 'high'
-  g.drawImage(half, 0, 0, W, H)
-  // Brushed grain, along the light.
-  g.save()
-  g.translate(W / 2, H / 2)
-  g.rotate(-0.6)
-  const reach = Math.hypot(W, H) / 2
-  for (let i = 0; i < (W * H) / (1400 * ratio); i++) {
-    g.strokeStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.07)' : 'rgba(30,32,35,0.05)'
-    g.lineWidth = (0.4 + Math.random() * 0.8) * ratio
-    const x = (Math.random() * 2 - 1) * reach
-    const y = (Math.random() * 2 - 1) * reach
-    g.beginPath()
-    g.moveTo(x, y)
-    g.lineTo(x + (40 + Math.random() * 260) * ratio, y)
-    g.stroke()
-  }
-  g.restore()
-  return sheet
 }

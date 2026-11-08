@@ -698,12 +698,12 @@ function imageVariant(index: number) {
 }
 // The spawn's images: each its own landscape shape (SPAWN_RATIOS, close to
 // one another, never upright), cropped to it, none shorter than
-// SPAWN_MIN_VARIANT of the band (the shortest of HEIGHT_VARIANTS, 20% taller),
+// SPAWN_MIN_VARIANT of the band,
 // between SPAWN_MIN_W and SPAWN_MAX_W wide.
 const SPAWN_RATIOS = [3 / 2, 4 / 3, 8 / 5, 5 / 3, 7 / 5]
-const SPAWN_MIN_VARIANT = 0.42
-const SPAWN_MIN_W = 240 // px
-const SPAWN_MAX_W = 380 // px
+const SPAWN_MIN_VARIANT = 0.6
+const SPAWN_MIN_W = 280 // px
+const SPAWN_MAX_W = 420 // px
 function spawnImageStyle(index: number) {
   if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return {}
   const n = images.value?.length || 1
@@ -807,7 +807,8 @@ const subtitleLines = computed(() => (info.value?.header_subtitle ?? '').split(/
 // /?grid=120 (or any size, px): other squares, to compare (mobile in
 // proportion), the masses keeping their cells' size.
 const GRID_PARAM = Number(useRoute().query.grid) || 0
-const SQUARE_TARGET = GRID_PARAM || 80
+// The globe's version: bigger squares, fewer of them.
+const SQUARE_TARGET = GRID_PARAM || (SPLASH_ALTS.has('globe') ? 120 : 80)
 const SQUARE_TARGET_MOBILE = GRID_PARAM ? Math.round(GRID_PARAM * 0.55) : 44
 const GRID_SPLIT = Math.max(2, 2 * Math.round(SQUARE_TARGET / 40))
 const GRID_FRAME = false
