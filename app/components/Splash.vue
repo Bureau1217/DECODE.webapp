@@ -284,11 +284,19 @@ const SPLASH_BEAT = SPLASH_ALTS.has('beat')
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
 const SPLASH_ROW = SPLASH_ALTS.has('row')
 // The bars on the image strip's middle line (px from the splash's top).
+// The row as a whole (its tallest image and caption: ROW_CAPTION) centred on
+// the bars' line, its images still hanging from one top line (rowTop: how far
+// down the band that line is).
 const sideBarTop = ref(0)
+const rowTop = ref(0)
+const ROW_CAPTION = 30 // px, the caption's gap and height
 function placeSideBars() {
   const strip = imagesEl.value?.getBoundingClientRect()
   const box = splashEl.value?.getBoundingClientRect()
-  if (SPLASH_ROW && strip && box) sideBarTop.value = strip.top + strip.height / 2 - box.top
+  if (!SPLASH_ROW || !strip || !box) return
+  sideBarTop.value = strip.top + strip.height / 2 - box.top
+  const tallest = Math.max(0, ...(images.value ?? []).map((_, i) => spawnTargetWidth(i) / spawnRatio(i))) + ROW_CAPTION
+  rowTop.value = Math.max(0, (strip.height - tallest) / 2)
 }
 const imageNumber = (index: number) => String(((index % (images.value?.length || 1)) + 1)).padStart(2, '0')
 const ALT_GLOBE = SPLASH_ALTS.has('globe') || SPLASH_BEAT
@@ -2827,7 +2835,7 @@ onUnmounted(() => {
       </template>
     </svg>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="SPLASH_BEAT && beatEdge ? { ...stripStyle, clipPath: `inset(-50% 0 -50% ${beatEdge}px)` } : stripStyle" aria-hidden="true">
-      <div class="splash-images-track">
+      <div class="splash-images-track" :style="SPLASH_ROW ? { paddingTop: `${rowTop}px` } : undefined">
         <div
           v-for="{ image, n: index } in scrollingImages"
           :key="index"
