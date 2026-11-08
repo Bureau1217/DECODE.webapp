@@ -302,6 +302,20 @@ const panelImage = computed(() => {
 // down the band that line is).
 const sideBarTop = ref(0)
 const rowTop = ref(0)
+// Row: once its image has grown (SPAWN_GROW_MS), its label comes in as the
+// DE.CO.DE does at the entrance (boxReveal), but in its chip's colour, the
+// chip filling in behind it once it's through (framed).
+const SPAWN_GROW_MS = 1800
+const framedLabels = ref(new Set<number>())
+const labelTimers: ReturnType<typeof setTimeout>[] = []
+function revealLabel(n: number, after: number) {
+  labelTimers.push(setTimeout(() => {
+    const chip = imagesEl.value?.querySelector<HTMLElement>(`[data-n="${n}"] .splash-image-name`)
+    if (!chip) return
+    const { duration } = boxReveal(chip, { mode: 'in', lettersPerSecond: 26, segmentGap: 90 })
+    labelTimers.push(setTimeout(() => { framedLabels.value = new Set([...framedLabels.value, n]) }, duration))
+  }, after))
+}
 const rowOriginY = ref(0)
 const ROW_CAPTION = 30 // px, the caption's gap and height
 function placeSideBars() {
@@ -615,6 +629,8 @@ function fillSpawn() {
   spawnInstant.value = true
   spawnWidths.value = widths
   spawnCount.value = n
+  // The first ones' labels: there already, framed.
+  if (SPLASH_ROW) framedLabels.value = new Set(Object.keys(widths).map(Number))
   requestAnimationFrame(() => requestAnimationFrame(() => (spawnInstant.value = false)))
 }
 function spawnNext() {
@@ -625,6 +641,7 @@ function spawnNext() {
   if (!width) return // not loaded yet: next time
   spawnWidths.value = { ...spawnWidths.value, [n]: width }
   spawnCount.value = n + 1
+  if (SPLASH_ROW) revealLabel(n, SPAWN_GROW_MS)
   // Drop those wholly off the left (the row's held right, so nothing moves).
   for (;;) {
     const first = strip.querySelector<HTMLElement>(`[data-n="${spawnBase.value}"]`)
@@ -2590,6 +2607,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  labelTimers.forEach(clearTimeout)
   globe?.stop()
   rowGlobes.forEach((g) => g.stop())
   clearTimeout(followTimer)
@@ -2921,7 +2939,12 @@ onUnmounted(() => {
           >
           <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? `translateY(${-spawnTargetWidth(index) / spawnRatio(index)}px)` : 'none' } : undefined">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
-            <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
+            <span
+              v-if="imageLabel(index, image.alt)"
+              class="splash-image-name is-revealing"
+              :class="{ 'is-framed': !IMAGES_SPAWN || framedLabels.has(index) }"
+              :style="{ '--box-color': imageBadgeColor(index) }"
+            >{{ imageLabel(index, image.alt) }}</span>
           </div>
         </div>
       </div>
@@ -3555,10 +3578,25 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* Its label in its chip's colour, as the chips elsewhere: black on it. */
+/* Its label in its chip's colour, as the chips elsewhere: black on it. On
+   the row, it waits hidden until its image has grown, comes in through the
+   box reveal in that colour, then the chip fills in (is-framed). */
 .splash-image-name {
   padding: 2px 6px;
   color: #1a1a1a;
+}
+
+.splash-image-name.is-revealing {
+  background-color: transparent;
+  transition: background-color 0.25s ease;
+}
+
+.splash-image-name.is-revealing:not(.is-framed):not(:has(.box-char)) {
+  visibility: hidden;
+}
+
+.splash-image-name.is-framed {
+  background-color: var(--box-color);
 }
 
 /* Areal (not its mono), with its other zero. */
@@ -4533,5 +4571,23 @@ onUnmounted(() => {
 /* Only an outline round it. */
 .box-char[data-box='outline'] {
   box-shadow: inset 0 0 0 max(1px, 0.025em) currentColor;
+}
+
+/* In a colour (--box-color: a row label's chip): a block of it, then the
+   letter on it, then outlined in it. */
+.splash-image-name .box-char[data-box='block']::after {
+  background: var(--box-color);
+}
+
+.splash-image-name .box-char[data-box='invert'] {
+  background: var(--box-color);
+}
+
+.splash-image-name .box-char[data-box='invert']::after {
+  content: none;
+}
+
+.splash-image-name .box-char[data-box='outline'] {
+  box-shadow: inset 0 0 0 1px var(--box-color);
 }
 </style>
