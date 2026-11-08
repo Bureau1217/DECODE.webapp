@@ -2734,9 +2734,9 @@ onUnmounted(() => {
       </svg>
     </div>
     <!-- /?splash=row: a grey bar at each side, across the margin to the grid. -->
-    <template v-if="(SPLASH_ROW && sideBarTop) || SPLASH_PANELS">
-      <div class="splash-side-bar is-left" :style="{ top: SPLASH_PANELS ? '50%' : `${sideBarTop}px` }" aria-hidden="true" />
-      <div class="splash-side-bar is-right" :style="{ top: SPLASH_PANELS ? '50%' : `${sideBarTop}px` }" aria-hidden="true" />
+    <template v-if="SPLASH_PANELS">
+      <div class="splash-side-bar is-left" style="top: 50%" aria-hidden="true" />
+      <div class="splash-side-bar is-right" style="top: 50%" aria-hidden="true" />
     </template>
     <!-- /?splash=row: two globes, Venn-like. -->
     <div v-if="SPLASH_ROW" :key="`row-globes-${colorMode}`" class="splash-row-globes" aria-hidden="true">
@@ -3394,13 +3394,12 @@ onUnmounted(() => {
    under it; small silver bars at the sides, grained. */
 
 .splash.is-row .splash-images {
-  /* The row runs between the bars: each image opens out of the right one and
-     goes into the left one (cut at their inner edges, --bar-edge); the
-     captions hang below the band (no cut there). */
-  --bar-edge: 103px;
+  /* The row ends 10px before the screen's right edge, each image growing out
+     of that point; it runs off the left side. The captions hang below the
+     band (cut at the sides only). */
   overflow: visible;
-  padding: 0 var(--bar-edge);
-  clip-path: inset(-50% var(--bar-edge) -50% var(--bar-edge));
+  padding-right: 10px;
+  clip-path: inset(-50% 0 -50% 0);
 }
 
 .splash.is-row .splash-images-track {
@@ -3414,8 +3413,8 @@ onUnmounted(() => {
   align-items: flex-end;
 }
 
-/* Each image at its full size, growing out of a point: the right bar's inner
-   edge at its middle (--row-origin-y, from the top line), over the spawn's
+/* Each image at its full size, growing out of a point: the row's right end
+   at the band's middle (--row-origin-y, from the top line), over the spawn's
    time and curve, while its frame opens and pushes the row on. */
 .splash.is-row .splash-images-track img {
   transform-origin: right var(--row-origin-y);
