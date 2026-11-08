@@ -279,6 +279,13 @@ const SPLASH_BEAT = SPLASH_ALTS.has('beat')
 //   10px under it, its number (01, 02… in Areal's other 0) left, its label
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
 const SPLASH_ROW = SPLASH_ALTS.has('row')
+// The bars on the image strip's middle line (px from the splash's top).
+const sideBarTop = ref(0)
+function placeSideBars() {
+  const strip = imagesEl.value?.getBoundingClientRect()
+  const box = splashEl.value?.getBoundingClientRect()
+  if (SPLASH_ROW && strip && box) sideBarTop.value = strip.top + strip.height / 2 - box.top
+}
 const imageNumber = (index: number) => String(((index % (images.value?.length || 1)) + 1)).padStart(2, '0')
 const ALT_GLOBE = SPLASH_ALTS.has('globe') || SPLASH_BEAT
 // /?splash=globe,difference: its lines over the images, in difference.
@@ -2376,6 +2383,7 @@ function placeBeatEdge(lines?: DOMRect[]) {
 }
 function placeCta() {
   placeBeatEdge()
+  placeSideBars()
   if (!splashEl.value || !grid.value) return
   const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')
   const cta = splashEl.value.querySelector<HTMLElement>('.splash-cta')
@@ -2474,6 +2482,7 @@ onMounted(() => {
   document.fonts.ready.then(() => computeGrid())
   // Beat: the strip's edge once everything's in place.
   if (SPLASH_BEAT) watch(splashIntro, (state) => { if (state === 'done') nextTick(() => placeBeatEdge()) }, { immediate: true })
+  if (SPLASH_ROW) watch(splashIntro, () => nextTick(() => placeSideBars()), { immediate: true })
   if (ALT_GLOBE) watch(globeCanvas, async (canvas) => {
     globe?.stop()
     globe = null
@@ -2648,9 +2657,9 @@ onUnmounted(() => {
       </svg>
     </div>
     <!-- /?splash=row: a grey bar at each side, across the margin to the grid. -->
-    <template v-if="SPLASH_ROW && grid">
-      <div class="splash-side-bar is-left" :style="{ width: `${grid.left}px`, top: `${(grid.top + grid.bottom) / 2}px` }" aria-hidden="true" />
-      <div class="splash-side-bar is-right" :style="{ width: `${grid.boxW - grid.right}px`, top: `${(grid.top + grid.bottom) / 2}px` }" aria-hidden="true" />
+    <template v-if="SPLASH_ROW && sideBarTop">
+      <div class="splash-side-bar is-left" :style="{ top: `${sideBarTop}px` }" aria-hidden="true" />
+      <div class="splash-side-bar is-right" :style="{ top: `${sideBarTop}px` }" aria-hidden="true" />
     </template>
     <!-- The globe (/?splash=globe): over dark mode's map, under the grid. -->
     <div v-if="ALT_GLOBE" :key="`globe-${colorMode}`" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
@@ -2830,7 +2839,7 @@ onUnmounted(() => {
           >
           <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="{ width: spawnImageStyle(index).width }">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
-            <span class="splash-image-name">{{ imageLabel(index, image.alt) }}</span>
+            <span v-if="imageLabel(index, image.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(index) }">{{ imageLabel(index, image.alt) }}</span>
           </div>
         </div>
       </div>
@@ -3282,15 +3291,8 @@ onUnmounted(() => {
   background: var(--color-surface);
 }
 
-/* /?splash=row: a grey ground (light mode); the images hanging from one
-   line, each with its caption under it; grey bars at the sides, grained. */
-.splash.is-row {
-  background: #f2f2f1;
-}
-
-:root[data-theme='dark'] .splash.is-row {
-  background: var(--color-surface);
-}
+/* /?splash=row: the images hanging from one line, each with its caption
+   under it; small silver bars at the sides, grained. */
 
 .splash.is-row .splash-images {
   /* The captions hang below the band: cut at the sides only. */
@@ -3318,6 +3320,12 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
+/* Its label in its chip's colour, as the chips elsewhere: black on it. */
+.splash-image-name {
+  padding: 2px 6px;
+  color: #1a1a1a;
+}
+
 /* Areal (not its mono), with its other zero. */
 .splash-image-number {
   font-family: var(--font-text);
@@ -3327,24 +3335,25 @@ onUnmounted(() => {
 .splash-side-bar {
   position: absolute;
   z-index: 3;
-  height: 36px;
+  width: 108px;
+  height: 34px;
   transform: translateY(-50%);
-  background-color: #4b4b49;
+  background-color: #c4c6c8;
   /* Grain. */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0 0.3 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   pointer-events: none;
 }
 
 .splash-side-bar.is-left {
-  left: 0;
+  left: 18px;
 }
 
 .splash-side-bar.is-right {
-  right: 0;
+  right: 18px;
 }
 
 :root[data-theme='dark'] .splash-side-bar {
-  background-color: #5d5d5b;
+  background-color: #8e9092;
 }
 
 /* The strip's edge right of the headline moves on the beat (placeBeatEdge),
