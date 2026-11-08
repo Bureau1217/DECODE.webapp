@@ -512,49 +512,64 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
   }),
 )
 
-// Doubled so the track can loop seamlessly: animating from translateX(0)
-// to translateX(-50%) ends exactly where the first copy started.
-// The images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY):
-// the strip still and set against the screen's right side, every image shut (no
-// width), then on their own, one every SPAWN_EVERY_MS from the splash's build,
-// opening the next one at the row's right end (the row held against the
-// screen's right side, so each one comes in from the right and pushes the
-// others left), to a random width (SPAWN_MIN_VW to SPAWN_MAX_VW of the
-// screen's), a gap before it. The image keeps its size as it opens (only its
-// frame widens), so nothing rescales.
+// The images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY), endless:
+// the strip still and held against the screen's right side, and on their own,
+// one every SPAWN_EVERY_MS from the splash's build, the next image (round the
+// list, forever) opening at the row's right end, pushing the others left. Each
+// keeps its own size and ratio: only its frame widens, to the image's width,
+// so it slides in from the right. Those gone off the left are dropped.
 // By default; /?images=scroll: the strip scrolling as before.
 const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
-const SPAWN_MIN_VW = 20
-const SPAWN_MAX_VW = 56
 const SPAWN_GAP_VW = 2
-const SPAWN_EVERY_MS = 900
-const spawnOpen = ref<Record<number, number>>({}) // index: width (vw)
+const SPAWN_EVERY_MS = 1800
+const spawnBase = ref(0) // the first still kept
+const spawnCount = ref(0) // how many opened; the one after waits shut
+const spawnWidths = ref<Record<number, number>>({}) // n: px
 let spawnTimer: ReturnType<typeof setInterval> | undefined
 function spawnNext() {
-  const count = scrollingImages.value.length
-  const opened = Object.keys(spawnOpen.value).length
-  if (opened >= count) {
-    clearInterval(spawnTimer)
-    return
+  const strip = imagesEl.value
+  if (!strip || !images.value?.length) return
+  const n = spawnCount.value
+  const img = strip.querySelector<HTMLImageElement>(`[data-n="${n}"] img`)
+  const width = img?.complete ? img.getBoundingClientRect().width : 0
+  if (!width) return // not loaded yet: next time
+  spawnWidths.value = { ...spawnWidths.value, [n]: width }
+  spawnCount.value = n + 1
+  // Drop those wholly off the left (the row's held right, so nothing moves).
+  for (;;) {
+    const first = strip.querySelector<HTMLElement>(`[data-n="${spawnBase.value}"]`)
+    if (!first || spawnBase.value >= n || first.getBoundingClientRect().right > -50) break
+    const { [spawnBase.value]: _, ...rest } = spawnWidths.value
+    spawnWidths.value = rest
+    spawnBase.value++
   }
-  const index = opened
-  spawnOpen.value = { ...spawnOpen.value, [index]: Math.floor(Math.random() * (SPAWN_MAX_VW - SPAWN_MIN_VW) + SPAWN_MIN_VW) }
 }
 function startSpawn() {
   if (!IMAGES_SPAWN || spawnTimer) return
   spawnNext()
   spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
 }
-function spawnStyle(index: number) {
+function spawnStyle(n: number) {
   if (!IMAGES_SPAWN) return undefined
-  const width = spawnOpen.value[index]
+  const width = spawnWidths.value[n]
   return {
-    '--spawn-w': `${width ?? SPAWN_MIN_VW}vw`,
-    'width': width ? `${width}vw` : '0px',
-    'marginLeft': width && index > 0 ? `${SPAWN_GAP_VW}vw` : '0px',
+    width: width ? `${width}px` : '0px',
+    marginLeft: width && n > spawnBase.value ? `${SPAWN_GAP_VW}vw` : '0px',
   }
 }
-const scrollingImages = computed(() => (IMAGES_SPAWN ? [...(images.value ?? [])] : [...(images.value ?? []), ...(images.value ?? [])]))
+// Doubled so the track can loop seamlessly: animating from translateX(0)
+// to translateX(-50%) ends exactly where the first copy started.
+const scrollingImages = computed(() => {
+  const list = images.value ?? []
+  if (!list.length) return []
+  if (IMAGES_SPAWN) {
+    return Array.from({ length: spawnCount.value - spawnBase.value + 1 }, (_, k) => {
+      const n = spawnBase.value + k
+      return { image: list[n % list.length]!, n }
+    })
+  }
+  return [...list, ...list].map((image, n) => ({ image, n }))
+})
 
 // The splash's images (only these: not the tool cards' and the rest of the
 // site's): each one's duotone fitted to its own tones, so a mostly dark
@@ -2066,7 +2081,9 @@ function playIntro() {
       setTimeout(() => {
         subtitleGrowing = false
         // From the width its letters gave it to the grid's, eased.
-        const from = box.offsetWidth
+        // Rounded up (offsetWidth rounds, sometimes down: a word then wraps
+        // onto a fourth line for a frame, the box flashing taller).
+        const from = Math.ceil(box.getBoundingClientRect().width)
         fitSubtitleBox()
         const to = box.style.width
         box.style.width = `${from}px`
@@ -2564,7 +2581,7 @@ onUnmounted(() => {
     </svg>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="stripStyle" aria-hidden="true">
       <div class="splash-images-track">
-        <div v-for="(image, index) in scrollingImages" :key="`${image.url}-${index}`" class="splash-image-wrapper" :style="spawnStyle(index)">
+        <div v-for="{ image, n: index } in scrollingImages" :key="index" class="splash-image-wrapper" :data-n="index" :style="spawnStyle(index)">
           <span
             v-if="imageLabel(index, image.alt)"
             class="image-label text-small"
@@ -3660,14 +3677,7 @@ onUnmounted(() => {
   overflow: hidden;
   justify-content: flex-end;
   will-change: width;
-  transition: width 1.2s cubic-bezier(0.65, 0, 0.25, 1), margin-left 1.2s cubic-bezier(0.65, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
-}
-
-.splash.is-spawn .splash-images-track img {
-  width: var(--spawn-w);
-  min-width: var(--spawn-w);
-  max-width: none;
-  max-height: 100%;
+  transition: width 1.6s cubic-bezier(0.6, 0, 0.25, 1), margin-left 1.6s cubic-bezier(0.6, 0, 0.25, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
 .splash-images-track img.is-hovered {
