@@ -484,13 +484,15 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 // to translateX(-50%) ends exactly where the first copy started.
 const scrollingImages = computed(() => [...(images.value ?? []), ...(images.value ?? [])])
 
-// /?tone=auto: each image's duotone fitted to its own tones, so a mostly dark
+// The splash's images (only these: not the tool cards' and the rest of the
+// site's): each one's duotone fitted to its own tones, so a mostly dark
 // photo doesn't turn mostly near-white in the negative. Its tones are measured
 // (through /api/cms-media: the CMS sends no CORS headers), then its darkest and
 // brightest (2nd and 98th percentiles) stretched across the whole silver band
 // (light: #f4f4f2 to #9fa1a3, dark: #e9e9e7 to #1c1c1c, as app.vue's
 // #duotone-silver and #duotone-dark), its median landing in the middle of it.
-const TONE_AUTO = useRoute().query.tone === 'auto'
+// /?tone=off: the site's plain duotone instead, to compare.
+const TONE_AUTO = useRoute().query.tone !== 'off'
 watch(() => images.value?.length, () => toneImages())
 const toneTables = ref<Record<string, { light: string[], dark: string[] }>>({})
 const toneId = (url: string) => `splash-tone-${Math.abs([...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`
@@ -2150,7 +2152,7 @@ onUnmounted(() => {
     <!-- Behind .splash-info (lower z-index) — a background layer, not a
          band confined to the margin strip, now that it's centered in the
          viewport like the text is. -->
-    <!-- /?tone=auto: each image's own duotone (toneImages). -->
+    <!-- Each image's own duotone (toneImages). -->
     <svg v-if="TONE_AUTO" width="0" height="0" style="position: absolute" aria-hidden="true">
       <template v-for="(tables, url) in toneTables" :key="url">
         <filter v-for="mode in (['light', 'dark'] as const)" :id="`${toneId(String(url))}-${mode}`" :key="mode" color-interpolation-filters="sRGB">
