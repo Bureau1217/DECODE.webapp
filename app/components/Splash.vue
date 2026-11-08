@@ -2734,9 +2734,9 @@ onUnmounted(() => {
       </svg>
     </div>
     <!-- /?splash=row: a grey bar at each side, across the margin to the grid. -->
-    <template v-if="SPLASH_ROW && sideBarTop">
-      <div class="splash-side-bar is-left" :style="{ top: `${sideBarTop}px` }" aria-hidden="true" />
-      <div class="splash-side-bar is-right" :style="{ top: `${sideBarTop}px` }" aria-hidden="true" />
+    <template v-if="(SPLASH_ROW && sideBarTop) || SPLASH_PANELS">
+      <div class="splash-side-bar is-left" :style="{ top: SPLASH_PANELS ? '50%' : `${sideBarTop}px` }" aria-hidden="true" />
+      <div class="splash-side-bar is-right" :style="{ top: SPLASH_PANELS ? '50%' : `${sideBarTop}px` }" aria-hidden="true" />
     </template>
     <!-- /?splash=row: two globes, Venn-like. -->
     <div v-if="SPLASH_ROW" :key="`row-globes-${colorMode}`" class="splash-row-globes" aria-hidden="true">
@@ -2927,7 +2927,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div class="splash-info" :style="SPLASH_BEAT && grid ? { ...infoStyle, paddingLeft: `${grid.left + grid.cellW}px`, paddingRight: `${grid.boxW - grid.right + grid.cellW}px` } : SPLASH_PANELS && grid ? { ...infoStyle, paddingLeft: `${grid.left}px`, paddingRight: `${grid.boxW - grid.right}px` } : infoStyle">
+    <div class="splash-info" :style="SPLASH_BEAT && grid ? { ...infoStyle, paddingLeft: `${grid.left + grid.cellW}px`, paddingRight: `${grid.boxW - grid.right + grid.cellW}px` } : SPLASH_PANELS ? { ...infoStyle, paddingLeft: '108px', paddingRight: '108px' } : infoStyle">
       <div
         v-if="headlineWords.length"
         ref="sentencesEl"
@@ -3451,12 +3451,14 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* No button on the panels. */
-.splash.is-panels .splash-cta {
+/* No button, no grid on the panels (the bars at the image's middle). */
+.splash.is-panels .splash-cta,
+.splash.is-panels .splash-grid,
+.splash.is-panels .splash-grid-lines {
   display: none;
 }
 
-/* /?splash=panels: three panels inside the grid: the headline | one
+/* /?splash=panels: three panels between the bars (108px in from each side): the headline | one
    portrait image | the subtitle; each text, small, unframed and flush left,
    centred in its side (across and on the image's middle). */
 .splash.is-panels .splash-images,
@@ -3483,8 +3485,11 @@ onUnmounted(() => {
 .splash.is-panels .sentence-masked {
   mask-image: none;
   -webkit-mask-image: none;
-  padding: 0;
+  /* A black frame behind it, the letters white in it. */
+  padding: 0.35em 0.5em;
   margin: 0;
+  background: var(--color-ink);
+  color: var(--color-surface);
 }
 
 .splash.is-panels .sentence-fill {
@@ -3503,9 +3508,11 @@ onUnmounted(() => {
 .splash.is-panels .splash-subtitle-box {
   width: auto !important;
   max-width: none;
-  padding: 0;
-  background: none;
-  font-size: 10pt;
+  /* A black frame behind it, as the headline's. */
+  padding: 10px 12px;
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font-size: 9pt;
   text-align: left;
   /* Its three lines as written. */
   white-space: nowrap;
@@ -3520,7 +3527,7 @@ onUnmounted(() => {
 
 .splash-panel-image img {
   display: block;
-  height: 62vh;
+  height: 56vh;
   width: auto;
   aspect-ratio: 2 / 3;
   object-fit: cover;
