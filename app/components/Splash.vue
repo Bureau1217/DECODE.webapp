@@ -275,6 +275,11 @@ const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
 //   country, the page's only colour; the headline flush left on the grid,
 //   without its box; no shapes.
 const SPLASH_BEAT = SPLASH_ALTS.has('beat')
+// - row: the images hanging from one line by their tops, each captioned
+//   10px under it, its number (01, 02… in Areal's other 0) left, its label
+//   at its bottom right; a grey ground; two grey bars at the screen's sides.
+const SPLASH_ROW = SPLASH_ALTS.has('row')
+const imageNumber = (index: number) => String(((index % (images.value?.length || 1)) + 1)).padStart(2, '0')
 const ALT_GLOBE = SPLASH_ALTS.has('globe') || SPLASH_BEAT
 // /?splash=globe,difference: its lines over the images, in difference.
 const ALT_GLOBE_DIFFERENCE = ALT_GLOBE && SPLASH_ALTS.has('difference')
@@ -635,6 +640,7 @@ const scrollingImages = computed(() => {
 // #duotone-silver and #duotone-dark), its median landing in the middle of it.
 // /?tone=off: the site's plain duotone instead, to compare.
 const TONE_AUTO = useRoute().query.tone !== 'off'
+const CONTRAST_SPREAD = 0.35
 watch(() => images.value?.length, () => toneImages())
 const toneTables = ref<Record<string, { light: string[], dark: string[] }>>({})
 const toneId = (url: string) => `splash-tone-${Math.abs([...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`
@@ -659,8 +665,23 @@ async function toneImages() {
       const hi = Math.max(lo + 0.05, at(0.98))
       const mid = Math.min(0.9, Math.max(0.1, (at(0.5) - lo) / (hi - lo)))
       const gamma = Math.min(2.5, Math.max(0.4, Math.log(0.5) / Math.log(mid)))
+      // Then contrast, as much as the photo needs: an S-curve (steepness
+      // `curve`, none at 1) raised until its tones spread as widely as the
+      // punchy ones' do (their spread, CONTRAST_SPREAD, as a standard
+      // deviation of the 0-1 tone), so a flat photo gets lifted and a punchy
+      // one is left be.
+      const fit = (v: number) => Math.min(1, Math.max(0, (v - lo) / (hi - lo))) ** gamma
+      const s = (t: number, curve: number) => (t < 0.5 ? 0.5 * (2 * t) ** curve : 1 - 0.5 * (2 - 2 * t) ** curve)
+      const sample = levels.filter((_, i) => i % 7 === 0).map(fit)
+      const spread = (curve: number) => {
+        const tones = sample.map((t) => s(t, curve))
+        const mean = tones.reduce((a, b) => a + b, 0) / tones.length
+        return Math.sqrt(tones.reduce((a, b) => a + (b - mean) ** 2, 0) / tones.length)
+      }
+      let curve = 1
+      while (curve < 3 && spread(curve) < CONTRAST_SPREAD) curve += 0.1
       const band = (from: number[], to: number[]) => [0, 1, 2].map((ch) => Array.from({ length: 33 }, (_, k) => {
-        const t = Math.min(1, Math.max(0, (k / 32 - lo) / (hi - lo))) ** gamma
+        const t = s(fit(k / 32), curve)
         return ((from[ch]! + (to[ch]! - from[ch]!) * t) / 255).toFixed(4)
       }).join(' '))
       toneTables.value = {
@@ -2517,6 +2538,7 @@ onUnmounted(() => {
       'alt-hover': ALT_HOVER,
       'is-globe-difference': ALT_GLOBE_DIFFERENCE,
       'is-beat': SPLASH_BEAT,
+      'is-row': SPLASH_ROW,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -2625,6 +2647,11 @@ onUnmounted(() => {
         </filter>
       </svg>
     </div>
+    <!-- /?splash=row: a grey bar at each side, across the margin to the grid. -->
+    <template v-if="SPLASH_ROW && grid">
+      <div class="splash-side-bar is-left" :style="{ width: `${grid.left}px`, top: `${(grid.top + grid.bottom) / 2}px` }" aria-hidden="true" />
+      <div class="splash-side-bar is-right" :style="{ width: `${grid.boxW - grid.right}px`, top: `${(grid.top + grid.bottom) / 2}px` }" aria-hidden="true" />
+    </template>
     <!-- The globe (/?splash=globe): over dark mode's map, under the grid. -->
     <div v-if="ALT_GLOBE" :key="`globe-${colorMode}`" class="splash-globe" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true">
       <canvas ref="globeCanvas" />
@@ -2785,7 +2812,7 @@ onUnmounted(() => {
           :style="spawnStyle(index)"
         >
           <span
-            v-if="imageLabel(index, image.alt)"
+            v-if="!SPLASH_ROW && imageLabel(index, image.alt)"
             class="image-label text-small"
             :class="{ 'is-hovered': hoveredIndex === index }"
             :style="{ backgroundColor: imageBadgeColor(index), '--chip-deep': deepBadgeColor(imageBadgeColor(index)!) }"
@@ -2801,6 +2828,10 @@ onUnmounted(() => {
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="{ width: spawnImageStyle(index).width }">
+            <span class="splash-image-number">{{ imageNumber(index) }}</span>
+            <span class="splash-image-name">{{ imageLabel(index, image.alt) }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -3249,6 +3280,71 @@ onUnmounted(() => {
 
 .splash.is-globe-difference {
   background: var(--color-surface);
+}
+
+/* /?splash=row: a grey ground (light mode); the images hanging from one
+   line, each with its caption under it; grey bars at the sides, grained. */
+.splash.is-row {
+  background: #f2f2f1;
+}
+
+:root[data-theme='dark'] .splash.is-row {
+  background: var(--color-surface);
+}
+
+.splash.is-row .splash-images {
+  /* The captions hang below the band: cut at the sides only. */
+  overflow: visible;
+  clip-path: inset(-50% 0 -50% 0);
+}
+
+.splash.is-row .splash-images-track {
+  align-items: flex-start;
+}
+
+.splash.is-row .splash-image-wrapper {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.splash-image-caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-top: 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Areal (not its mono), with its other zero. */
+.splash-image-number {
+  font-family: var(--font-text);
+  font-feature-settings: 'zero' 1;
+}
+
+.splash-side-bar {
+  position: absolute;
+  z-index: 3;
+  height: 36px;
+  transform: translateY(-50%);
+  background-color: #4b4b49;
+  /* Grain. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.splash-side-bar.is-left {
+  left: 0;
+}
+
+.splash-side-bar.is-right {
+  right: 0;
+}
+
+:root[data-theme='dark'] .splash-side-bar {
+  background-color: #5d5d5b;
 }
 
 /* The strip's edge right of the headline moves on the beat (placeBeatEdge),

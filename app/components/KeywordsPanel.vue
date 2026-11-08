@@ -64,6 +64,16 @@ function onRowEnter(tag: CategoryWithTags['tags'][number], event: MouseEvent) {
   if (isMobile.value) return
   enterRow(tag, event.currentTarget as HTMLElement)
 }
+// The definition follows the pointer along the row (its x only), centred under
+// it, kept inside the row; from a mention in a text (no pointer on the row),
+// where it always was.
+const popupLeft = ref<number | null>(null)
+function onRowMove(event: MouseEvent) {
+  if (isMobile.value) return
+  const row = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const width = row.width * 0.5
+  popupLeft.value = Math.min(row.width - width, Math.max(0, event.clientX - row.left - width / 2))
+}
 // Low in the panel, a definition opens upwards: it would run under the footer.
 const popupAbove = ref(false)
 function enterRow(tag: CategoryWithTags['tags'][number], row: HTMLElement) {
@@ -93,6 +103,7 @@ function onImageLeave(tag: CategoryWithTags['tags'][number]) {
   if (!isMobile.value) showPreview(tag, 0)
 }
 function onRowLeave() {
+  popupLeft.value = null
   if (isMobile.value) return
   hoveredTagId.value = null
   previewImage.value = null
@@ -163,6 +174,7 @@ function isRelated(tagId: string) {
           :data-keyword="tag.id"
           :style="{ '--row-delay': `${ruleDelaySeconds(tag.id)}s` }"
           @mouseenter="onRowEnter(tag, $event)"
+          @mousemove="onRowMove"
           @mouseleave="onRowLeave"
           @click="onRowTap(tag.id)"
         >
@@ -186,7 +198,7 @@ function isRelated(tagId: string) {
               >
             </div>
           </div>
-          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]">
+          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]" :style="popupLeft !== null ? { left: `${popupLeft}px` } : undefined">
             <div class="keywords-panel-popup-title">{{ tag.title }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="keywords-panel-popup-definition" v-html="tag.description" />
@@ -454,6 +466,8 @@ function isRelated(tagId: string) {
   border: 1px solid var(--color-brand);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   color: var(--color-brand);
+  /* Gliding after the pointer (onRowMove). */
+  transition: left 0.18s cubic-bezier(0.2, 0.6, 0.3, 1);
 }
 
 .keywords-panel-popup.is-above {
