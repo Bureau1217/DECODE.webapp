@@ -1727,7 +1727,7 @@ async function nextHeadline() {
   scramblingTimer = setTimeout(() => { headlineScrambling.value = false }, HEADLINE_MORPH_MS)
   if (colorMode.value === 'dark' || shelfLayout) morphShapes()
   else scrambleShapes(ticks)
-  pixelBurst(ticks)
+  // No pixel bursts any more (pixelBurst): only the map in the masses.
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
