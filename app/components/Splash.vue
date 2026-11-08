@@ -245,11 +245,27 @@ function buildParagraphMask(lines: LineBox[], scale = 1, seed = MASK_SEED, shuff
 // Dark mode only: a darkened view of Europe under the grid, from NASA's Blue
 // Marble (credit: NASA Earth Observatory), fetched only when dark mode is on.
 const colorMode = useColorMode()
+// Other splashes, to compare, as words in the address (combinable:
+// /?splash=hover,black):
+// - black: dark mode's map as an infrared weather satellite picture.
+// - cells: no masses; the grid's own cells light up while the headline
+//   scrambles (the map in light mode, the videos in dark), then go out
+//   closing in on the headline.
+// - lines: light mode, the map's coastlines and borders traced in light grey.
+// - numbers: dark mode, every line of the grid numbered in the left margin.
+// - hover: one mass under the pointer, only while it's over the grid, its core
+//   steady and its edge re-forming; a click changes its form and colour.
+const SPLASH_ALTS = new Set(String(useRoute().query.splash ?? '').split(',').filter(Boolean))
+const ALT_BLACK = SPLASH_ALTS.has('black')
+const ALT_CELLS = SPLASH_ALTS.has('cells')
+const ALT_LINES = SPLASH_ALTS.has('lines')
+const ALT_NUMBERS = SPLASH_ALTS.has('numbers')
+const ALT_HOVER = SPLASH_ALTS.has('hover')
 // Dark mode's map: NASA's Blue Marble, the view positioned by hand (Europe and
 // the Black Sea, public/nasa/europe-splash.jpg). Light mode shows it too,
 // inside the masses only, while the headline's letters scramble
 // (headlineScrambling, .is-scrambling, .splash-shape-map).
-const satelliteUrl = '/nasa/europe-splash.jpg'
+const satelliteUrl = ALT_BLACK ? '/nasa/europe-black.jpg' : '/nasa/europe-splash.jpg'
 const headlineScrambling = ref(false)
 let scramblingTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -333,10 +349,15 @@ const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * headlineFontSize.valu
 // Mobile: it also stays at least two steps inside the grid's sides, its text
 // shrinking only as far as it takes to wrap no more than it does at the grid's
 // full width (and a fifth at most).
+// While the intro deciphers the subtitle, its frame is left to hug the letters
+// as they come (subtitleGrowing), eased onto the grid's width once they're in.
+let subtitleGrowing = false
+const SUBTITLE_GROW_MS = 1800
 function fitSubtitleBox() {
   const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
   if (!box) return
   box.style.width = ''
+  if (subtitleGrowing) return
   box.style.fontSize = ''
   const step = frameGrid()
   let limit = Infinity
@@ -490,21 +511,32 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 // Doubled so the track can loop seamlessly: animating from translateX(0)
 // to translateX(-50%) ends exactly where the first copy started.
 // /?images=spawn: the images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY):
-// the strip still, every image shut (no width) until a click anywhere on the
-// splash opens the next one, from the last back, to a random width
-// (SPAWN_MIN_VW to SPAWN_MAX_VW of the screen's), a gap after it.
+// the strip still and set against the screen's right side, every image shut (no
+// width), then on their own, one every SPAWN_EVERY_MS from the splash's build,
+// opening the next one, from the last back (so the row grows from the right),
+// to a random width (SPAWN_MIN_VW to SPAWN_MAX_VW of the screen's), a gap
+// after it.
 const IMAGES_SPAWN = useRoute().query.images === 'spawn'
 const SPAWN_MIN_VW = 20
 const SPAWN_MAX_VW = 56
 const SPAWN_GAP_VW = 2
+const SPAWN_EVERY_MS = 650
 const spawnOpen = ref<Record<number, number>>({}) // index: width (vw)
-function spawnNext(event: MouseEvent) {
-  if (!IMAGES_SPAWN || (event.target as HTMLElement).closest('a, button')) return
+let spawnTimer: ReturnType<typeof setInterval> | undefined
+function spawnNext() {
   const count = scrollingImages.value.length
   const opened = Object.keys(spawnOpen.value).length
-  if (opened >= count) return
+  if (opened >= count) {
+    clearInterval(spawnTimer)
+    return
+  }
   const index = count - 1 - opened
   spawnOpen.value = { ...spawnOpen.value, [index]: Math.floor(Math.random() * (SPAWN_MAX_VW - SPAWN_MIN_VW) + SPAWN_MIN_VW) }
+}
+function startSpawn() {
+  if (!IMAGES_SPAWN || spawnTimer) return
+  spawnNext()
+  spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
 }
 function spawnStyle(index: number) {
   if (!IMAGES_SPAWN) return undefined
@@ -684,7 +716,7 @@ const GRID_FRAME = false
 const GRID_FRAME_GAP = 14
 const GRID_FRAME_GAP_MOBILE = 8
 const GRID_NUMBERS = false
-const GRID_NUMBER_EVERY = 4
+const GRID_NUMBER_EVERY = ALT_NUMBERS ? 1 : 4
 const GRID_TICKS_ACROSS = 3
 const GRID_TICKS_SIDE = 2
 const GRID_TICK_SIDE_INSET = 0.14
@@ -991,6 +1023,7 @@ const introClass = computed(() => (['logo', 'build', 'tab', 'footer'].includes(s
 
 function buildIn() {
   splashIntro.value = 'build'
+  startSpawn()
   logoVisible.value = false
   constructShapes()
   for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.corner-title, .corner-badge, .splash-cta, .image-label') ?? []) {
@@ -1302,6 +1335,132 @@ function runShapeSteps(plans: { steps: ReturnType<typeof morphSteps>, next: numb
   }
   tick()
 }
+// /?splash=hover: a mass under the pointer, only while it's over the grid (one:
+// FOLLOW_COUNT; more trail behind along its path, FOLLOW_TRAIL_MS apart),
+// turning cell by cell into its new place every FOLLOW_MS. They grow in as the pointer arrives and fade as it
+// leaves; a click gives new ones and moves their colours round (colorShift).
+// Inside them: light mode, dark mode's map; dark mode, its videos.
+const FOLLOW_MS = 90
+const FOLLOW_TRAIL_MS = 220
+const FOLLOW_SIZES = [{ w: 200, h: 170 }, { w: 150, h: 130 }, { w: 110, h: 100 }] // px
+// How many follow the pointer (the first FOLLOW_COUNT; the rest stay empty).
+const FOLLOW_COUNT = 1
+// Still under the pointer, it keeps forming and unforming, but only at its
+// edge: a core round the pointer (an oval FOLLOW_CORE of its size across) stays
+// filled, and its noise drifts by FOLLOW_DRIFT every FOLLOW_DRIFT_MS, so the
+// cells round that core change a few at a time.
+const FOLLOW_CORE = 0.62
+const FOLLOW_DRIFT = 0.22
+const FOLLOW_DRIFT_MS = 420
+let followDriftAt = 0
+const shapesHovered = ref(false)
+const colorShift = ref(0)
+const shapeColor = (index: number) => BADGE_COLORS[(index + colorShift.value) % BADGE_COLORS.length]
+let pointerTrail: { x: number, y: number, t: number }[] = []
+let followTimer: ReturnType<typeof setTimeout> | undefined
+let followSpots: string[] = []
+function pointerInSplash(event: MouseEvent) {
+  const box = splashEl.value?.getBoundingClientRect()
+  return box ? { x: event.clientX - box.left, y: event.clientY - box.top } : null
+}
+function overGrid(event: MouseEvent) {
+  const g = grid.value
+  const at = pointerInSplash(event)
+  return !!g && !!at && at.x >= g.left && at.x <= g.right && at.y >= g.top && at.y <= g.bottom
+}
+// Where the pointer was `ago` ms back (the oldest point kept, if not that old).
+function trailAt(ago: number) {
+  const t = performance.now() - ago
+  for (let i = pointerTrail.length - 1; i >= 0; i--) if (pointerTrail[i]!.t <= t) return pointerTrail[i]!
+  return pointerTrail[0]
+}
+// A mass of its size, centred on a point (px), inside the grid.
+function shapeAt(state: ShapeState, index: number, x: number, y: number) {
+  const { cols, rows, cw, ch, pad } = shapeGrid.value
+  const inside = gridCells()
+  const size = FOLLOW_SIZES[index % FOLLOW_SIZES.length]!
+  const w = Math.max(4, toEven(size.w / cw))
+  const h = Math.max(4, toEven(size.h / ch))
+  const clampEven = (v: number, lo: number, hi: number) => Math.min(Math.floor(hi / 2) * 2, Math.max(Math.ceil(lo / 2) * 2, Math.round(v / 2) * 2))
+  const left = clampEven(shapeCol(x) - w / 2, inside.left, inside.right - w)
+  const top = clampEven(shapeRow(y) - h / 2, inside.top, inside.bottom - h)
+  const squares = generateMass(state.seed ?? index * 7 + 3, w / 2, h / 2, state.phase)
+  // The core round the pointer, always in.
+  const sw = w / 2
+  const sh = h / 2
+  squares.forEach((row, y) => row.forEach((_, x) => {
+    if (Math.hypot((x + 0.5 - sw / 2) / (sw / 2), (y + 0.5 - sh / 2) / (sh / 2)) < FOLLOW_CORE) row[x] = true
+  }))
+  const mass = refineMass(squares, (state.seed ?? 0) + Math.round(state.phase * 3), SHAPE_EDGE_QUARTERS)
+  return {
+    key: `${left},${top},${state.seed},${state.phase.toFixed(2)}`,
+    left,
+    top,
+    cells: stampMass(mass, left, top, cols, rows, 0),
+    video: { left: `${left * cw}px`, top: `${top * ch}px`, width: `${w * cw}px`, height: `${h * ch}px` },
+    pad,
+  }
+}
+function follow() {
+  followTimer = setTimeout(follow, FOLLOW_MS)
+  if (!shapesHovered.value || !shapeCells.length || !pointerTrail.length) return
+  const now = performance.now()
+  if (now - followDriftAt > FOLLOW_DRIFT_MS) {
+    followDriftAt = now
+    for (const state of shapeStates) state.phase += FOLLOW_DRIFT * (0.6 + Math.random() * 0.8)
+  }
+  const plans = shapeStates.map((state, index) => {
+    if (index >= FOLLOW_COUNT) {
+      // Not following: emptied, if anything's left.
+      if (!shapeCells[index]!.size) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
+      return { steps: morphSteps(shapeCells[index]!, new Set<number>(), 1, 0, 1), next: 0, video: null }
+    }
+    const at = trailAt(index * FOLLOW_TRAIL_MS)!
+    const target = shapeAt(state, index, at.x, at.y)
+    if (followSpots[index] === target.key) return { steps: [] as ReturnType<typeof morphSteps>, next: 0, video: null }
+    followSpots[index] = target.key
+    return { steps: morphSteps(shapeCells[index]!, target.cells, 1, 0, Math.floor(Math.random() * 1e6)), next: 0, video: target.video }
+  })
+  if (plans.every((plan) => !plan.steps.length)) return
+  shapeViews.value = shapeViews.value.map((view, index) => ({ ...view, video: plans[index]!.video ?? view.video }))
+  clearTimeout(shapeTimer)
+  runShapeSteps(plans, FOLLOW_MS * 0.9, 3)
+}
+function onSplashMove(event: MouseEvent) {
+  if (splashIntro.value !== 'done') return
+  const at = pointerInSplash(event)
+  if (at) {
+    pointerTrail.push({ ...at, t: performance.now() })
+    if (pointerTrail.length > 60) pointerTrail = pointerTrail.slice(-60)
+  }
+  const over = overGrid(event)
+  if (over === shapesHovered.value) return
+  shapesHovered.value = over
+  if (over) {
+    // Grow in from nothing, all three right where the pointer is.
+    const now = performance.now()
+    pointerTrail = at ? [{ ...at, t: now - 1000 }, { ...at, t: now }] : []
+    shapeCells = shapeStates.map(() => new Set<number>())
+    shapeViews.value = shapeViews.value.map((view) => ({ ...view, fill: '', outline: '' }))
+    followSpots = []
+    clearTimeout(followTimer)
+    follow()
+  }
+  else {
+    clearTimeout(followTimer)
+  }
+}
+function onSplashLeave() {
+  shapesHovered.value = false
+  clearTimeout(followTimer)
+}
+function onSplashClick(event: MouseEvent) {
+  if (!overGrid(event) || (event.target as HTMLElement).closest('a, button')) return
+  colorShift.value++
+  for (const state of shapeStates) state.seed = Math.floor(Math.random() * 1e6)
+  followSpots = []
+}
+
 function constructShapes() {
   clearTimeout(shapeTimer)
   if (!shapeCells.length) return
@@ -1745,19 +1904,109 @@ async function nextHeadline() {
   headlineScrambling.value = true
   clearTimeout(scramblingTimer)
   scramblingTimer = setTimeout(() => { headlineScrambling.value = false }, HEADLINE_MORPH_MS)
-  if (colorMode.value === 'dark' || shelfLayout) morphShapes()
+  if (ALT_CELLS) revealCells(ticks)
+  // The masses follow the pointer instead (/?splash=hover).
+  else if (ALT_HOVER) { /* nothing */ }
+  else if (colorMode.value === 'dark' || shelfLayout) morphShapes()
   else scrambleShapes(ticks)
   // No pixel bursts any more (pixelBurst): only the map in the masses.
   shuffleFrame(MASK_SEED + headlineIndex.value * 7919, ticks, locks, targets)
   headlineTimer = setTimeout(nextHeadline, HEADLINE_MORPH_MS + shapeMotion().holdMs)
 }
+// /?splash=cells: no pixel masses. While the headline scrambles, some of the grid's
+// own cells light up, one by one on the letters' beats, then go out after it
+// lands: in light mode, the map (most dark, as dark mode's; some light, in the
+// site's silver negative), as one map across the grid; in dark mode, the
+// splash's videos.
+// - CELL_SHARE: of the grid's cells, about how many light up.
+// - CELL_LIGHT_SHARE: light mode, of those, how many show the light map.
+// - CELL_CLUSTERS: how many groups they grow in, each cell touching others.
+// - CELL_ON_UNTIL: the latest a cell comes on, of the letters' time.
+// - CELL_OFF_MS: how long they take to go once the letters land, the farthest
+//   from the headline first, closing in on it (CELL_OFF_JITTER: how loosely).
+const CELL_SHARE = 0.4
+const CELL_LIGHT_SHARE = 0.3
+const CELL_CLUSTERS = 4
+const CELL_ON_UNTIL = 0.75
+const CELL_OFF_MS = 1100
+const CELL_OFF_JITTER = 0.12
+// Each layer's cells, as a clip path (px, from the grid's top left).
+const cellLayers = ref<{ dark: string, light: string, videos: string[] }>({ dark: '', light: '', videos: SHAPE_VIDEOS.map(() => '') })
+let cellTimers: ReturnType<typeof setTimeout>[] = []
+const cellClip = (path: string) => (path ? `path('${path}')` : 'inset(50%)')
+function clearCells() {
+  cellTimers.forEach(clearTimeout)
+  cellTimers = []
+  cellLayers.value = { dark: '', light: '', videos: SHAPE_VIDEOS.map(() => '') }
+}
+function revealCells(ticks: number[]) {
+  clearCells()
+  const g = grid.value
+  if (!g) return
+  const dark = colorMode.value === 'dark'
+  const early = ticks.filter((t) => t <= HEADLINE_MORPH_MS * CELL_ON_UNTIL)
+  // Connected groups: a few seeds, each growing a cell at a time onto a free
+  // neighbour of its own, until they hold CELL_SHARE of the grid.
+  const total = g.cols * g.rows
+  const target = Math.round(total * CELL_SHARE)
+  const owner = new Map<number, number>()
+  const groups: number[][] = []
+  for (let k = 0; k < CELL_CLUSTERS && owner.size < total; k++) {
+    let seed = Math.floor(Math.random() * total)
+    while (owner.has(seed)) seed = Math.floor(Math.random() * total)
+    owner.set(seed, k)
+    groups.push([seed])
+  }
+  const neighbours = (i: number) => {
+    const c = i % g.cols
+    const r = Math.floor(i / g.cols)
+    return [[c - 1, r], [c + 1, r], [c, r - 1], [c, r + 1]].filter(([x, y]) => x! >= 0 && y! >= 0 && x! < g.cols && y! < g.rows).map(([x, y]) => y! * g.cols + x!)
+  }
+  let stuck = 0
+  while (owner.size < target && stuck < 200) {
+    const k = Math.floor(Math.random() * groups.length)
+    const group = groups[k]!
+    const from = group[Math.floor(Math.random() * group.length)]!
+    const free = neighbours(from).filter((n) => !owner.has(n))
+    if (!free.length) { stuck++; continue }
+    const next = free[Math.floor(Math.random() * free.length)]!
+    owner.set(next, k)
+    group.push(next)
+  }
+  // Going: by distance from the headline's centre, the farthest first.
+  const origin = splashEl.value!.getBoundingClientRect()
+  const title = sentencesEl.value?.getBoundingClientRect()
+  const tx = title ? title.left + title.width / 2 - origin.left - g.left : (g.right - g.left) / 2
+  const ty = title ? title.top + title.height / 2 - origin.top - g.top : (g.bottom - g.top) / 2
+  const distance = (i: number) => Math.hypot((i % g.cols + 0.5) * g.cellW - tx, (Math.floor(i / g.cols) + 0.5) * g.cellH - ty)
+  const farthest = Math.max(1, ...[...owner.keys()].map(distance))
+  // Each group one layer mostly, so they read as patches of one picture.
+  const groupLayer = groups.map(() => (dark ? `video${Math.floor(Math.random() * SHAPE_VIDEOS.length)}` : (Math.random() < CELL_LIGHT_SHARE ? 'light' : 'dark')))
+  const cells = [...owner.entries()].map(([i, k]) => ({
+    x: (i % g.cols) * g.cellW,
+    y: Math.floor(i / g.cols) * g.cellH,
+    layer: Math.random() < 0.85 ? groupLayer[k]! : (dark ? `video${Math.floor(Math.random() * SHAPE_VIDEOS.length)}` : (Math.random() < CELL_LIGHT_SHARE ? 'light' : 'dark')),
+    on: early[Math.floor(Math.random() * early.length)] ?? 0,
+    off: HEADLINE_MORPH_MS + CELL_OFF_MS * Math.min(1, Math.max(0, 1 - distance(i) / farthest + (Math.random() * 2 - 1) * CELL_OFF_JITTER)),
+  }))
+  const draw = (at: number) => {
+    const lit = cells.filter((cell) => cell.on <= at && at < cell.off)
+    const path = (layer: string) => lit.filter((cell) => cell.layer === layer)
+      .map((cell) => `M${cell.x.toFixed(1)} ${cell.y.toFixed(1)}h${g.cellW.toFixed(1)}v${g.cellH.toFixed(1)}h${(-g.cellW).toFixed(1)}z`).join('')
+    cellLayers.value = { dark: path('dark'), light: path('light'), videos: SHAPE_VIDEOS.map((_, k) => path(`video${k}`)) }
+  }
+  const moments = [...new Set(cells.flatMap((cell) => [cell.on, cell.off]))].sort((a, b) => a - b)
+  for (const at of moments) cellTimers.push(setTimeout(() => draw(at), at))
+}
+
 function startHeadlineCycle() {
   clearTimeout(headlineTimer)
-  startCrossing()
+  if (!ALT_CELLS && !ALT_HOVER) startCrossing()
   if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   headlineTimer = setTimeout(nextHeadline, shapeMotion().holdMs)
 }
 function stopHeadlineCycle() {
+  if (ALT_CELLS) clearCells()
   clearTimeout(scramblingTimer)
   headlineScrambling.value = false
   crossActive = false
@@ -1786,10 +2035,22 @@ function playIntro() {
     subtitleShown.value = true
     const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
     if (box) {
-      // Its letters decipher in place (no letters added one by one: nothing
-      // reflows), its frame opening out from its middle as they come.
-      box.classList.add('is-growing')
-      decipherIn(box, { grow: false })
+      // Its frame grows with its letters, then settles on the grid.
+      subtitleGrowing = true
+      box.style.width = ''
+      decipherIn(box)
+      setTimeout(() => {
+        subtitleGrowing = false
+        // From the width its letters gave it to the grid's, eased.
+        const from = box.offsetWidth
+        fitSubtitleBox()
+        const to = box.style.width
+        box.style.width = `${from}px`
+        void box.offsetWidth
+        box.classList.add('is-settling')
+        box.style.width = to
+        setTimeout(() => box.classList.remove('is-settling'), 400)
+      }, SUBTITLE_GROW_MS)
     }
   })
   at(OUT_AT, () => {
@@ -1981,6 +2242,8 @@ function handleResize() {
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
 onMounted(() => {
+  // No intro (a returning visit): the images start opening at once.
+  if (!logoVisible.value) startSpawn()
   if (logoVisible.value) {
     document.fonts.ready.then(() => {
       const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo-word')
@@ -2003,6 +2266,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  clearTimeout(followTimer)
+  clearInterval(spawnTimer)
   clearPixels()
   for (const video of pixelVideos) video.pause()
   introTimers.forEach(clearTimeout)
@@ -2017,10 +2282,16 @@ onUnmounted(() => {
 <template>
   <section
     ref="splashEl"
-    @click="spawnNext"
+    @mousemove="ALT_HOVER && onSplashMove($event)"
+    @mouseleave="ALT_HOVER && onSplashLeave()"
+    @click="ALT_HOVER && onSplashClick($event)"
     class="splash"
     :class="[{
       'is-leaving': leaving,
+      'alt-black': ALT_BLACK,
+      'alt-cells': ALT_CELLS,
+      'alt-hover': ALT_HOVER,
+      'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-scrambling': headlineScrambling,
       'is-shelf': shelfLayout,
@@ -2099,6 +2370,9 @@ onUnmounted(() => {
       </a>
     </div>
 
+    <!-- Light mode: the map's coastlines and borders, traced in light grey across
+         the grid, lined up with the map the masses show (same box, same fit). -->
+    <div v-if="ALT_LINES && colorMode !== 'dark'" class="splash-map-lines" :style="{ top: gridStyle.top, bottom: gridStyle.bottom, left: gridStyle.left, right: gridStyle.right }" aria-hidden="true" />
     <div v-if="satelliteUrl" class="splash-satellite" :style="{ ...gridStyle, '--satellite': `url(${satelliteUrl})` }" aria-hidden="true">
       <!-- Dark mode's own gray duotone (app.vue's #duotone-dark: same
            luma, same neutral grays), but not inverted: black lands on the
@@ -2129,6 +2403,24 @@ onUnmounted(() => {
         class="splash-grid-tick"
         :style="{ ...tick, '--tick-index': index }"
       />
+    </div>
+    <!-- /?splash=cells: the cells lighting up while the headline scrambles
+         (revealCells), under the grid's lines. -->
+    <div
+      v-if="grid && ALT_CELLS"
+      class="splash-cells"
+      :style="{ left: `${grid.left}px`, top: `${grid.top}px`, width: `${grid.right - grid.left}px`, height: `${grid.bottom - grid.top}px` }"
+      aria-hidden="true"
+    >
+      <template v-if="colorMode !== 'dark'">
+        <div class="splash-cells-map is-dark" :style="{ clipPath: cellClip(cellLayers.dark), '--satellite': `url(${satelliteUrl})` }" />
+        <div class="splash-cells-map is-light" :style="{ clipPath: cellClip(cellLayers.light), '--satellite': `url(${satelliteUrl})` }" />
+      </template>
+      <template v-else>
+        <div v-for="(video, k) in SHAPE_VIDEOS" :key="video" class="splash-cells-video" :style="{ clipPath: cellClip(cellLayers.videos[k]!) }">
+          <video :src="video" autoplay muted loop playsinline />
+        </div>
+      </template>
     </div>
     <div class="splash-grid" :style="gridStyle" aria-hidden="true" />
     <!-- The grid as separate lines, each moving on its own: growing out of
@@ -2215,14 +2507,14 @@ onUnmounted(() => {
           <video :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
         </div>
         <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`" preserveAspectRatio="none">
-          <path class="splash-shape-outline" :d="view.outline" :stroke="BADGE_COLORS[index]" />
+          <path class="splash-shape-outline" :d="view.outline" :stroke="ALT_HOVER ? shapeColor(index) : BADGE_COLORS[index]" />
         </svg>
       </div>
     </div>
 
     <!-- Every second line of the grid, numbered in the margin to its left. Over the
          pixel masses, under the image band: same z-index, so DOM order sets it. -->
-    <div v-if="grid && GRID_NUMBERS" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
+    <div v-if="grid && (GRID_NUMBERS || (ALT_NUMBERS && colorMode === 'dark'))" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
       <span
         v-for="(number, index) in gridNumbers"
         :key="index"
@@ -2775,6 +3067,90 @@ onUnmounted(() => {
   visibility: hidden;
 }
 
+/* /?splash=…: the other splashes (SPLASH_ALTS). */
+/* black: its picture already in its tones, no duotone on it. */
+.splash.alt-black .splash-satellite::before {
+  filter: none;
+  opacity: 1;
+}
+
+.splash.alt-black .splash-shape-map-image {
+  filter: none;
+}
+
+/* cells: no masses. */
+.splash.alt-cells .splash-shapes {
+  display: none;
+}
+
+/* The cells lighting up (revealCells): the map across the grid, or a video,
+   each layer cut to its own cells. */
+.splash-cells {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.splash-cells-map,
+.splash-cells-video {
+  position: absolute;
+  inset: 0;
+}
+
+.splash-cells-map {
+  background: var(--satellite) center / cover no-repeat;
+}
+
+.splash-cells-map.is-dark {
+  filter: url(#splash-satellite-duotone);
+}
+
+.splash-cells-map.is-light {
+  filter: url(#duotone-silver);
+}
+
+.splash-cells-video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: url(#duotone-dark);
+}
+
+.splash.is-leaving .splash-cells {
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+/* Light mode's traces of the map (public/nasa/europe-lines.png: Natural Earth's
+   coastlines and borders in the hand-set view, light grey on transparent). */
+.splash-map-lines {
+  position: absolute;
+  z-index: 0;
+  background: url('/nasa/europe-lines.png') center / cover no-repeat;
+  pointer-events: none;
+  transition: opacity 1.6s ease;
+}
+
+.splash.intro-logo .splash-map-lines,
+.splash.is-leaving .splash-map-lines {
+  opacity: 0;
+}
+
+/* hover: the mass only while the pointer is over the grid; in light mode,
+   dark mode's map in it, all the time. */
+.splash.alt-hover:not(.shapes-hovered) .splash-shapes {
+  opacity: 0;
+}
+
+.splash.alt-hover.shapes-hovered .splash-shapes {
+  transition-duration: 0.35s;
+}
+
+.splash.alt-hover .splash-shape-map {
+  opacity: 1;
+}
+
 /* Light mode's map in the masses, while the headline scrambles: in quickly
    with the letters, out as they settle; over the mass's pixels. */
 .splash-shape-map {
@@ -2908,15 +3284,9 @@ onUnmounted(() => {
   transition: background-color 0.5s ease, color 0.5s ease, clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
-/* The frame opening out from its middle as its letters decipher (the logo
-   screen's subtitle). */
-.splash.intro-logo .splash-subtitle-box.is-growing {
-  animation: subtitle-frame-grow 1.2s cubic-bezier(0.25, 0.6, 0.3, 1) both;
-}
-
-@keyframes subtitle-frame-grow {
-  from { clip-path: inset(0 50% 0 50%); }
-  to { clip-path: inset(0 -2px 0 -2px); }
+/* Settling on the grid's width once its letters are in (fitSubtitleBox). */
+.splash-subtitle-box.is-settling {
+  transition: width 0.35s cubic-bezier(0.3, 0, 0.2, 1), clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
 }
 
 /* The subtitle shows above the logo screen for as long as that screen
@@ -3249,11 +3619,13 @@ onUnmounted(() => {
   filter: var(--tone-dark);
 }
 
-/* /?images=spawn: the strip still, each image shut until a click opens it
+/* /?images=spawn: the strip still, each image shut until it opens
    (spawnNext), widening out; the image fills the width it's given. */
 .splash.is-spawn .splash-images-track {
   animation: none;
   gap: 0;
+  /* Against the screen's right side: the row grows leftward from there. */
+  margin-left: auto;
 }
 
 .splash.is-spawn .splash-image-wrapper {
