@@ -637,8 +637,7 @@ function flowNext() {
 // fades out at both edges; each image has a soft shadow.
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
 const DRIFT_SPEED = 90
-const DRIFT_FADE = 0 // px: a clean cut at the grid's edges
-const DRIFT_INSET = 6 // px inside the grid's edges
+const DRIFT_FADE = 0 // px: a clean cut at the screen's edges
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
 let driftFrame = 0
 let driftLast = 0
@@ -680,10 +679,9 @@ function driftTick(now: number) {
   track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
   if (driftJoining) return
   const box = strip.getBoundingClientRect()
-  // The grid's edges: the row comes out just inside its right one and goes
-  // just inside its left one (DRIFT_INSET in), cut there, the edges' own
-  // lines left showing.
-  const clearOf = grid.value ? grid.value.left + DRIFT_INSET : 0
+  // The screen's edges: the row comes in at its right one and goes out at
+  // its left one, cut there.
+  const clearOf = 0
   // The right mirrors the left: the row ends as far in from the screen's right
   // edge (near the grid's), fading in over the same width.
   if (strip.dataset.clear !== String(Math.round(clearOf))) {
@@ -3731,7 +3729,16 @@ onUnmounted(() => {
 }
 
 .splash.is-drift .splash-image-wrapper {
-  overflow: visible;
+  /* Over .is-spawn's hidden (later in the file): the shadow was cut off
+     above and at the sides, showing only below (the frame runs on under the
+     image, round its caption). */
+  overflow: visible !important;
+}
+
+/* Its clip (there for the exit, inset(0) round the frame) let out round it,
+   so the shadow shows all round, not only under the image. */
+.splash.is-drift:not(.is-leaving) .splash-image-wrapper {
+  clip-path: inset(-40px -40px -40px -40px);
 }
 
 /* Waiting their turn (no width yet): unseen, not hanging out of their frame. */
@@ -3766,11 +3773,12 @@ onUnmounted(() => {
 /* A light shadow, diffused all round each image (after its tone, so the
    tone doesn't turn it). */
 .splash.is-drift {
-  --image-shadow: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.12));
+  /* Centred (no offset): as much above and to the sides as below. */
+  --image-shadow: drop-shadow(0 0 12px rgba(0, 0, 0, 0.2));
 }
 
 :root[data-theme='dark'] .splash.is-drift {
-  --image-shadow: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
+  --image-shadow: drop-shadow(0 0 14px rgba(0, 0, 0, 0.5));
 }
 
 .splash.is-drift .splash-images-track img.is-toned {
