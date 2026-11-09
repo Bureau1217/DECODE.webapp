@@ -3350,6 +3350,8 @@ onUnmounted(() => {
   /* The grid's lines, light so its many small cells read as a fine mesh, and
      the frame around it, grey (computeGrid's settings for the sizes). */
   --grid-line: color-mix(in srgb, var(--color-ink) 28%, transparent);
+  /* The grid's outer edge, a little darker than its lines. */
+  --grid-edge: color-mix(in srgb, var(--color-ink) 55%, transparent);
   --grid-frame: #c4c6c9; /* a light silver grey */
 }
 
@@ -3361,6 +3363,9 @@ onUnmounted(() => {
     linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   border-right: 1px solid var(--grid-line);
   border-bottom: 1px solid var(--grid-line);
+  /* Over the four outermost lines (its border included). */
+  outline: 1px solid var(--grid-edge);
+  outline-offset: -1px;
 }
 
 .splash-grid-frame {
