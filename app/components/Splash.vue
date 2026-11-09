@@ -636,7 +636,7 @@ function flowNext() {
 // bottom: entering never pushes the row, so its speed never changes. The row
 // fades out at both edges; each image has a soft shadow.
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
-const DRIFT_SPEED = 46
+const DRIFT_SPEED = 90
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
 let driftFrame = 0
 let driftLast = 0
@@ -662,8 +662,21 @@ function driftTick(now: number) {
     else driftOffset = 0
   }
   track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
-  // Each coming in: unfolded by how far in across the edge it is.
-  const edge = strip.getBoundingClientRect().right
+  // The grid's edges: the row ends on its right one (each image comes out of
+  // the grid there) and fades out across the margin past its left one;
+  // inside it, the images are whole (no grid line through them).
+  const box = strip.getBoundingClientRect()
+  const g = grid.value
+  const marginLeft = g ? g.left : 0
+  const marginRight = g ? g.boxW - g.right : 10
+  if (strip.dataset.margins !== `${marginLeft},${marginRight}`) {
+    strip.dataset.margins = `${marginLeft},${marginRight}`
+    strip.style.paddingRight = `${marginRight}px`
+    strip.style.setProperty('--fade-left', `${marginLeft}px`)
+    strip.style.setProperty('--fade-right', `${marginRight}px`)
+  }
+  // Each coming in: unfolded by how far in across the grid's edge it is.
+  const edge = box.right - marginRight
   for (const wrapper of track.querySelectorAll<HTMLElement>('.splash-image-wrapper')) {
     const n = Number(wrapper.dataset.n)
     const width = spawnWidths.value[n]
@@ -3690,7 +3703,7 @@ onUnmounted(() => {
 /* /?spawn=drift: frames at their size at once (the drift moves them, not their
    widths), nothing clipped (the shadows), no transitions (every frame is
    set); the row fading out at both edges (a mask repeated up and down, so
-   the captions under the band stay); a thin grey line round each image. */
+   the captions under the band stay); a soft shadow under each image. */
 .splash.is-drift .splash-image-wrapper,
 .splash.is-drift .splash-images-track img,
 .splash.is-drift .splash-image-caption {
@@ -3716,8 +3729,8 @@ onUnmounted(() => {
 
 .splash.is-row.is-drift .splash-images {
   clip-path: none;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
   -webkit-mask-repeat: repeat-y;
   mask-repeat: repeat-y;
   -webkit-mask-clip: no-clip;
@@ -3725,25 +3738,25 @@ onUnmounted(() => {
 }
 
 .splash.is-drift .splash-images-track img {
-  filter: var(--image-stroke);
+  filter: var(--image-shadow);
 }
 
-/* A thin light grey line round each image (four 1px shadows, after its tone,
-   so the tone doesn't turn it). */
+/* A soft shadow under each image (after its tone, so the tone doesn't turn
+   it). */
 .splash.is-drift {
-  --image-stroke: drop-shadow(1px 0 0 #a9a9a9) drop-shadow(-1px 0 0 #a9a9a9) drop-shadow(0 1px 0 #a9a9a9) drop-shadow(0 -1px 0 #a9a9a9);
+  --image-shadow: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.3)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
 }
 
 :root[data-theme='dark'] .splash.is-drift {
-  --image-stroke: drop-shadow(1px 0 0 #555) drop-shadow(-1px 0 0 #555) drop-shadow(0 1px 0 #555) drop-shadow(0 -1px 0 #555);
+  --image-shadow: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.6)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
 }
 
 .splash.is-drift .splash-images-track img.is-toned {
-  filter: var(--tone-light) var(--image-stroke);
+  filter: var(--tone-light) var(--image-shadow);
 }
 
 :root[data-theme='dark'] .splash.is-drift .splash-images-track img.is-toned {
-  filter: var(--tone-dark) var(--image-stroke);
+  filter: var(--tone-dark) var(--image-shadow);
 }
 
 /* /?spawn=flow: every growth at an even pace, so one runs straight into the
