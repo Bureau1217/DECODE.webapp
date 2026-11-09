@@ -163,8 +163,8 @@ function pickLevel(rand: () => number, allowBite: boolean, scale: number): numbe
   }
   if (rand() < FLUSH_CHANCE) return 0
   // Row (the splash by default): the frame held closer round the headline,
-  // its outward steps a little over half as far.
-  return (EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)) * scale * (SPLASH_ROW ? 0.55 : 1)
+  // its outward steps two fifths as far.
+  return (EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)) * scale * (SPLASH_ROW ? 0.42 : 1)
 }
 
 // While a headline changes (shuffleFrame), each piece of the frame over letters
@@ -439,7 +439,7 @@ const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
 const maskSeed = ref(MASK_SEED)
 let frameShuffle: FrameShuffle | null = null
 // Row: a finer step (the frame snaps outward to it, so it sits closer).
-const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * (SPLASH_ROW ? 0.6 : 1) * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
+const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * (SPLASH_ROW ? 0.5 : 1) * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
 // The subtitle's box, a whole number of the frame's steps wide and centered, so
 // each of its sides is on the frame's grid.
 // Mobile: it also stays at least two steps inside the grid's sides, its text
@@ -2645,7 +2645,7 @@ const groupLift = ref(0)
 const BALANCE_OPTICAL = useRoute().query.balance === 'optical'
 const OPTICAL_CENTRE = 0.4
 const OPTICAL_SUBTITLE_GAP = 0.5
-const OPTICAL_SUBTITLE_DROP = 20 // px lower than that
+const OPTICAL_SUBTITLE_DROP = 4 // px lower than that
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
   if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
