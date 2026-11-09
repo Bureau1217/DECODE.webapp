@@ -3793,9 +3793,22 @@ onUnmounted(() => {
    widths), nothing clipped (the shadows), no transitions (every frame is
    set); the row fading out at both edges (a mask repeated up and down, so
    the captions under the band stay); a soft shadow under each image. */
-.splash.is-drift .splash-image-wrapper,
 .splash.is-drift .splash-images-track img,
 .splash.is-drift .splash-image-caption {
+  transition: none !important;
+}
+
+/* The frames: no width transition, but the arrival's opening from their
+   middle (intro-logo shut, intro-build open) and the exit's closing kept. */
+.splash.is-drift .splash-image-wrapper {
+  transition: clip-path 1s cubic-bezier(0.2, 0.6, 0.3, 1) 0.2s !important;
+}
+
+.splash.is-drift.is-leaving .splash-image-wrapper {
+  transition: clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4) !important;
+}
+
+.splash.is-drift.intro-logo .splash-image-wrapper {
   transition: none !important;
 }
 
@@ -3808,7 +3821,7 @@ onUnmounted(() => {
 
 /* Its clip (there for the exit, inset(0) round the frame) let out round it,
    so the shadow shows all round, not only under the image. */
-.splash.is-drift:not(.is-leaving) .splash-image-wrapper {
+.splash.is-drift:not(.is-leaving):not(.intro-logo) .splash-image-wrapper {
   clip-path: inset(-40px -40px -40px -40px);
 }
 
