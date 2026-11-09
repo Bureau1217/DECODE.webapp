@@ -613,7 +613,11 @@ const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
 // /?images=portrait: every image the same, 5:6 upright and one height.
 const IMAGES_PORTRAIT = useRoute().query.images === 'portrait'
 const SPAWN_GAP_VW = 0.5
-const SPAWN_EVERY_MS = 3200
+// /?spawn=flow: no pause between them, each starting as the last one lands
+// (every SPAWN_GROW_MS) and growing at an even pace (linear): one uninterrupted
+// flow.
+const SPAWN_FLOW = useRoute().query.spawn === 'flow'
+const SPAWN_EVERY_MS = SPAWN_FLOW ? 1800 : 3200
 const SPAWN_AFTER_MS = 2200
 // Shut ones rendered ahead (so they load, and can be measured).
 const SPAWN_AHEAD = 6
@@ -2724,6 +2728,7 @@ onUnmounted(() => {
       'is-row': SPLASH_ROW,
       'is-panels': SPLASH_PANELS,
       'is-title-silver': TITLE_SILVER,
+      'is-flow': SPAWN_FLOW,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -3593,6 +3598,14 @@ onUnmounted(() => {
 
 .splash.is-row .splash-subtitle-box {
   font-size: 12.6pt;
+}
+
+/* /?spawn=flow: every growth at an even pace, so one runs straight into the
+   next. */
+.splash.is-flow .splash-image-wrapper,
+.splash.is-flow .splash-images-track img,
+.splash.is-flow .splash-image-caption {
+  transition-timing-function: linear !important;
 }
 
 .splash.is-row .splash-images {
