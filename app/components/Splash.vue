@@ -631,7 +631,8 @@ function flowNext() {
 // (GSAP's seamless loop, the CSS marquees): the whole row slides left at
 // DRIFT_SPEED px/s (a transform, every frame), and each new image, joined
 // out of sight on the right, unfolds from its top right corner as it comes
-// in across the screen's edge (by how far in it is), its caption riding its
+// in across the screen's edge (from its top left corner, by how far in it is:
+// its right edge stays on the screen's), its caption riding its
 // bottom: entering never pushes the row, so its speed never changes. The row
 // fades out at both edges; each image has a soft shadow.
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
@@ -671,8 +672,11 @@ function driftTick(now: number) {
     if (framedLabels.value.has(n)) driftRevealed.add(n)
     const left = wrapper.getBoundingClientRect().left
     if (left > edge + 1 && driftRevealed.has(n)) continue
-    const t = Math.min(1, Math.max(0, (edge - left) / width))
-    const s = t * t * (3 - 2 * t)
+    // Grown from its top left corner by exactly how far in it is: its left
+    // edge rides the drift, its right edge stays on the screen's edge (it
+    // grows out of it), nothing sliding.
+    const s = Math.min(1, Math.max(0, (edge - left) / width))
+    const t = s
     const img = wrapper.querySelector<HTMLElement>('img')
     const caption = wrapper.querySelector<HTMLElement>('.splash-image-caption')
     if (img) img.style.transform = `scale(${s.toFixed(4)})`
@@ -3097,6 +3101,7 @@ onUnmounted(() => {
           v-for="{ image, n: index } in scrollingImages"
           :key="index"
           class="splash-image-wrapper"
+          :class="{ 'is-shut': IMAGES_SPAWN && spawnWidths[index] === undefined }"
           :data-n="index"
           :style="spawnStyle(index)"
         >
@@ -3685,7 +3690,7 @@ onUnmounted(() => {
 /* /?spawn=drift: frames at their size at once (the drift moves them, not their
    widths), nothing clipped (the shadows), no transitions (every frame is
    set); the row fading out at both edges (a mask repeated up and down, so
-   the captions under the band stay); a soft shadow under each image. */
+   the captions under the band stay); a thin grey line round each image. */
 .splash.is-drift .splash-image-wrapper,
 .splash.is-drift .splash-images-track img,
 .splash.is-drift .splash-image-caption {
@@ -3694,6 +3699,15 @@ onUnmounted(() => {
 
 .splash.is-drift .splash-image-wrapper {
   overflow: visible;
+}
+
+/* Waiting their turn (no width yet): unseen, not hanging out of their frame. */
+.splash.is-drift .splash-image-wrapper.is-shut {
+  visibility: hidden;
+}
+
+.splash.is-drift .splash-images-track img {
+  transform-origin: left top !important;
 }
 
 .splash.is-drift .splash-images-track {
@@ -3711,15 +3725,25 @@ onUnmounted(() => {
 }
 
 .splash.is-drift .splash-images-track img {
-  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.3)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
+  filter: var(--image-stroke);
+}
+
+/* A thin light grey line round each image (four 1px shadows, after its tone,
+   so the tone doesn't turn it). */
+.splash.is-drift {
+  --image-stroke: drop-shadow(1px 0 0 #a9a9a9) drop-shadow(-1px 0 0 #a9a9a9) drop-shadow(0 1px 0 #a9a9a9) drop-shadow(0 -1px 0 #a9a9a9);
+}
+
+:root[data-theme='dark'] .splash.is-drift {
+  --image-stroke: drop-shadow(1px 0 0 #555) drop-shadow(-1px 0 0 #555) drop-shadow(0 1px 0 #555) drop-shadow(0 -1px 0 #555);
 }
 
 .splash.is-drift .splash-images-track img.is-toned {
-  filter: var(--tone-light) drop-shadow(0 16px 26px rgba(0, 0, 0, 0.3)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
+  filter: var(--tone-light) var(--image-stroke);
 }
 
 :root[data-theme='dark'] .splash.is-drift .splash-images-track img.is-toned {
-  filter: var(--tone-dark) drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5));
+  filter: var(--tone-dark) var(--image-stroke);
 }
 
 /* /?spawn=flow: every growth at an even pace, so one runs straight into the
