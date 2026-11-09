@@ -2635,6 +2635,11 @@ function placeBeatEdge(lines?: DOMRect[]) {
 // top (as far from each). Its top, from .splash-info's.
 const subtitleTop = ref<number | null>(null)
 const groupLift = ref(0)
+// /?balance=optical: instead, the headline's middle (and the strip's) on the
+// grid's optical centre, OPTICAL_CENTRE of its height down, a little above its
+// middle.
+const BALANCE_OPTICAL = useRoute().query.balance === 'optical'
+const OPTICAL_CENTRE = 0.45
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
   if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
@@ -2666,7 +2671,9 @@ function placeSubtitle() {
   if (g) {
     const middle = splashTop + (g.top + g.bottom) / 2
     const frame = frameBottom - frameTop
-    const target = (2 * middle - (frame + cta.top + subtitle.offsetHeight) / 2) / 1.5
+    const target = BALANCE_OPTICAL
+      ? splashTop + g.top + (g.bottom - g.top) * OPTICAL_CENTRE - frame / 2
+      : (2 * middle - (frame + cta.top + subtitle.offsetHeight) / 2) / 1.5
     const lift = Math.max(0, Math.round(frameTop + groupLift.value - target))
     if (Math.abs(lift - groupLift.value) > 1) {
       groupLift.value = lift
