@@ -2640,7 +2640,7 @@ const groupLift = ref(0)
 // grid's optical centre, OPTICAL_CENTRE of its height down, a little above its
 // middle.
 const BALANCE_OPTICAL = useRoute().query.balance === 'optical'
-const OPTICAL_CENTRE = 0.45
+const OPTICAL_CENTRE = 0.4
 const OPTICAL_SUBTITLE_GAP = 0.5
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
