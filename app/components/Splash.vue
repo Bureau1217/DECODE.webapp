@@ -535,8 +535,9 @@ function buildSentenceMasks() {
   maskLines = lines
   const base = mask.base.map(outward)
   // The frame always runs on into the subtitle's box, so nothing shows between
-  // them, however short the headline. Not on mobile, where they stand apart.
-  if (box?.width && !stripTop.value) {
+  // them, however short the headline. Not on mobile, where they stand apart,
+  // nor when the subtitle is set apart (row: SUBTITLE_APART).
+  if (box?.width && !stripTop.value && !SUBTITLE_APART) {
     const last = shape[shape.length - 1]!
     const left = Math.max(origin.left + last.left, box.left)
     const right = Math.min(origin.left + last.left + last.width, box.right)
@@ -2629,8 +2630,32 @@ function placeBeatEdge(lines?: DOMRect[]) {
   const right = Math.max(0, ...rects.map((r) => r.right - box.left))
   beatEdge.value = g.left + Math.ceil((right - g.left + 12) / g.cellW) * g.cellW
 }
+// Row (desktop): the subtitle apart from the headline, which stands alone in
+// the grid's middle: halfway between the headline's foot and the button's
+// top (as far from each). Its top, from .splash-info's.
+const subtitleTop = ref<number | null>(null)
+const SUBTITLE_APART = SPLASH_ROW
+function placeSubtitle() {
+  if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
+    subtitleTop.value = null
+    return
+  }
+  const info = splashEl.value.querySelector<HTMLElement>('.splash-info')?.getBoundingClientRect()
+  const head = sentencesEl.value?.getBoundingClientRect()
+  const cta = splashEl.value.querySelector<HTMLElement>('.splash-cta')?.getBoundingClientRect()
+  const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')
+  if (!info || !head || !cta || !subtitle) return
+  // The headline's frame (its mask's shape, which reaches below its letters),
+  // not only its letters.
+  const masked = maskedEl.value?.getBoundingClientRect()
+  const frameBottom = masked && paragraphMask.value.base.length
+    ? masked.top + Math.max(...paragraphMask.value.base.map((rect) => rect.top + rect.height))
+    : head.bottom
+  subtitleTop.value = Math.round((frameBottom + cta.top) / 2 - subtitle.offsetHeight / 2 - info.top)
+}
 function placeCta() {
   placeBeatEdge()
+  nextTick(placeSubtitle)
   placeSideBars()
   if (!splashEl.value || !grid.value) return
   const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle')
@@ -2755,7 +2780,10 @@ onMounted(() => {
   playIntro()
   handleResize()
   // The tab's width hangs on its label's, in its own font.
-  document.fonts.ready.then(() => computeGrid())
+  document.fonts.ready.then(() => {
+    computeGrid()
+    nextTick(placeSubtitle)
+  })
   if (SPLASH_ROW) {
     watch([rowGlobeA, rowGlobeB], async ([a, b]) => {
       rowGlobes.forEach((g) => g.stop())
@@ -3310,7 +3338,7 @@ onUnmounted(() => {
           <span v-if="imageLabel(panelIndex, panelImage.alt)" class="splash-image-name" :style="{ backgroundColor: imageBadgeColor(panelIndex) }">{{ imageLabel(panelIndex, panelImage.alt) }}</span>
         </div>
       </div>
-      <div v-if="subtitleLines.length" class="text-label splash-subtitle">
+      <div v-if="subtitleLines.length" class="text-label splash-subtitle" :class="{ 'is-apart': SUBTITLE_APART }" :style="subtitleTop !== null ? { top: `${subtitleTop}px` } : undefined">
         <span class="splash-subtitle-box">
           {{ subtitleLines[0] }}<span v-if="subtitleLines.length > 1" class="splash-subtitle-rest"><template v-for="(line, index) in subtitleLines.slice(1)" :key="index"><br>{{ line }}</template></span>
         </span>
@@ -4519,6 +4547,22 @@ onUnmounted(() => {
     drop-shadow(-1px 0 0 var(--color-ink))
     drop-shadow(0 1px 0 var(--color-ink))
     drop-shadow(0 -1px 0 var(--color-ink));
+}
+
+/* Row: out of the headline's flow, placed by placeSubtitle (until then, under
+   the middle). */
+.splash-subtitle.is-apart {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+}
+
+@media (max-width: 1150px) {
+  .splash-subtitle.is-apart {
+    position: relative;
+    top: auto !important;
+  }
 }
 
 .splash-subtitle {
