@@ -1057,8 +1057,12 @@ function computeGrid() {
   // as SiteNav's own mobile MENU tab.
   tabHeight.value = window.innerHeight * 0.035
   // Wide enough for the still label (TAB_SHORT), its 2% sides and shoulders.
+  // The text's own width (a range round it: the element's scrollWidth is at
+  // least the tab's current width, so the tab grew by its margin each time).
   const still = splashEl.value.querySelector<HTMLElement>('.splash-tab-ticker-still')
-  const stillWidth = still ? still.scrollWidth + 8 : 0
+  const stillRange = still ? document.createRange() : null
+  stillRange?.selectNodeContents(still!)
+  const stillWidth = stillRange ? Math.ceil(stillRange.getBoundingClientRect().width) + 8 : 0
   const fitted = stillWidth / 0.96 + tabHeight.value * (TAB_LEFT_DX_RATIO + TAB_RIGHT_DX_RATIO)
   // Its label's width (not a share of the window: it would widen with it).
   tabWidth.value = Math.min(window.innerWidth * 0.9, fitted || window.innerWidth * (isMobile ? 0.5 : 0.25))
