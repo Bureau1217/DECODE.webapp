@@ -162,7 +162,9 @@ function pickLevel(rand: () => number, allowBite: boolean, scale: number): numbe
     return -(BITE_MIN + rand() * (BITE_MAX - BITE_MIN)) * scale
   }
   if (rand() < FLUSH_CHANCE) return 0
-  return (EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)) * scale
+  // Row (the splash by default): the frame held closer round the headline,
+  // its outward steps a little over half as far.
+  return (EXTEND_MIN + rand() * (EXTEND_MAX - EXTEND_MIN)) * scale * (SPLASH_ROW ? 0.55 : 1)
 }
 
 // While a headline changes (shuffleFrame), each piece of the frame over letters
@@ -423,8 +425,8 @@ function fitHeadlines() {
   // strip and the top tab, its frame's tallest step included.
   const roomAboveStrip = stripTop.value - stripGap * 2 - subtitleHeight - (tabTop.value + tabHeight.value + stripGap)
   // Row (the splash by default): a tenth smaller, with its subtitle.
-  // Optical balance: a twentieth bigger again.
-  headlineFontSize.value = (SPLASH_ROW ? 0.9 * (BALANCE_OPTICAL ? 1.05 : 1) : 1) * Math.min(
+  // Optical balance: a twentieth bigger again, twice.
+  headlineFontSize.value = (SPLASH_ROW ? 0.9 * (BALANCE_OPTICAL ? 1.05 * 1.05 : 1) : 1) * Math.min(
     isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
     widestEm ? headlineMaxWidth.value / widestEm : Infinity,
     maxHeight / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT),
@@ -436,7 +438,8 @@ const paragraphMask = ref<ParagraphMask>({ base: [], bites: [] })
 // Which silhouette the mask draws — each headline settles on its own.
 const maskSeed = ref(MASK_SEED)
 let frameShuffle: FrameShuffle | null = null
-const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
+// Row: a finer step (the frame snaps outward to it, so it sits closer).
+const frameGrid = () => Math.max(8, Math.round(MASK_SNAP * (SPLASH_ROW ? 0.6 : 1) * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE))
 // The subtitle's box, a whole number of the frame's steps wide and centered, so
 // each of its sides is on the frame's grid.
 // Mobile: it also stays at least two steps inside the grid's sides, its text
@@ -2642,6 +2645,7 @@ const groupLift = ref(0)
 const BALANCE_OPTICAL = useRoute().query.balance === 'optical'
 const OPTICAL_CENTRE = 0.4
 const OPTICAL_SUBTITLE_GAP = 0.5
+const OPTICAL_SUBTITLE_DROP = 20 // px lower than that
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
   if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
@@ -2687,7 +2691,7 @@ function placeSubtitle() {
   // Halfway between the headline and the button; with the optical balance,
   // nearer the headline (OPTICAL_SUBTITLE_GAP of that gap).
   const evenGap = (cta.top - frameBottom - subtitle.offsetHeight) / 2
-  const gap = BALANCE_OPTICAL ? evenGap * OPTICAL_SUBTITLE_GAP : evenGap
+  const gap = BALANCE_OPTICAL ? evenGap * OPTICAL_SUBTITLE_GAP + OPTICAL_SUBTITLE_DROP : evenGap
   subtitleTop.value = Math.round(frameBottom + gap - info.top)
 }
 function placeCta() {
