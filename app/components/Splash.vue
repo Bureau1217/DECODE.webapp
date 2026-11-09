@@ -918,7 +918,7 @@ const GRID_FRAME = false
 const GRID_FRAME_GAP = 14
 const GRID_FRAME_GAP_MOBILE = 8
 const GRID_NUMBERS = false
-const GRID_NUMBER_EVERY = ALT_NUMBERS ? 1 : 4
+const GRID_NUMBER_EVERY = ALT_NUMBERS || SPLASH_ROW ? 1 : 4
 const GRID_TICKS_ACROSS = 3
 const GRID_TICKS_SIDE = 2
 const GRID_TICK_SIDE_INSET = 0.14
@@ -2957,7 +2957,7 @@ onUnmounted(() => {
 
     <!-- Every second line of the grid, numbered in the margin to its left. Over the
          pixel masses, under the image band: same z-index, so DOM order sets it. -->
-    <div v-if="grid && (GRID_NUMBERS || (ALT_NUMBERS && colorMode === 'dark'))" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
+    <div v-if="grid && (GRID_NUMBERS || SPLASH_ROW || (ALT_NUMBERS && colorMode === 'dark'))" class="splash-grid-numbers" :style="{ width: `${grid.left}px` }" aria-hidden="true">
       <span
         v-for="(number, index) in gridNumbers"
         :key="index"
@@ -3256,7 +3256,9 @@ onUnmounted(() => {
 }
 
 .splash-tab-ticker-link.is-sliding .splash-tab-ticker-still {
-  display: none;
+  /* Out of sight but still laid out: the tab's width is measured on it. */
+  position: absolute;
+  visibility: hidden;
 }
 
 .splash-tab-ticker-link.is-sliding .splash-tab-ticker-slide {
