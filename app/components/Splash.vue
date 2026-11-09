@@ -2601,7 +2601,29 @@ function handleResize() {
 
 watch(() => headlineWords.value.length, observeLines, { flush: 'post' })
 
+// Out of sight (another tab, the window hidden): the browser slows timers and
+// stops drawing, so whatever was due would all play at once on coming back,
+// as if catching up. Instead it pauses: no new image or headline is
+// scheduled while hidden; back in sight, the next comes a full interval on.
+let pausedSpawn = false
+let pausedHeadline = false
+function onVisibility() {
+  if (document.hidden) {
+    pausedSpawn = !!spawnTimer
+    clearInterval(spawnTimer)
+    spawnTimer = undefined
+    pausedHeadline = splashIntro.value === 'done' && !HEADLINE_STILL && !SPLASH_PANELS && headlines.value.length > 1
+    clearTimeout(headlineTimer)
+    return
+  }
+  if (pausedSpawn) spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
+  if (pausedHeadline) headlineTimer = setTimeout(nextHeadline, headlineHold())
+  pausedSpawn = false
+  pausedHeadline = false
+}
+
 onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibility)
   // No intro (a returning visit): the images start opening at once.
   if (!logoVisible.value) startSpawn()
   if (logoVisible.value) {
@@ -2667,6 +2689,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibility)
   labelTimers.forEach(clearTimeout)
   globe?.stop()
   rowGlobes.forEach((g) => g.stop())
