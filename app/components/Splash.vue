@@ -282,7 +282,12 @@ const SPLASH_BEAT = SPLASH_ALTS.has('beat')
 // - row: the images hanging from one line by their tops, each captioned
 //   10px under it, its number (01, 02… in Areal's other 0) left, its label
 //   at its bottom right; a grey ground; two grey bars at the screen's sides.
-const SPLASH_ROW = SPLASH_ALTS.has('row')
+// The splash by default (/?splash=classic: the one before; the other words
+// above are their own splashes).
+const SPLASH_ROW = SPLASH_ALTS.has('row') || (!SPLASH_ALTS.has('classic') && !['beat', 'panels', 'globe', 'cells'].some((word) => SPLASH_ALTS.has(word)))
+// Row: the headline stays as it is (no cycle, no scrambling); the images come
+// on their own, every SPAWN_EVERY_MS.
+const HEADLINE_STILL = SPLASH_ROW
 // Row: no grid; two big dotted globes overlapping like the circles of a Venn
 // diagram, each turning on itself.
 const rowGlobeA = ref<HTMLCanvasElement | null>(null)
@@ -668,7 +673,7 @@ function startSpawn() {
   fillSpawn()
   // With a headline cycle, each new one brings the next image (nextHeadline);
   // without, they come on their own.
-  if (headlines.value.length > 1) return
+  if (headlines.value.length > 1 && !HEADLINE_STILL) return
   spawnStartTimer = setTimeout(() => {
     spawnNext()
     spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
@@ -2326,7 +2331,7 @@ function revealCells(ticks: number[]) {
 function startHeadlineCycle() {
   clearTimeout(headlineTimer)
   if (!ALT_CELLS && !ALT_HOVER && !SPLASH_BEAT) startCrossing()
-  if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches || SPLASH_PANELS) return
+  if (headlines.value.length < 2 || window.matchMedia('(prefers-reduced-motion: reduce)').matches || SPLASH_PANELS || HEADLINE_STILL) return
   headlineTimer = setTimeout(nextHeadline, headlineHold())
 }
 function stopHeadlineCycle() {
@@ -3763,7 +3768,8 @@ onUnmounted(() => {
 /* Areal (not its mono), with its other zero. */
 .splash-image-number {
   font-family: var(--font-text);
-  font-feature-settings: 'zero' 1;
+  /* Its other zero, with the site's own sets (main.css's body). */
+  font-feature-settings: 'zero', 'ss11', 'ss05', 'ss06';
 }
 
 .splash-side-bar {
@@ -3860,7 +3866,7 @@ onUnmounted(() => {
   font-size: 8px;
   line-height: 1;
   /* The mono's alternative zero, on top of the site's round dots (main.css). */
-  font-feature-settings: 'ss11', 'zero';
+  font-feature-settings: 'ss11', 'zero', 'ss05', 'ss06';
   color: var(--color-ink);
   pointer-events: none;
   transition: opacity 0.8s ease;

@@ -268,8 +268,9 @@ body {
 
 body {
   font-family: var(--font-mono);
-  /* ABC Areal's round dots, for periods and the dots on letters. */
-  font-feature-settings: 'ss11';
+  /* ABC Areal's round dots, for periods and the dots on letters (ss11), and
+     its other G (ss05) and R (ss06). */
+  font-feature-settings: 'ss11', 'ss05', 'ss06';
   background: var(--color-surface);
   color: var(--color-ink);
 }
