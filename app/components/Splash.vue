@@ -637,9 +637,14 @@ function flowNext() {
 // fades out at both edges; each image has a soft shadow.
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
 const DRIFT_SPEED = 90
+const DRIFT_EDGE = 10 // px short of the screen's right edge
+const DRIFT_FADE = 56 // px
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
 let driftFrame = 0
 let driftLast = 0
+// Drawn from the start (the first images unfolded where they are), moving
+// only once the splash has built (SPAWN_AFTER_MS on).
+let driftMoving = false
 const driftRevealed = new Set<number>()
 function driftTick(now: number) {
   driftFrame = requestAnimationFrame(driftTick)
@@ -649,10 +654,10 @@ function driftTick(now: number) {
   // Hidden, then back: no leap (the frames stopped, the clock didn't).
   const dt = Math.min(50, now - (driftLast || now))
   driftLast = now
-  driftOffset -= (DRIFT_SPEED * dt) / 1000
+  if (driftMoving) driftOffset -= (DRIFT_SPEED * dt) / 1000
   // The last one wholly in: the next joins, out of sight, the track pushed
   // right by as much so nothing on screen moves.
-  if (driftOffset <= 0) {
+  if (driftMoving && driftOffset <= 0) {
     const before = spawnCount.value
     spawnNext()
     if (spawnCount.value > before) {
@@ -662,21 +667,22 @@ function driftTick(now: number) {
     else driftOffset = 0
   }
   track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
-  // The grid's edges: the row ends on its right one (each image comes out of
-  // the grid there) and fades out across the margin past its left one;
-  // inside it, the images are whole (no grid line through them).
+  // The row ends just short of the screen's right edge (DRIFT_EDGE): each
+  // image comes in there, fading in over DRIFT_FADE; on the left it's gone
+  // before the grid's numbers in the margin (fading out over DRIFT_FADE up to
+  // just past them), so it never runs over them.
   const box = strip.getBoundingClientRect()
-  const g = grid.value
-  const marginLeft = g ? g.left : 0
-  const marginRight = g ? g.boxW - g.right : 10
-  if (strip.dataset.margins !== `${marginLeft},${marginRight}`) {
-    strip.dataset.margins = `${marginLeft},${marginRight}`
-    strip.style.paddingRight = `${marginRight}px`
-    strip.style.setProperty('--fade-left', `${marginLeft}px`)
-    strip.style.setProperty('--fade-right', `${marginRight}px`)
+  const numbers = splashEl.value?.querySelector<HTMLElement>('.splash-grid-numbers')
+  const clearOf = numbers ? Math.max(0, ...[...numbers.children].map((n) => n.getBoundingClientRect().right)) - box.left + 6 : 0
+  if (strip.dataset.clear !== String(Math.round(clearOf))) {
+    strip.dataset.clear = String(Math.round(clearOf))
+    strip.style.paddingRight = `${DRIFT_EDGE}px`
+    strip.style.setProperty('--fade-from', `${clearOf}px`)
+    strip.style.setProperty('--fade-to', `${clearOf + DRIFT_FADE}px`)
+    strip.style.setProperty('--fade-right', `${DRIFT_FADE}px`)
   }
-  // Each coming in: unfolded by how far in across the grid's edge it is.
-  const edge = box.right - marginRight
+  // Each coming in: unfolded by how far in across the edge it is.
+  const edge = box.right - DRIFT_EDGE
   for (const wrapper of track.querySelectorAll<HTMLElement>('.splash-image-wrapper')) {
     const n = Number(wrapper.dataset.n)
     const width = spawnWidths.value[n]
@@ -688,7 +694,9 @@ function driftTick(now: number) {
     // Grown from its top left corner by exactly how far in it is: its left
     // edge rides the drift, its right edge stays on the screen's edge (it
     // grows out of it), nothing sliding.
-    const s = Math.min(1, Math.max(0, (edge - left) / width))
+    // Just joined (not laid out yet: still shut, no width): folded this frame.
+    const laidOut = !wrapper.classList.contains('is-shut') && wrapper.offsetWidth > 0
+    const s = laidOut ? Math.min(1, Math.max(0, (edge - left) / width)) : 0
     const t = s
     const img = wrapper.querySelector<HTMLElement>('img')
     const caption = wrapper.querySelector<HTMLElement>('.splash-image-caption')
@@ -759,12 +767,13 @@ let spawnStartTimer: ReturnType<typeof setTimeout> | undefined
 function startSpawn() {
   if (!IMAGES_SPAWN || spawnTimer || spawnStartTimer) return
   fillSpawn()
+  if (SPAWN_DRIFT && !driftFrame) driftFrame = requestAnimationFrame(driftTick)
   // With a headline cycle, each new one brings the next image (nextHeadline);
   // without, they come on their own.
   if (headlines.value.length > 1 && !HEADLINE_STILL) return
   spawnStartTimer = setTimeout(() => {
     if (SPAWN_DRIFT) {
-      driftFrame = requestAnimationFrame(driftTick)
+      driftMoving = true
       return
     }
     if (SPAWN_FLOW) return flowNext()
@@ -3721,6 +3730,8 @@ onUnmounted(() => {
 
 .splash.is-drift .splash-images-track img {
   transform-origin: left top !important;
+  /* Folded until the drift sets it (no frame at full size as it joins). */
+  transform: scale(0);
 }
 
 .splash.is-drift .splash-images-track {
@@ -3729,8 +3740,8 @@ onUnmounted(() => {
 
 .splash.is-row.is-drift .splash-images {
   clip-path: none;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 var(--fade-left, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, transparent var(--fade-from, 0px), #000 var(--fade-to, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, transparent var(--fade-from, 0px), #000 var(--fade-to, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
   -webkit-mask-repeat: repeat-y;
   mask-repeat: repeat-y;
   -webkit-mask-clip: no-clip;
@@ -3741,14 +3752,14 @@ onUnmounted(() => {
   filter: var(--image-shadow);
 }
 
-/* A soft shadow under each image (after its tone, so the tone doesn't turn
-   it). */
+/* A light shadow, diffused all round each image (after its tone, so the
+   tone doesn't turn it). */
 .splash.is-drift {
-  --image-shadow: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.3)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
+  --image-shadow: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.12));
 }
 
 :root[data-theme='dark'] .splash.is-drift {
-  --image-shadow: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.6)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
+  --image-shadow: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
 }
 
 .splash.is-drift .splash-images-track img.is-toned {
