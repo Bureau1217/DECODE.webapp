@@ -617,6 +617,16 @@ const SPAWN_GAP_VW = 0.5
 // (every SPAWN_GROW_MS) and growing at an even pace (linear): one uninterrupted
 // flow.
 const SPAWN_FLOW = useRoute().query.spawn === 'flow'
+// Flow: each image opens over a time in proportion to its width (FLOW_SPEED
+// px/s), the next starting as it lands: the row always moves at one speed.
+const FLOW_SPEED = 180
+const flowSeconds = (n: number) => (spawnWidths.value[n] || spawnTargetWidth(n) || 300) / FLOW_SPEED
+function flowNext() {
+  const n = spawnCount.value
+  spawnNext()
+  const opened = spawnCount.value > n
+  spawnTimer = setTimeout(flowNext, opened ? flowSeconds(n) * 1000 : 300) as unknown as ReturnType<typeof setInterval>
+}
 // /?spawn=drift (row): one constant drift, as the smoothest image strips do
 // (GSAP's seamless loop, the CSS marquees): the whole row slides left at
 // DRIFT_SPEED px/s (a transform, every frame), and each new image, joined
@@ -718,7 +728,7 @@ function spawnNext() {
   if (!width) return // not loaded yet: next time
   spawnWidths.value = { ...spawnWidths.value, [n]: width }
   spawnCount.value = n + 1
-  if (SPLASH_ROW && !SPAWN_DRIFT) revealLabel(n, SPAWN_GROW_MS)
+  if (SPLASH_ROW && !SPAWN_DRIFT) revealLabel(n, SPAWN_FLOW ? flowSeconds(n) * 1000 : SPAWN_GROW_MS)
   // Drop those wholly off the left (the row's held right, so nothing moves).
   for (;;) {
     const first = strip.querySelector<HTMLElement>(`[data-n="${spawnBase.value}"]`)
@@ -740,6 +750,7 @@ function startSpawn() {
       driftFrame = requestAnimationFrame(driftTick)
       return
     }
+    if (SPAWN_FLOW) return flowNext()
     spawnNext()
     spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
   }, SPAWN_AFTER_MS)
@@ -748,6 +759,7 @@ function spawnStyle(n: number) {
   if (!IMAGES_SPAWN) return undefined
   const width = spawnWidths.value[n]
   return {
+    ...(SPAWN_FLOW && width ? { '--grow-s': `${(width / FLOW_SPEED).toFixed(2)}s` } : {}),
     width: width ? `${width}px` : '0px',
     marginLeft: width && n > spawnBase.value ? `${SPAWN_GAP_VW}vw` : '0px',
   }
@@ -868,10 +880,15 @@ const SPAWN_MAX_W = 420 // px
 // As GGGGab's pen: the image fills its frame's width as the frame opens, so it
 // grows in both ways at once (from the side and in height), not sliding in.
 const spawnRatio = (index: number) => SPAWN_RATIOS[(index % (images.value?.length || 1)) % SPAWN_RATIOS.length]!
+// Flow and drift: calmer, two heights only (CALM_HEIGHTS of the band, in
+// turn), each image as wide as its shape makes it (no clamping, which would
+// change its height).
+const CALM_HEIGHTS = [0.62, 0.48]
 function spawnTargetWidth(index: number) {
   if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return 0
-  const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
   const band = imagesBandHeight.value || window.innerHeight * ((shelfLayout ? SHELF_BAND_VH : 44) / 100)
+  if (SPAWN_FLOW || SPAWN_DRIFT) return band * CALM_HEIGHTS[(index % (images.value?.length || 1)) % CALM_HEIGHTS.length]! * spawnRatio(index)
+  const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
   return Math.min(SPAWN_MAX_W, Math.max(SPAWN_MIN_W, band * variant * spawnRatio(index)))
 }
 function spawnImageStyle(index: number) {
@@ -2680,7 +2697,10 @@ function onVisibility() {
     clearTimeout(headlineTimer)
     return
   }
-  if (pausedSpawn) spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
+  if (pausedSpawn) {
+    if (SPAWN_FLOW) spawnTimer = setTimeout(flowNext, 600) as unknown as ReturnType<typeof setInterval>
+    else spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
+  }
   if (pausedHeadline) headlineTimer = setTimeout(nextHeadline, headlineHold())
   pausedSpawn = false
   pausedHeadline = false
@@ -3691,11 +3711,11 @@ onUnmounted(() => {
 }
 
 .splash.is-drift .splash-images-track img {
-  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.16)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.08));
+  filter: drop-shadow(0 16px 26px rgba(0, 0, 0, 0.3)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
 }
 
 .splash.is-drift .splash-images-track img.is-toned {
-  filter: var(--tone-light) drop-shadow(0 10px 16px rgba(0, 0, 0, 0.16)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.08));
+  filter: var(--tone-light) drop-shadow(0 16px 26px rgba(0, 0, 0, 0.3)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.14));
 }
 
 :root[data-theme='dark'] .splash.is-drift .splash-images-track img.is-toned {
@@ -3708,6 +3728,8 @@ onUnmounted(() => {
 .splash.is-flow .splash-images-track img,
 .splash.is-flow .splash-image-caption {
   transition-timing-function: linear !important;
+  /* In proportion to its width (--grow-s, spawnStyle): one speed. */
+  transition-duration: var(--grow-s, 1.8s) !important;
 }
 
 .splash.is-row .splash-images {
