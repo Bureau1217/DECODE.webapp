@@ -423,7 +423,8 @@ function fitHeadlines() {
   // strip and the top tab, its frame's tallest step included.
   const roomAboveStrip = stripTop.value - stripGap * 2 - subtitleHeight - (tabTop.value + tabHeight.value + stripGap)
   // Row (the splash by default): a tenth smaller, with its subtitle.
-  headlineFontSize.value = (SPLASH_ROW ? 0.9 : 1) * Math.min(
+  // Optical balance: a twentieth bigger again.
+  headlineFontSize.value = (SPLASH_ROW ? 0.9 * (BALANCE_OPTICAL ? 1.05 : 1) : 1) * Math.min(
     isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
     widestEm ? headlineMaxWidth.value / widestEm : Infinity,
     maxHeight / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT),
@@ -2640,6 +2641,7 @@ const groupLift = ref(0)
 // middle.
 const BALANCE_OPTICAL = useRoute().query.balance === 'optical'
 const OPTICAL_CENTRE = 0.45
+const OPTICAL_SUBTITLE_GAP = 0.5
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
   if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
@@ -2682,7 +2684,11 @@ function placeSubtitle() {
       return
     }
   }
-  subtitleTop.value = Math.round((frameBottom + cta.top) / 2 - subtitle.offsetHeight / 2 - info.top)
+  // Halfway between the headline and the button; with the optical balance,
+  // nearer the headline (OPTICAL_SUBTITLE_GAP of that gap).
+  const evenGap = (cta.top - frameBottom - subtitle.offsetHeight) / 2
+  const gap = BALANCE_OPTICAL ? evenGap * OPTICAL_SUBTITLE_GAP : evenGap
+  subtitleTop.value = Math.round(frameBottom + gap - info.top)
 }
 function placeCta() {
   placeBeatEdge()
