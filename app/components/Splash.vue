@@ -637,7 +637,6 @@ function flowNext() {
 // fades out at both edges; each image has a soft shadow.
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
 const DRIFT_SPEED = 90
-const DRIFT_EDGE = 10 // px short of the screen's right edge
 const DRIFT_FADE = 56 // px
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
 let driftFrame = 0
@@ -645,6 +644,7 @@ let driftLast = 0
 // Drawn from the start (the first images unfolded where they are), moving
 // only once the splash has built (SPAWN_AFTER_MS on).
 let driftMoving = false
+let driftJoining = false
 const driftRevealed = new Set<number>()
 function driftTick(now: number) {
   driftFrame = requestAnimationFrame(driftTick)
@@ -657,32 +657,43 @@ function driftTick(now: number) {
   if (driftMoving) driftOffset -= (DRIFT_SPEED * dt) / 1000
   // The last one wholly in: the next joins, out of sight, the track pushed
   // right by as much so nothing on screen moves.
-  if (driftMoving && driftOffset <= 0) {
+  // The push waits for the new one to be laid out (Vue's update, just before
+  // this frame is drawn), and nothing is measured meanwhile: measured before
+  // it, the row's positions were off by the newcomer and the last one in
+  // folded to nothing for a frame (a flicker).
+  if (driftMoving && driftOffset <= 0 && !driftJoining) {
     const before = spawnCount.value
     spawnNext()
     if (spawnCount.value > before) {
+      driftJoining = true
       const gap = (window.innerWidth * SPAWN_GAP_VW) / 100
-      driftOffset += (spawnWidths.value[before] ?? 0) + (before > spawnBase.value ? gap : 0)
+      const push = (spawnWidths.value[before] ?? 0) + (before > spawnBase.value ? gap : 0)
+      nextTick(() => {
+        driftOffset += push
+        track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
+        driftJoining = false
+      })
     }
     else driftOffset = 0
   }
   track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
-  // The row ends just short of the screen's right edge (DRIFT_EDGE): each
-  // image comes in there, fading in over DRIFT_FADE; on the left it's gone
-  // before the grid's numbers in the margin (fading out over DRIFT_FADE up to
-  // just past them), so it never runs over them.
+  if (driftJoining) return
+  // On the left the row is gone before the grid's numbers in the margin
+  // (fading out over DRIFT_FADE up to just past them), so it never runs over
+  // them.
   const box = strip.getBoundingClientRect()
   const numbers = splashEl.value?.querySelector<HTMLElement>('.splash-grid-numbers')
   const clearOf = numbers ? Math.max(0, ...[...numbers.children].map((n) => n.getBoundingClientRect().right)) - box.left + 6 : 0
+  // The right mirrors the left: the row ends as far in from the screen's right
+  // edge (near the grid's), fading in over the same width.
   if (strip.dataset.clear !== String(Math.round(clearOf))) {
     strip.dataset.clear = String(Math.round(clearOf))
-    strip.style.paddingRight = `${DRIFT_EDGE}px`
+    strip.style.paddingRight = `${clearOf}px`
     strip.style.setProperty('--fade-from', `${clearOf}px`)
     strip.style.setProperty('--fade-to', `${clearOf + DRIFT_FADE}px`)
-    strip.style.setProperty('--fade-right', `${DRIFT_FADE}px`)
   }
   // Each coming in: unfolded by how far in across the edge it is.
-  const edge = box.right - DRIFT_EDGE
+  const edge = box.right - clearOf
   for (const wrapper of track.querySelectorAll<HTMLElement>('.splash-image-wrapper')) {
     const n = Number(wrapper.dataset.n)
     const width = spawnWidths.value[n]
@@ -3740,8 +3751,8 @@ onUnmounted(() => {
 
 .splash.is-row.is-drift .splash-images {
   clip-path: none;
-  -webkit-mask-image: linear-gradient(to right, transparent 0, transparent var(--fade-from, 0px), #000 var(--fade-to, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, transparent var(--fade-from, 0px), #000 var(--fade-to, 9%), #000 calc(100% - var(--fade-right, 9%)), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, transparent var(--fade-from, 0px), #000 var(--fade-to, 9%), #000 calc(100% - var(--fade-to, 9%)), transparent calc(100% - var(--fade-from, 0px)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, transparent var(--fade-from, 0px), #000 var(--fade-to, 9%), #000 calc(100% - var(--fade-to, 9%)), transparent calc(100% - var(--fade-from, 0px)), transparent 100%);
   -webkit-mask-repeat: repeat-y;
   mask-repeat: repeat-y;
   -webkit-mask-clip: no-clip;
