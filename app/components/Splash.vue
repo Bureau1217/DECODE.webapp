@@ -2634,6 +2634,7 @@ function placeBeatEdge(lines?: DOMRect[]) {
 // the grid's middle: halfway between the headline's foot and the button's
 // top (as far from each). Its top, from .splash-info's.
 const subtitleTop = ref<number | null>(null)
+const groupLift = ref(0)
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
   if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
@@ -2651,6 +2652,29 @@ function placeSubtitle() {
   const frameBottom = masked && paragraphMask.value.base.length
     ? masked.top + Math.max(...paragraphMask.value.base.map((rect) => rect.top + rect.height))
     : head.bottom
+  const frameTop = masked && paragraphMask.value.base.length
+    ? masked.top + Math.min(...paragraphMask.value.base.map((rect) => rect.top))
+    : head.top
+  // The headline and its subtitle, as one group, centred in the grid: the
+  // headline (and the image strip with it) lifted by groupLift. The button
+  // stays on the grid's bottom line; the subtitle stays halfway between.
+  // Solved for the headline's top t: t + subtitle's bottom = 2 × the grid's
+  // middle, the subtitle's bottom being ((t + frame) + button's top) / 2 + its
+  // height / 2.
+  const g = grid.value
+  const splashTop = splashEl.value.getBoundingClientRect().top
+  if (g) {
+    const middle = splashTop + (g.top + g.bottom) / 2
+    const frame = frameBottom - frameTop
+    const target = (2 * middle - (frame + cta.top + subtitle.offsetHeight) / 2) / 1.5
+    const lift = Math.max(0, Math.round(frameTop + groupLift.value - target))
+    if (Math.abs(lift - groupLift.value) > 1) {
+      groupLift.value = lift
+      splashEl.value.style.setProperty('--group-lift', `${lift}px`)
+      nextTick(placeSubtitle)
+      return
+    }
+  }
   subtitleTop.value = Math.round((frameBottom + cta.top) / 2 - subtitle.offsetHeight / 2 - info.top)
 }
 function placeCta() {
@@ -4547,6 +4571,20 @@ onUnmounted(() => {
     drop-shadow(-1px 0 0 var(--color-ink))
     drop-shadow(0 1px 0 var(--color-ink))
     drop-shadow(0 -1px 0 var(--color-ink));
+}
+
+/* Row: the headline and the image strip lifted together (--group-lift,
+   placeSubtitle), so the headline and its subtitle sit centred in the grid. */
+.splash.is-row .splash-info,
+.splash.is-row .splash-images {
+  translate: 0 calc(var(--group-lift, 0px) * -1);
+}
+
+@media (max-width: 1150px) {
+  .splash.is-row .splash-info,
+  .splash.is-row .splash-images {
+    translate: none;
+  }
 }
 
 /* Row: out of the headline's flow, placed by placeSubtitle (until then, under
