@@ -30,9 +30,9 @@ const emit = defineEmits<{ continue: [] }>()
 const TAB_TEXT = 'Graduate Institute - Albert Hirschman Centre on Democracy'
 // Written still in the tab; the full TAB_TEXT slides past only on hover.
 const TAB_SHORT = 'Graduate Institute - Albert Hirschman'
-// Sliding from the hover on; once the pointer's gone, on until it's round to
-// where it started (the end of a loop), and only then still again.
-const tabSliding = ref(false)
+// Sliding past, always, slowly (45s a loop, in its CSS); the still label
+// (TAB_SHORT) only sets the tab's width.
+const tabSliding = ref(true)
 const tabHovered = ref(false)
 const TAB_LINK = 'https://www.graduateinstitute.ch/international-programmes/decode-decryptons-co-creons-debattons'
 
@@ -2778,7 +2778,7 @@ onUnmounted(() => {
         <span class="splash-tab-ticker-still">{{ TAB_SHORT }}</span>
         <!-- Too long for the tab: it slides past endlessly — three copies (always
              enough to fill the tab), the loop jumps back by exactly one of them. -->
-        <span class="splash-tab-ticker-slide" @animationiteration="tabHovered || (tabSliding = false)">
+        <span class="splash-tab-ticker-slide">
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
           <span aria-hidden="true">{{ TAB_TEXT }}</span>
@@ -3297,7 +3297,8 @@ onUnmounted(() => {
 
 .splash-tab-ticker-slide {
   display: inline-flex;
-  animation: splash-tab-ticker-slide 24s linear infinite;
+  /* Slowly: a loop (one copy of the text) every 45s. */
+  animation: splash-tab-ticker-slide 45s linear infinite;
 }
 
 /* Gap after each copy, so the loop's seam spaces like the rest. */
@@ -4661,7 +4662,7 @@ onUnmounted(() => {
     .splash.is-measured:not(.intro-logo, .intro-build, .intro-tab, .intro-footer) .splash-tab-ticker-slide {
       animation:
         splash-tab-ticker-enter 1.4s cubic-bezier(0.16, 1, 0.3, 1) var(--ticker-enter-delay, 0s) backwards,
-        splash-tab-ticker-slide 24s linear var(--ticker-enter-delay, 0s) infinite;
+        splash-tab-ticker-slide 45s linear var(--ticker-enter-delay, 0s) infinite;
     }
 
     /* A returning visitor has no intro: after the splash's fade-in. */
