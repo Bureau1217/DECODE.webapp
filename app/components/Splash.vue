@@ -422,7 +422,8 @@ function fitHeadlines() {
   // Mobile: the text stands on the image strip, so it also has to fit between the
   // strip and the top tab, its frame's tallest step included.
   const roomAboveStrip = stripTop.value - stripGap * 2 - subtitleHeight - (tabTop.value + tabHeight.value + stripGap)
-  headlineFontSize.value = Math.min(
+  // Row (the splash by default): a tenth smaller, with its subtitle.
+  headlineFontSize.value = (SPLASH_ROW ? 0.9 : 1) * Math.min(
     isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
     widestEm ? headlineMaxWidth.value / widestEm : Infinity,
     maxHeight / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT),
@@ -1059,7 +1060,8 @@ function computeGrid() {
   const still = splashEl.value.querySelector<HTMLElement>('.splash-tab-ticker-still')
   const stillWidth = still ? still.scrollWidth + 8 : 0
   const fitted = stillWidth / 0.96 + tabHeight.value * (TAB_LEFT_DX_RATIO + TAB_RIGHT_DX_RATIO)
-  tabWidth.value = Math.min(window.innerWidth * 0.9, Math.max(window.innerWidth * (isMobile ? 0.5 : 0.25), fitted))
+  // Its label's width (not a share of the window: it would widen with it).
+  tabWidth.value = Math.min(window.innerWidth * 0.9, fitted || window.innerWidth * (isMobile ? 0.5 : 0.25))
   tabTop.value = window.innerHeight * 0.015
   pageWidth.value = window.innerWidth
 
@@ -1150,8 +1152,11 @@ function computeGrid() {
   }
 
   stripTop.value = 0
-  stripStyle.value = {}
-  infoStyle.value = {}
+  // Centred on the grid, not on the whole splash (the tab above makes them
+  // differ): the strip on its middle line, the headline and subtitle in it.
+  const gridMiddle = (gridTop + boxH - gridBottomGap) / 2
+  stripStyle.value = { top: `${gridMiddle}px` }
+  infoStyle.value = { top: `${gridTop}px`, bottom: `${gridBottomGap}px` }
   if (imagesEl.value) {
     imagesBandHeight.value = imagesEl.value.getBoundingClientRect().height
   }
@@ -3550,6 +3555,10 @@ onUnmounted(() => {
 
 /* /?splash=row: the images hanging from one line, each with its caption
    under it; small silver bars at the sides, grained. */
+
+.splash.is-row .splash-subtitle-box {
+  font-size: 12.6pt;
+}
 
 .splash.is-row .splash-images {
   /* The row ends 10px before the screen's right edge, each image growing out
