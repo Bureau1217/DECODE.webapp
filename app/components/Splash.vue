@@ -617,6 +617,62 @@ const SPAWN_GAP_VW = 0.5
 // (every SPAWN_GROW_MS) and growing at an even pace (linear): one uninterrupted
 // flow.
 const SPAWN_FLOW = useRoute().query.spawn === 'flow'
+// /?spawn=drift (row): one constant drift, as the smoothest image strips do
+// (GSAP's seamless loop, the CSS marquees): the whole row slides left at
+// DRIFT_SPEED px/s (a transform, every frame), and each new image, joined
+// out of sight on the right, unfolds from its top right corner as it comes
+// in across the screen's edge (by how far in it is), its caption riding its
+// bottom: entering never pushes the row, so its speed never changes. The row
+// fades out at both edges; each image has a soft shadow.
+const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
+const DRIFT_SPEED = 46
+let driftOffset = 0 // px the track sits right of its place: what's still to come in
+let driftFrame = 0
+let driftLast = 0
+const driftRevealed = new Set<number>()
+function driftTick(now: number) {
+  driftFrame = requestAnimationFrame(driftTick)
+  const strip = imagesEl.value
+  const track = strip?.querySelector<HTMLElement>('.splash-images-track')
+  if (!strip || !track) return
+  // Hidden, then back: no leap (the frames stopped, the clock didn't).
+  const dt = Math.min(50, now - (driftLast || now))
+  driftLast = now
+  driftOffset -= (DRIFT_SPEED * dt) / 1000
+  // The last one wholly in: the next joins, out of sight, the track pushed
+  // right by as much so nothing on screen moves.
+  if (driftOffset <= 0) {
+    const before = spawnCount.value
+    spawnNext()
+    if (spawnCount.value > before) {
+      const gap = (window.innerWidth * SPAWN_GAP_VW) / 100
+      driftOffset += (spawnWidths.value[before] ?? 0) + (before > spawnBase.value ? gap : 0)
+    }
+    else driftOffset = 0
+  }
+  track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
+  // Each coming in: unfolded by how far in across the edge it is.
+  const edge = strip.getBoundingClientRect().right
+  for (const wrapper of track.querySelectorAll<HTMLElement>('.splash-image-wrapper')) {
+    const n = Number(wrapper.dataset.n)
+    const width = spawnWidths.value[n]
+    if (!width) continue
+    // The first ones, there from the start, labels and all.
+    if (framedLabels.value.has(n)) driftRevealed.add(n)
+    const left = wrapper.getBoundingClientRect().left
+    if (left > edge + 1 && driftRevealed.has(n)) continue
+    const t = Math.min(1, Math.max(0, (edge - left) / width))
+    const s = t * t * (3 - 2 * t)
+    const img = wrapper.querySelector<HTMLElement>('img')
+    const caption = wrapper.querySelector<HTMLElement>('.splash-image-caption')
+    if (img) img.style.transform = `scale(${s.toFixed(4)})`
+    if (caption && img) caption.style.transform = `translateY(${(-(1 - s) * img.offsetHeight).toFixed(1)}px)`
+    if (t >= 1 && !driftRevealed.has(n)) {
+      driftRevealed.add(n)
+      revealLabel(n, 0)
+    }
+  }
+}
 const SPAWN_EVERY_MS = SPAWN_FLOW ? 1800 : 3200
 const SPAWN_AFTER_MS = 2200
 // Shut ones rendered ahead (so they load, and can be measured).
@@ -662,7 +718,7 @@ function spawnNext() {
   if (!width) return // not loaded yet: next time
   spawnWidths.value = { ...spawnWidths.value, [n]: width }
   spawnCount.value = n + 1
-  if (SPLASH_ROW) revealLabel(n, SPAWN_GROW_MS)
+  if (SPLASH_ROW && !SPAWN_DRIFT) revealLabel(n, SPAWN_GROW_MS)
   // Drop those wholly off the left (the row's held right, so nothing moves).
   for (;;) {
     const first = strip.querySelector<HTMLElement>(`[data-n="${spawnBase.value}"]`)
@@ -680,6 +736,10 @@ function startSpawn() {
   // without, they come on their own.
   if (headlines.value.length > 1 && !HEADLINE_STILL) return
   spawnStartTimer = setTimeout(() => {
+    if (SPAWN_DRIFT) {
+      driftFrame = requestAnimationFrame(driftTick)
+      return
+    }
     spawnNext()
     spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
   }, SPAWN_AFTER_MS)
@@ -2693,6 +2753,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelAnimationFrame(driftFrame)
   document.removeEventListener('visibilitychange', onVisibility)
   labelTimers.forEach(clearTimeout)
   globe?.stop()
@@ -2729,6 +2790,7 @@ onUnmounted(() => {
       'is-panels': SPLASH_PANELS,
       'is-title-silver': TITLE_SILVER,
       'is-flow': SPAWN_FLOW,
+      'is-drift': SPAWN_DRIFT,
       'shapes-hovered': shapesHovered,
       'is-spawn': IMAGES_SPAWN,
       'is-spawn-instant': spawnInstant,
@@ -3030,12 +3092,12 @@ onUnmounted(() => {
             :src="image.url"
             :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
-            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
+            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, ...(SPAWN_DRIFT ? {} : { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' }) } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
             @load="onStripImageLoad"
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
-          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? `translateY(${-spawnTargetWidth(index) / spawnRatio(index)}px)` : 'none' } : undefined">
+          <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="!SPAWN_DRIFT && measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? `translateY(${-spawnTargetWidth(index) / spawnRatio(index)}px)` : 'none' } : undefined">
             <span class="splash-image-number">{{ imageNumber(index) }}</span>
             <span
               v-if="imageLabel(index, image.alt)"
@@ -3598,6 +3660,46 @@ onUnmounted(() => {
 
 .splash.is-row .splash-subtitle-box {
   font-size: 12.6pt;
+}
+
+/* /?spawn=drift: frames at their size at once (the drift moves them, not their
+   widths), nothing clipped (the shadows), no transitions (every frame is
+   set); the row fading out at both edges (a mask repeated up and down, so
+   the captions under the band stay); a soft shadow under each image. */
+.splash.is-drift .splash-image-wrapper,
+.splash.is-drift .splash-images-track img,
+.splash.is-drift .splash-image-caption {
+  transition: none !important;
+}
+
+.splash.is-drift .splash-image-wrapper {
+  overflow: visible;
+}
+
+.splash.is-drift .splash-images-track {
+  will-change: transform;
+}
+
+.splash.is-row.is-drift .splash-images {
+  clip-path: none;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-repeat: repeat-y;
+  mask-repeat: repeat-y;
+  -webkit-mask-clip: no-clip;
+  mask-clip: no-clip;
+}
+
+.splash.is-drift .splash-images-track img {
+  filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.16)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.08));
+}
+
+.splash.is-drift .splash-images-track img.is-toned {
+  filter: var(--tone-light) drop-shadow(0 10px 16px rgba(0, 0, 0, 0.16)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.08));
+}
+
+:root[data-theme='dark'] .splash.is-drift .splash-images-track img.is-toned {
+  filter: var(--tone-dark) drop-shadow(0 10px 18px rgba(0, 0, 0, 0.5));
 }
 
 /* /?spawn=flow: every growth at an even pace, so one runs straight into the
