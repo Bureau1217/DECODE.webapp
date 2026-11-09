@@ -637,7 +637,7 @@ function flowNext() {
 // fades out at both edges; each image has a soft shadow.
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
 const DRIFT_SPEED = 90
-const DRIFT_FADE = 56 // px
+const DRIFT_FADE = 0 // px: a clean cut at the grid's edges
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
 let driftFrame = 0
 let driftLast = 0
@@ -678,12 +678,10 @@ function driftTick(now: number) {
   }
   track.style.transform = `translate3d(${driftOffset.toFixed(2)}px, 0, 0)`
   if (driftJoining) return
-  // On the left the row is gone before the grid's numbers in the margin
-  // (fading out over DRIFT_FADE up to just past them), so it never runs over
-  // them.
   const box = strip.getBoundingClientRect()
-  const numbers = splashEl.value?.querySelector<HTMLElement>('.splash-grid-numbers')
-  const clearOf = numbers ? Math.max(0, ...[...numbers.children].map((n) => n.getBoundingClientRect().right)) - box.left + 6 : 0
+  // The grid's edges: the row comes out of its right one and goes into its
+  // left one, cut there (both margins the same).
+  const clearOf = grid.value ? grid.value.left : 0
   // The right mirrors the left: the row ends as far in from the screen's right
   // edge (near the grid's), fading in over the same width.
   if (strip.dataset.clear !== String(Math.round(clearOf))) {
