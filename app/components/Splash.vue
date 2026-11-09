@@ -640,7 +640,8 @@ function flowNext() {
 // its right edge stays on the screen's), its caption riding its
 // bottom: entering never pushes the row, so its speed never changes. The row
 // fades out at both edges; each image has a soft shadow.
-const SPAWN_DRIFT = useRoute().query.spawn === 'drift'
+// The row's default (/?spawn=grow: each image opening, then a pause).
+const SPAWN_DRIFT = useRoute().query.spawn === 'drift' || (SPLASH_ROW && !useRoute().query.spawn)
 const DRIFT_SPEED = 90
 const DRIFT_FADE = 0 // px: a clean cut at the screen's edges
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
@@ -2642,7 +2643,8 @@ const groupLift = ref(0)
 // /?balance=optical: instead, the headline's middle (and the strip's) on the
 // grid's optical centre, OPTICAL_CENTRE of its height down, a little above its
 // middle.
-const BALANCE_OPTICAL = useRoute().query.balance === 'optical'
+// By default (/?balance=group: the headline and its subtitle centred instead).
+const BALANCE_OPTICAL = useRoute().query.balance !== 'group'
 const OPTICAL_CENTRE = 0.4
 const OPTICAL_SUBTITLE_GAP = 0.5
 const OPTICAL_SUBTITLE_DROP = 4 // px lower than that
