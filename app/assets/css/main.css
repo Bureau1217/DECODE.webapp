@@ -857,3 +857,32 @@ html.vt-closing::view-transition-new(*.article-subtitle) {
     transform: translateY(4px);
   }
 }
+
+/* The splash's theme switch (Splash.vue, themePixels): the page as it was and
+   as it is, the new one shown through a mask of grid cells growing out from
+   the click (--theme-mask, redrawn step by step), held for --theme-ms. */
+html.theme-pixels::view-transition-old(root),
+html.theme-pixels::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html.theme-pixels::view-transition-new(root) {
+  -webkit-mask-image: var(--theme-mask);
+  mask-image: var(--theme-mask);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  animation: theme-pixels-hold var(--theme-ms, 1100ms) linear both;
+}
+
+@keyframes theme-pixels-hold {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

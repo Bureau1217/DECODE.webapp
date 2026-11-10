@@ -1869,76 +1869,65 @@ function onSplashLeave() {
   shapesHovered.value = false
   clearTimeout(followTimer)
 }
-// A click on the grid turns the site to the other theme: pixels spread out from
-// the click across the whole screen in the other theme's ground (the current
-// ink), the theme changes under them, then they go, outwards again, showing it.
+// A click on the grid turns the site to the other theme, the one screen turning
+// into the other pixel by pixel, outwards from the click: a view transition
+// (the browser's picture of the page as it was, over the page as it now is),
+// the new one shown through a mask of grid cells (an SVG, redrawn at each of
+// THEME_STEPS steps over THEME_MS), each cell's moment by its distance from
+// the click, a little loosely, so the front is ragged. Without view
+// transitions (or with reduced motion), the theme just changes.
 function onSplashClick(event: MouseEvent) {
   if (!overGrid(event) || (event.target as HTMLElement).closest('a, button')) return
   themePixels(event.clientX, event.clientY)
 }
 let themeBusy = false
 function themePixels(x: number, y: number) {
-  if (themeBusy || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    if (!themeBusy) colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark'
-    return
-  }
+  const toggle = () => { colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark' }
+  const doc = document as Document & { startViewTransition?: (update: () => Promise<void> | void) => { ready: Promise<void>, finished: Promise<void> } }
+  if (themeBusy) return
+  if (!doc.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return toggle()
   themeBusy = true
-  const canvas = document.createElement('canvas')
-  const ratio = Math.min(2, window.devicePixelRatio || 1)
   const w = window.innerWidth
   const h = window.innerHeight
-  canvas.width = Math.round(w * ratio)
-  canvas.height = Math.round(h * ratio)
-  Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh', zIndex: '9999', pointerEvents: 'none' })
-  document.body.append(canvas)
-  const ctx = canvas.getContext('2d')!
-  ctx.scale(ratio, ratio)
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-ink').trim() || '#1a1a1a'
-  // The cells, each with its moment: by its distance from the click, a little
-  // loosely, so the front is ragged (pixels, not a circle).
-  const size = THEME_PIXEL
-  const cols = Math.ceil(w / size)
-  const rows = Math.ceil(h / size)
+  const cols = Math.ceil(w / THEME_PIXEL)
+  const rows = Math.ceil(h / THEME_PIXEL)
   const far = Math.hypot(Math.max(x, w - x), Math.max(y, h - y))
-  const cells: { x: number, y: number, at: number }[] = []
+  const cells: { c: number, r: number, at: number }[] = []
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const d = Math.hypot(c * size + size / 2 - x, r * size + size / 2 - y) / far
-      cells.push({ x: c * size, y: r * size, at: Math.min(1, Math.max(0, d * 0.85 + Math.random() * 0.15)) })
+      const d = Math.hypot((c + 0.5) * THEME_PIXEL - x, (r + 0.5) * THEME_PIXEL - y) / far
+      cells.push({ c, r, at: Math.min(1, Math.max(0, d * 0.82 + Math.random() * 0.18)) })
     }
   }
-  const start = performance.now()
-  let switched = false
-  const frame = (now: number) => {
-    const t = now - start
-    ctx.clearRect(0, 0, w, h)
-    if (t < THEME_COVER_MS) {
-      // Covering: every cell whose moment has come.
-      const p = t / THEME_COVER_MS
-      for (const cell of cells) if (cell.at <= p) ctx.fillRect(cell.x, cell.y, size, size)
-    }
-    else {
-      if (!switched) {
-        switched = true
-        colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark'
-      }
-      // Uncovering, in the same order: the cells whose moment hasn't come yet stay.
-      const p = (t - THEME_COVER_MS - THEME_HOLD_MS) / THEME_UNCOVER_MS
-      for (const cell of cells) if (cell.at > p) ctx.fillRect(cell.x, cell.y, size, size)
-      if (p >= 1) {
-        canvas.remove()
-        themeBusy = false
-        return
-      }
-    }
-    requestAnimationFrame(frame)
+  // The mask at progress p: a white cell for each one shown.
+  const maskAt = (p: number) => {
+    const rects = cells.filter((cell) => cell.at <= p).map((cell) => `<rect x='${cell.c}' y='${cell.r}' width='1.02' height='1.02'/>`).join('')
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${cols} ${rows}' preserveAspectRatio='none' shape-rendering='crispEdges'><g fill='white'>${rects}</g></svg>`
+    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
   }
-  requestAnimationFrame(frame)
+  const root = document.documentElement
+  root.style.setProperty('--theme-mask', maskAt(0))
+  root.style.setProperty('--theme-ms', `${THEME_MS + 200}ms`)
+  root.classList.add('theme-pixels')
+  const transition = doc.startViewTransition(async () => {
+    toggle()
+    await nextTick()
+  })
+  transition.ready.then(() => {
+    for (let k = 1; k <= THEME_STEPS; k++) {
+      setTimeout(() => root.style.setProperty('--theme-mask', maskAt(k / THEME_STEPS)), (THEME_MS * k) / THEME_STEPS)
+    }
+  }).catch(() => {})
+  transition.finished.finally(() => {
+    root.classList.remove('theme-pixels')
+    root.style.removeProperty('--theme-mask')
+    root.style.removeProperty('--theme-ms')
+    themeBusy = false
+  })
 }
-const THEME_PIXEL = 28 // px
-const THEME_COVER_MS = 650
-const THEME_HOLD_MS = 120
-const THEME_UNCOVER_MS = 650
+const THEME_PIXEL = 30 // px
+const THEME_MS = 950
+const THEME_STEPS = 18
 
 function constructShapes() {
   clearTimeout(shapeTimer)
