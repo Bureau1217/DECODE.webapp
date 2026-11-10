@@ -1346,6 +1346,9 @@ const LOGO_START_MS = 300
 const SUBTITLE_AT = 1500
 // Subtitle deciphered by ~2.7s, then both held 2s.
 const OUT_AT = 4700
+// Row: the logo held a moment, gone, then everything (playIntro).
+const QUICK_OUT_AT = 1700
+const QUICK_BUILD_AT = QUICK_OUT_AT + 550
 const OUT_MS = 900
 const MOVE_AT = OUT_AT + OUT_MS
 const MOVE_MS = 900
@@ -1845,6 +1848,8 @@ function onSplashMove(event: MouseEvent) {
   if (over === shapesHovered.value) return
   shapesHovered.value = over
   if (over) {
+    // A colour of its own each time the pointer comes in (another than last).
+    colorShift.value = (colorShift.value + 1 + Math.floor(Math.random() * (BADGE_COLORS.length - 1))) % BADGE_COLORS.length
     // Grow in from nothing, all three right where the pointer is.
     const now = performance.now()
     pointerTrail = at ? [{ ...at, t: now - 1000 }, { ...at, t: now }] : []
@@ -1864,12 +1869,76 @@ function onSplashLeave() {
   shapesHovered.value = false
   clearTimeout(followTimer)
 }
+// A click on the grid turns the site to the other theme: pixels spread out from
+// the click across the whole screen in the other theme's ground (the current
+// ink), the theme changes under them, then they go, outwards again, showing it.
 function onSplashClick(event: MouseEvent) {
   if (!overGrid(event) || (event.target as HTMLElement).closest('a, button')) return
-  colorShift.value++
-  for (const state of shapeStates) state.seed = Math.floor(Math.random() * 1e6)
-  followSpots = []
+  themePixels(event.clientX, event.clientY)
 }
+let themeBusy = false
+function themePixels(x: number, y: number) {
+  if (themeBusy || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!themeBusy) colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark'
+    return
+  }
+  themeBusy = true
+  const canvas = document.createElement('canvas')
+  const ratio = Math.min(2, window.devicePixelRatio || 1)
+  const w = window.innerWidth
+  const h = window.innerHeight
+  canvas.width = Math.round(w * ratio)
+  canvas.height = Math.round(h * ratio)
+  Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh', zIndex: '9999', pointerEvents: 'none' })
+  document.body.append(canvas)
+  const ctx = canvas.getContext('2d')!
+  ctx.scale(ratio, ratio)
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--color-ink').trim() || '#1a1a1a'
+  // The cells, each with its moment: by its distance from the click, a little
+  // loosely, so the front is ragged (pixels, not a circle).
+  const size = THEME_PIXEL
+  const cols = Math.ceil(w / size)
+  const rows = Math.ceil(h / size)
+  const far = Math.hypot(Math.max(x, w - x), Math.max(y, h - y))
+  const cells: { x: number, y: number, at: number }[] = []
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const d = Math.hypot(c * size + size / 2 - x, r * size + size / 2 - y) / far
+      cells.push({ x: c * size, y: r * size, at: Math.min(1, Math.max(0, d * 0.85 + Math.random() * 0.15)) })
+    }
+  }
+  const start = performance.now()
+  let switched = false
+  const frame = (now: number) => {
+    const t = now - start
+    ctx.clearRect(0, 0, w, h)
+    if (t < THEME_COVER_MS) {
+      // Covering: every cell whose moment has come.
+      const p = t / THEME_COVER_MS
+      for (const cell of cells) if (cell.at <= p) ctx.fillRect(cell.x, cell.y, size, size)
+    }
+    else {
+      if (!switched) {
+        switched = true
+        colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark'
+      }
+      // Uncovering, in the same order: the cells whose moment hasn't come yet stay.
+      const p = (t - THEME_COVER_MS - THEME_HOLD_MS) / THEME_UNCOVER_MS
+      for (const cell of cells) if (cell.at > p) ctx.fillRect(cell.x, cell.y, size, size)
+      if (p >= 1) {
+        canvas.remove()
+        themeBusy = false
+        return
+      }
+    }
+    requestAnimationFrame(frame)
+  }
+  requestAnimationFrame(frame)
+}
+const THEME_PIXEL = 28 // px
+const THEME_COVER_MS = 650
+const THEME_HOLD_MS = 120
+const THEME_UNCOVER_MS = 650
 
 function constructShapes() {
   clearTimeout(shapeTimer)
@@ -2490,6 +2559,32 @@ function playIntro() {
     return
   }
   const at = (ms: number, fn: () => void) => introTimers.push(setTimeout(fn, ms))
+  // Row (the splash by default): shorter. Only DE.CO.DE comes in (as ever) and
+  // goes; then everything at once: the grid, the images opening, the headline
+  // and subtitle deciphering, the tab and the footer.
+  if (SPLASH_ROW) {
+    at(QUICK_OUT_AT, () => {
+      const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo-word')
+      logoReveal?.stop()
+      if (logo) boxReveal(logo, { mode: 'out' })
+    })
+    at(QUICK_BUILD_AT - 300, fillSpawn)
+    at(QUICK_BUILD_AT, () => {
+      subtitleShown.value = true
+      subtitleMoving.value = true
+      buildIn()
+      headlineIn()
+      const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
+      if (box) decipherIn(box)
+      nextTick(() => { splashIntro.value = 'footer' })
+    })
+    at(QUICK_BUILD_AT + 1300, () => {
+      splashIntro.value = 'done'
+      introSeen.value = '1'
+      startHeadlineCycle()
+    })
+    return
+  }
   at(SUBTITLE_AT, () => {
     measureSubtitleLift()
     subtitleShown.value = true
@@ -3147,6 +3242,7 @@ onUnmounted(() => {
             class="splash-shape-map-image"
             :style="{ left: `${grid.left - shapeGrid.x0}px`, top: `${grid.top - shapeGrid.y0}px`, width: `${grid.right - grid.left}px`, height: `${grid.bottom - grid.top}px`, '--satellite': `url(${satelliteUrl})` }"
           />
+          <div v-if="ALT_HOVER" class="splash-shape-grid" :style="{ left: `${grid.left - shapeGrid.x0}px`, top: `${grid.top - shapeGrid.y0}px`, width: `${grid.right - grid.left}px`, height: `${grid.bottom - grid.top}px`, backgroundSize: `${grid.cellW}px ${grid.cellH}px` }" />
         </div>
         <div v-if="colorMode === 'dark'" class="splash-shape-video" :style="{ clipPath: `url(#splash-shape-clip-${index})` }">
           <template v-if="ALT_HOVER">
@@ -3164,6 +3260,7 @@ onUnmounted(() => {
             />
           </template>
           <video v-else :src="SHAPE_VIDEOS[index]" :style="{ ...view.video, transitionDuration: `${shapeMotion().morphMs}ms` }" autoplay muted loop playsinline />
+          <div v-if="ALT_HOVER && grid" class="splash-shape-grid" :style="{ left: `${grid.left - shapeGrid.x0}px`, top: `${grid.top - shapeGrid.y0}px`, width: `${grid.right - grid.left}px`, height: `${grid.bottom - grid.top}px`, backgroundSize: `${grid.cellW}px ${grid.cellH}px` }" />
         </div>
         <svg :viewBox="`0 0 ${shapeGrid.cols} ${shapeGrid.rows}`" preserveAspectRatio="none">
           <path class="splash-shape-outline" :d="view.outline" :stroke="ALT_HOVER ? shapeColor(index) : BADGE_COLORS[index]" />
@@ -4387,6 +4484,18 @@ onUnmounted(() => {
 
 /* Light mode's map in the masses, while the headline scrambles: in quickly
    with the letters, out as they settle; over the mass's pixels. */
+/* The grid's lines in white over what the mass shows (the hover). */
+.splash-shape-grid {
+  position: absolute;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.85) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.85) 1px, transparent 1px);
+  border-right: 1px solid rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.85);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
 .splash-shape-map {
   position: absolute;
   inset: 0;
