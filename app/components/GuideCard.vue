@@ -167,3 +167,11 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   }
 }
 </style>
+
+<style>
+/* Reading mode (wider cards): the title closer under the image, the image
+   taking the height that frees. Unscoped: the class is on app.vue's <main>. */
+.app-content.reading-mode .guide-card-title {
+  margin-top: 1.5%;
+}
+</style>
