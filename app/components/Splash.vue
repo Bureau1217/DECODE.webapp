@@ -1410,7 +1410,7 @@ const SUBTITLE_AT = 1500
 // Subtitle deciphered by ~2.7s, then both held 2s.
 const OUT_AT = 4700
 // Row: the logo held a moment, gone, then everything (playIntro).
-const QUICK_OUT_AT = 1700
+const QUICK_OUT_AT = 3200 // DE.CO.DE held 1.5s longer
 const QUICK_BUILD_AT = QUICK_OUT_AT + 550
 const QUICK_STAGGER = 320
 const OUT_MS = 900
