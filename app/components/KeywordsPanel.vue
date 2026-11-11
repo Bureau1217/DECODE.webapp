@@ -466,6 +466,7 @@ function isRelated(tagId: string) {
   font-weight: 700;
 }
 
+.keywords-panel-popup-title,
 .keywords-panel-popup-definition {
   font-family: var(--font-mono);
 }
