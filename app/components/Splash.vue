@@ -136,7 +136,7 @@ const EXTEND_MAX = 40 // px, largest outward extension — capped: the backgroun
 const SEGMENTS_PER_EDGE = 4 // top/bottom jumps per line — tuned live via the Reveal Mask Tuner artifact
 const MASK_SEED = 42
 const MASK_SNAP = 24 // px at full size: the smallest step in the silhouette
-const FRAME_MARGIN = 14 * 1.05 * 1.05 // px at full size: row's even margin round each line
+const FRAME_MARGIN = 40 // px at full size (the headline at 120px): row's even margin round each line
 const FRAME_SCREEN_MARGIN = 0.025 // mobile: of the window's width, kept clear each side of the frame
 
 interface ParagraphMask {
