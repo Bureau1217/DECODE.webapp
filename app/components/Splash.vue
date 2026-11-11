@@ -136,6 +136,7 @@ const EXTEND_MAX = 40 // px, largest outward extension — capped: the backgroun
 const SEGMENTS_PER_EDGE = 4 // top/bottom jumps per line — tuned live via the Reveal Mask Tuner artifact
 const MASK_SEED = 42
 const MASK_SNAP = 24 // px at full size: the smallest step in the silhouette
+const FRAME_MARGIN = 14 // px at full size: row's even margin round each line
 const FRAME_SCREEN_MARGIN = 0.025 // mobile: of the window's width, kept clear each side of the frame
 
 interface ParagraphMask {
@@ -158,6 +159,9 @@ interface ParagraphMask {
 // `scale` sizes the px knobs above to the headline's actual font size
 // (they're tuned for the desktop's 120px).
 function pickLevel(rand: () => number, allowBite: boolean, scale: number): number {
+  // Row (the splash by default): no notches or jogs, an even margin all
+  // round each line (its only steps where one line is longer than the next).
+  if (SPLASH_ROW) return FRAME_MARGIN * scale
   if (allowBite && rand() < BITE_CHANCE) {
     return -(BITE_MIN + rand() * (BITE_MAX - BITE_MIN)) * scale
   }
@@ -492,6 +496,19 @@ function buildSentenceMasks() {
     : lines
   const mask = buildParagraphMask(shape, headlineFontSize.value / HEADLINE_MAX_FONT_SIZE, maskSeed.value, frameShuffle)
   if (frameShuffle) mask.base.push(...lines)
+  // Row (the splash by default): just each line's box grown by an even margin
+  // all round, merged: no notches, no little corners; its only steps where
+  // one line is longer than the next. The lines' boxes, touching, leave no gap.
+  if (SPLASH_ROW) {
+    const m = FRAME_MARGIN * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE
+    mask.base = shape.map((line, i) => ({
+      left: line.left - m,
+      top: line.top - (i === 0 ? m : 0),
+      width: line.width + m * 2,
+      height: line.height + (i === shape.length - 1 ? m : 0) + (i === 0 ? m : 0),
+    }))
+    mask.bites = []
+  }
   // Every edge on a coarse grid of screen pixels. Edges that nearly line up then
   // line up exactly, so the silhouette only has real steps, never a tiny jog, and
   // two pieces meeting leave no half-transparent seam for the outline to show
@@ -1349,6 +1366,7 @@ const OUT_AT = 4700
 // Row: the logo held a moment, gone, then everything (playIntro).
 const QUICK_OUT_AT = 1700
 const QUICK_BUILD_AT = QUICK_OUT_AT + 550
+const QUICK_STAGGER = 320
 const OUT_MS = 900
 const MOVE_AT = OUT_AT + OUT_MS
 const MOVE_MS = 900
@@ -2565,9 +2583,12 @@ function playIntro() {
       headlineIn()
       const box = splashEl.value?.querySelector<HTMLElement>('.splash-subtitle-box')
       if (box) decipherIn(box)
-      nextTick(() => { splashIntro.value = 'footer' })
     })
-    at(QUICK_BUILD_AT + 1300, () => {
+    // The rest following closely, overlapping, each with its own entrance (the
+    // tab tracing itself, then the footer): one flow, not a pop.
+    at(QUICK_BUILD_AT + QUICK_STAGGER, () => { splashIntro.value = 'tab' })
+    at(QUICK_BUILD_AT + QUICK_STAGGER * 2, () => { splashIntro.value = 'footer' })
+    at(QUICK_BUILD_AT + QUICK_STAGGER * 2 + 900, () => {
       splashIntro.value = 'done'
       introSeen.value = '1'
       startHeadlineCycle()
