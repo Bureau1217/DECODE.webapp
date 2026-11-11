@@ -66,9 +66,22 @@ function onRowEnter(tag: CategoryWithTags['tags'][number], event: MouseEvent) {
 }
 // Low in the panel, a definition opens upwards: it would run under the footer.
 const popupAbove = ref(false)
+// Reading mode: the definition the panel's full width, its middle on the panel's
+// right edge, half over the page beside it. Fixed (placed off the row), as the
+// panel, scrolling, cuts off anything past its edge.
+const popupFixed = ref<Record<string, string> | null>(null)
 function enterRow(tag: CategoryWithTags['tags'][number], row: HTMLElement) {
   placePreview(row)
-  popupAbove.value = row.getBoundingClientRect().top > window.innerHeight * 0.6
+  const rect = row.getBoundingClientRect()
+  popupAbove.value = rect.top > window.innerHeight * 0.6
+  popupFixed.value = readingMode.value
+    ? {
+        position: 'fixed',
+        left: `${rect.left + rect.width / 2}px`,
+        width: `${rect.width}px`,
+        ...(popupAbove.value ? { top: 'auto', bottom: `${window.innerHeight - rect.bottom - 1}px` } : { top: `${rect.top - 1}px` }),
+      }
+    : null
   if (showPreview(tag, 0)) return
   hoveredTagId.value = tag.id
 }
@@ -150,7 +163,7 @@ function isRelated(tagId: string) {
 </script>
 
 <template>
-  <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked }" :reading-mode="readingMode">
+  <InfoPanel class="keywords-panel" :class="{ 'is-intro': introTransition, 'is-hover-locked': hoverLocked, 'is-popup-out': !!popupFixed && !!hoveredTagId }" :reading-mode="readingMode">
     <template v-for="category in categories" :key="category.id">
       <h3 class="text-label" :style="{ '--band-delay': `${ruleDelaySeconds(category.id)}s` }">
         <DecipherText :text="category.title" :delay="introTransition ? Math.round((ruleDelaySeconds(category.id) + 0.2) * 1000) : 0" :grow="introTransition" :from="panelMorph.fromAt(textOrder.get(category.id) ?? 0)" />
@@ -186,7 +199,7 @@ function isRelated(tagId: string) {
               >
             </div>
           </div>
-          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]">
+          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]" :style="popupFixed ?? undefined">
             <div class="keywords-panel-popup-title">{{ tag.title }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="keywords-panel-popup-definition" v-html="tag.description" />
@@ -456,17 +469,17 @@ function isRelated(tagId: string) {
   color: var(--color-brand);
 }
 
+/* Reading mode: the definition half over the page beside the panel (popupFixed),
+   so the panel above it while it's out. */
+.keywords-panel.is-popup-out {
+  z-index: 30;
+}
+
 .keywords-panel-popup.is-above {
   top: auto;
   bottom: -1px;
 }
 
-/* Reading mode: the panel is a quarter of the screen, too narrow for half of
-   it; the definition takes its full width. */
-.info-panel.reading-mode .keywords-panel-popup {
-  left: 0;
-  width: 100%;
-}
 
 .keywords-panel-popup-title {
   margin-bottom: 4px;
