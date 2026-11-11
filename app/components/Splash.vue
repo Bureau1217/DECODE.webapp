@@ -3232,7 +3232,7 @@ onUnmounted(() => {
       <line
         v-for="(x, k) in gridVerticals"
         :key="`v${k}`"
-        class="splash-grid-v"
+        :class="['splash-grid-v', { 'is-edge': k === 0 || k === gridVerticals.length - 1 }]"
         :x1="x + 0.5"
         :x2="x + 0.5"
         :y1="grid.top"
@@ -3241,7 +3241,7 @@ onUnmounted(() => {
       <line
         v-for="(y, k) in gridHorizontals"
         :key="`h${k}`"
-        class="splash-grid-h"
+        :class="['splash-grid-h', { 'is-edge': k === 0 || k === gridHorizontals.length - 1 }]"
         :x1="grid.left"
         :x2="grid.right + 1"
         :y1="y + 0.5"
@@ -3813,6 +3813,8 @@ onUnmounted(() => {
 .splash.is-leaving .splash-grid {
   background-image: none;
   border-color: transparent;
+  /* Its outer edge too: drawn by the lines (.is-edge), trimming with them. */
+  outline-color: transparent;
 }
 
 .splash-grid-lines {
@@ -3828,6 +3830,11 @@ onUnmounted(() => {
   shape-rendering: crispEdges;
   transform-box: fill-box;
   transform-origin: center;
+}
+
+/* The four outermost lines, in the edge's darker grey (.splash-grid's outline). */
+.splash-grid-lines line.is-edge {
+  stroke: var(--grid-edge);
 }
 
 .splash-grid-v {
@@ -4628,6 +4635,7 @@ onUnmounted(() => {
 .splash.intro-build .splash-grid {
   background-image: none;
   border-color: transparent;
+  outline-color: transparent;
 }
 
 .splash-grid-lines.is-building line {
