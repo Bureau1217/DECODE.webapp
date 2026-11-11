@@ -32,6 +32,9 @@ const isResourcesPage = computed(() => route.path === '/resources')
 const isAboutPage = computed(() => route.path === '/about' || route.path.startsWith('/about/'))
 const isHomePage = computed(() => route.path === '/')
 const isSearchPage = computed(() => route.path === '/search')
+// An open keyword (a concept, a question…: /keywords/concepts/x), white beside
+// the white index: the rule between them brown.
+const isKeywordPage = computed(() => /^\/keywords\/[^/]+\/[^/]+/.test(route.path))
 // A custom tool page reskins this bar in its own accent instead of
 // brown — each tool page gets its own exit button (TemplateToolPageLayout.
 // vue, top-right corner) rather than this bar.
@@ -158,7 +161,7 @@ const introTransition = useIntroTransition()
   />
   <div
     class="content-divider"
-    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'is-guide': isGuidePage, 'is-search': isSearchPage, 'is-sourcerel': isSourceReliabilityPage, 'is-tool-themed': isThemed, 'reading-mode': readingMode}"
+    :class="{ 'is-resources': isResourcesPage, 'is-about': isAboutPage, 'is-home': isHomePage, 'is-guide': isGuidePage, 'is-search': isSearchPage, 'is-keyword': isKeywordPage, 'is-sourcerel': isSourceReliabilityPage, 'is-tool-themed': isThemed, 'reading-mode': readingMode}"
     :style="{ '--local-accent': theme?.chromeAccent, '--local-accent-text': theme?.chromeText }"
     aria-hidden="true"
   />
@@ -422,7 +425,8 @@ const introTransition = useIntroTransition()
 
 /* Search results: brown between the keywords and the results — the
    tool's own color when the search was started on a tool. */
-.content-divider.is-search {
+.content-divider.is-search,
+.content-divider.is-keyword {
   background: var(--color-brand);
 }
 
