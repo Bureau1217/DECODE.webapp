@@ -475,6 +475,31 @@ function fitSubtitleBox() {
   }
   box.style.width = `${Math.min(limit, Math.ceil(box.offsetWidth / (step * 2)) * step * 2)}px`
 }
+// A line's letters' ink, from the canvas's measure of its text in its font,
+// placed on its box (relative to the same origin).
+let inkCanvas: CanvasRenderingContext2D | null = null
+function inkBox(el: HTMLElement, line: LineBox) {
+  inkCanvas ??= document.createElement('canvas').getContext('2d')
+  const ctx = inkCanvas
+  const cs = getComputedStyle(el)
+  const raw = el.textContent ?? ''
+  const text = cs.textTransform === 'uppercase' ? raw.toUpperCase() : raw
+  if (!ctx || !text.trim()) return { left: line.left, right: line.left + line.width, top: line.top, bottom: line.top + line.height }
+  ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+  if ('letterSpacing' in ctx) (ctx as any).letterSpacing = cs.letterSpacing === 'normal' ? '0px' : cs.letterSpacing
+  const t = ctx.measureText(text)
+  // The font's ascent and descent centred in the box (half the leading above):
+  // the baseline under the ascent.
+  const fontHeight = t.fontBoundingBoxAscent + t.fontBoundingBoxDescent
+  const baseline = line.top + (line.height - fontHeight) / 2 + t.fontBoundingBoxAscent
+  const scale = line.width && t.width ? line.width / t.width : 1
+  return {
+    left: line.left - t.actualBoundingBoxLeft * scale,
+    right: line.left + t.actualBoundingBoxRight * scale,
+    top: baseline - t.actualBoundingBoxAscent,
+    bottom: baseline + t.actualBoundingBoxDescent,
+  }
+}
 function buildSentenceMasks() {
   const masked = maskedEl.value
   // Leaving: the frame is closing (closeFrame), whatever the letters do.
@@ -500,13 +525,25 @@ function buildSentenceMasks() {
   // all round, merged: no notches, no little corners; its only steps where
   // one line is longer than the next. The lines' boxes, touching, leave no gap.
   if (SPLASH_ROW) {
+    // Measured from the letters' ink, not their boxes (whose line height and
+    // side bearings made the margin bigger below than above, and uneven at the
+    // sides): the same distance to the letters on every side.
     const m = FRAME_MARGIN * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE
-    mask.base = shape.map((line, i) => ({
-      left: line.left - m,
-      top: line.top - (i === 0 ? m : 0),
-      width: line.width + m * 2,
-      height: line.height + (i === shape.length - 1 ? m : 0) + (i === 0 ? m : 0),
-    }))
+    const ink = sentenceRefs.value.slice(0, headlineWords.value.length)
+      .map((el, i) => (el && shape[i] ? inkBox(el, shape[i]!) : null))
+      .filter((box): box is { left: number, right: number, top: number, bottom: number } => !!box)
+    // Neighbouring lines' edges less than a margin apart line up on the outer
+    // one: a step only where the lines really differ.
+    for (let i = 1; i < ink.length; i++) {
+      const a = ink[i - 1]!, b = ink[i]!
+      if (Math.abs(a.left - b.left) < m) a.left = b.left = Math.min(a.left, b.left)
+      if (Math.abs(a.right - b.right) < m) a.right = b.right = Math.max(a.right, b.right)
+    }
+    mask.base = ink.map((box, i) => {
+      const top = i === 0 ? box.top - m : (ink[i - 1]!.bottom + box.top) / 2
+      const bottom = i === ink.length - 1 ? box.bottom + m : (box.bottom + ink[i + 1]!.top) / 2
+      return { left: box.left - m, top, width: box.right - box.left + m * 2, height: bottom - top }
+    })
     mask.bites = []
   }
   // Every edge on a coarse grid of screen pixels. Edges that nearly line up then
@@ -533,6 +570,11 @@ function buildSentenceMasks() {
   // silhouette it's jumping through, the box having its own margin above it.
   const maxY = stripTop.value && box?.width ? startY - Math.min(grid, stripGap) : Infinity
   const outward = (rect: MaskRect): MaskRect => {
+    // Row: not snapped (snapping outward made the margin uneven), only rounded.
+    if (SPLASH_ROW && !stripTop.value) {
+      const left = Math.floor(rect.left), top = Math.floor(rect.top)
+      return { left, top, width: Math.ceil(rect.left + rect.width) - left, height: Math.ceil(rect.top + rect.height) - top }
+    }
     const left = Math.max(minX, downX(origin.left + rect.left))
     const right = Math.min(maxX, upX(origin.left + rect.left + rect.width))
     const top = downY(origin.top + rect.top)
