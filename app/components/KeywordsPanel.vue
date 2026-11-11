@@ -461,6 +461,13 @@ function isRelated(tagId: string) {
   bottom: -1px;
 }
 
+/* Reading mode: the panel is a quarter of the screen, too narrow for half of
+   it; the definition takes its full width. */
+.info-panel.reading-mode .keywords-panel-popup {
+  left: 0;
+  width: 100%;
+}
+
 .keywords-panel-popup-title {
   margin-bottom: 4px;
   font-weight: 700;
