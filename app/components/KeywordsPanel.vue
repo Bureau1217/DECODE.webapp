@@ -63,20 +63,6 @@ function fitPreview() {
 function onRowEnter(tag: CategoryWithTags['tags'][number], event: MouseEvent) {
   if (isMobile.value) return
   enterRow(tag, event.currentTarget as HTMLElement)
-  onRowMove(event)
-}
-// The definition sits POPUP_GAP to the right of the pointer, following it along
-// the row (its x only); where it would run past the row's right end, it goes to
-// the pointer's left instead, the same gap away. From a mention in a text (no
-// pointer on the row), it stays centred.
-const POPUP_GAP = 20
-const popupLeft = ref<number | null>(null)
-function onRowMove(event: MouseEvent) {
-  if (isMobile.value) return
-  const row = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  const width = row.width * 0.5
-  const x = event.clientX - row.left
-  popupLeft.value = x + POPUP_GAP + width <= row.width ? x + POPUP_GAP : Math.max(0, x - POPUP_GAP - width)
 }
 // Low in the panel, a definition opens upwards: it would run under the footer.
 const popupAbove = ref(false)
@@ -107,7 +93,6 @@ function onImageLeave(tag: CategoryWithTags['tags'][number]) {
   if (!isMobile.value) showPreview(tag, 0)
 }
 function onRowLeave() {
-  popupLeft.value = null
   if (isMobile.value) return
   hoveredTagId.value = null
   previewImage.value = null
@@ -178,7 +163,6 @@ function isRelated(tagId: string) {
           :data-keyword="tag.id"
           :style="{ '--row-delay': `${ruleDelaySeconds(tag.id)}s` }"
           @mouseenter="onRowEnter(tag, $event)"
-          @mousemove="onRowMove"
           @mouseleave="onRowLeave"
           @click="onRowTap(tag.id)"
         >
@@ -202,7 +186,7 @@ function isRelated(tagId: string) {
               >
             </div>
           </div>
-          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]" :style="popupLeft !== null ? { left: `${popupLeft}px` } : undefined">
+          <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]">
             <div class="keywords-panel-popup-title">{{ tag.title }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="keywords-panel-popup-definition" v-html="tag.description" />
