@@ -539,11 +539,15 @@ function buildSentenceMasks() {
       if (Math.abs(a.left - b.left) < m) a.left = b.left = Math.min(a.left, b.left)
       if (Math.abs(a.right - b.right) < m) a.right = b.right = Math.max(a.right, b.right)
     }
-    mask.base = ink.map((box, i) => {
-      const top = i === 0 ? box.top - m : (ink[i - 1]!.bottom + box.top) / 2
-      const bottom = i === ink.length - 1 ? box.bottom + m : (box.bottom + ink[i + 1]!.top) / 2
-      return { left: box.left - m, top, width: box.right - box.left + m * 2, height: bottom - top }
-    })
+    // Each line's ink grown by the margin on all four sides, the boxes merged
+    // (overlapping): wherever a line stands out past its neighbour, the step
+    // is the same margin from its letters, above and below as at the sides.
+    mask.base = ink.map((box) => ({
+      left: box.left - m,
+      top: box.top - m,
+      width: box.right - box.left + m * 2,
+      height: box.bottom - box.top + m * 2,
+    }))
     mask.bites = []
   }
   // Every edge on a coarse grid of screen pixels. Edges that nearly line up then
