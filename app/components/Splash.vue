@@ -1240,6 +1240,9 @@ function flowNext() {
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift' || (SPLASH_ROW && !useRoute().query.spawn)
 // shelf,keywords: half as fast; stand,middle: a little slower.
 const DRIFT_SPEED = SPLASH_SHELF_KEYWORDS ? 45 : STAND_MIDDLE ? STAND_MIDDLE_SPEED : 90
+// Mobile (22 Nov 2026): the strip slower still, the screen being narrow.
+const DRIFT_SPEED_MOBILE = STAND_MIDDLE ? 28 : DRIFT_SPEED
+const driftSpeed = () => (window.innerWidth <= 1150 ? DRIFT_SPEED_MOBILE : DRIFT_SPEED)
 const DRIFT_FADE = 0 // px: a clean cut at the screen's edges
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
 // keywords,images,stand: an image under the pointer (SplashKeywordGlobe's
@@ -1264,7 +1267,7 @@ function driftTick(now: number) {
   driftLast = now
   driftRate += ((standHover.value === null ? 1 : 0) - driftRate) * Math.min(1, (dt / 1000) * (standHover.value === null ? 1.5 : 2.5))
   // Still while the theme fades (useToggleColorMode): the old picture is frozen.
-  if (driftMoving && !document.documentElement.classList.contains('vt-theme')) driftOffset -= (DRIFT_SPEED * driftRate * dt) / 1000
+  if (driftMoving && !document.documentElement.classList.contains('vt-theme')) driftOffset -= (driftSpeed() * driftRate * dt) / 1000
   // The last one wholly in: the next joins, out of sight, the track pushed
   // right by as much so nothing on screen moves.
   // The push waits for the new one to be laid out (Vue's update, just before
@@ -1992,14 +1995,7 @@ if (SPLASH_ATLAS) {
 const TONE_AUTO = useRoute().query.tone !== 'off'
 const CONTRAST_SPREAD = 0.35
 watch(() => images.value?.length, () => toneImages())
-const toneTables = ref<Record<string, { light: string[], dark: string[], red: string[] }>>({})
-// The red and silver (dark mode's hover, 22 Nov 2026), as the campaigns
-// tool's card (ToolCard.vue): the photo's fitted silver negative, its
-// brightest RED_SHARE of tones (measured on the photo itself, so each photo
-// gets as much red, dark or bright) easing into the deep red, then its shade.
-const RED_SHARE = 0.25
-const RED_DEEP = [226, 101, 79] // #e2654f, the coral's deep tone (badgeColors.ts)
-const RED_SHADE = RED_DEEP.map((v, ch) => v + ([30, 30, 32][ch]! - v) * 0.2)
+const toneTables = ref<Record<string, { light: string[], dark: string[] }>>({})
 const toneId = (url: string) => `splash-tone-${Math.abs([...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`
 async function toneImages() {
   if (!TONE_AUTO) return
@@ -2041,24 +2037,9 @@ async function toneImages() {
         const t = s(fit(k / 32), curve)
         return ((from[ch]! + (to[ch]! - from[ch]!) * t) / 255).toFixed(4)
       }).join(' '))
-      // Red and silver: where the brightest RED_SHARE of this photo's tones
-      // fall once fitted, the red easing in over the band's first part.
-      const fitted = sample.map((t) => s(t, curve)).sort((a, b) => a - b)
-      const redFrom = fitted[Math.floor((1 - RED_SHARE) * (fitted.length - 1))]!
-      const ramp = Math.max(0.06, (1 - redFrom) * 0.6)
-      const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
-      const mixRgb = (a: number[], b: number[], t: number) => a.map((v, ch) => v + (b[ch]! - v) * t)
-      const redStops = Array.from({ length: 33 }, (_, k) => {
-        const t = s(fit(k / 32), curve)
-        const silver = mixRgb([244, 244, 242], [159, 161, 163], t)
-        const e = smooth((t - redFrom) / ramp)
-        if (e <= 0) return silver
-        return e < 0.5 ? mixRgb(silver, RED_DEEP, e * 2 * 0.85) : mixRgb(mixRgb(silver, RED_DEEP, 0.85), RED_SHADE, (e - 0.5) * 2)
-      })
-      const red = [0, 1, 2].map((ch) => redStops.map((c) => (c[ch]! / 255).toFixed(4)).join(' '))
       toneTables.value = {
         ...toneTables.value,
-        [image.url]: { light: band([244, 244, 242], [159, 161, 163]), dark: band([233, 233, 231], [28, 28, 28]), red },
+        [image.url]: { light: band([244, 244, 242], [159, 161, 163]), dark: band([233, 233, 231], [28, 28, 28]) },
       }
     }
     catch {
@@ -4060,6 +4041,7 @@ const gridNumbers = computed(() => gridHorizontals.value
 // that when the guide replaces the splash, its tab is exactly where this one
 // was (it used to jump: this one sized on its label).
 const TAB_SLIDE_MS = 900
+const TAB_SLIDE_MOBILE_MS = 1600 // slower on a phone (22 Nov 2026); still within OUTRO_MS
 function slideTabToNav() {
   const mobile = window.innerWidth <= 1150
   const toWidth = window.innerWidth * (mobile ? 0.5 : 0.25)
@@ -4067,8 +4049,9 @@ function slideTabToNav() {
   const fromWidth = tabWidth.value
   const fromLeft = tabLeft.value
   const start = performance.now()
+  const duration = mobile ? TAB_SLIDE_MOBILE_MS : TAB_SLIDE_MS
   const step = (now: number) => {
-    const t = Math.min(1, (now - start) / TAB_SLIDE_MS)
+    const t = Math.min(1, (now - start) / duration)
     const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
     tabWidth.value = fromWidth + (toWidth - fromWidth) * e
     tabLeft.value = fromLeft + (toLeft - fromLeft) * e
@@ -4833,7 +4816,7 @@ onUnmounted(() => {
     <!-- Each image's own duotone (toneImages). -->
     <svg v-if="TONE_AUTO" width="0" height="0" style="position: absolute" aria-hidden="true">
       <template v-for="(tables, url) in toneTables" :key="url">
-        <filter v-for="mode in (['light', 'dark', 'red'] as const)" :id="`${toneId(String(url))}-${mode}`" :key="mode" color-interpolation-filters="sRGB">
+        <filter v-for="mode in (['light', 'dark'] as const)" :id="`${toneId(String(url))}-${mode}`" :key="mode" color-interpolation-filters="sRGB">
           <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0" />
           <feComponentTransfer>
             <feFuncR type="table" :tableValues="tables[mode][0]" />
@@ -5142,7 +5125,7 @@ onUnmounted(() => {
             :src="SPLASH_KEYWORDS_IMAGES ? bandSlot(index)?.src ?? image.url : image.url"
             :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
-            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, ...(SPAWN_DRIFT ? {} : { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' }) } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)`, ...(toneTables[image.url] ? { '--tone-red': `url(#${toneId(image.url)}-red)` } : {}) }"
+            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, ...(SPAWN_DRIFT ? {} : { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' }) } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
             :draggable="!COLLAGE_EDIT"
             @load="SPLASH_COLLAGE ? onCollageImageLoad(index, $event) : onStripImageLoad()"
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
@@ -7671,12 +7654,12 @@ onUnmounted(() => {
   filter: var(--tone-light) var(--image-shadow) !important;
 }
 
-/* basics (the splash, 22 Nov 2026): in dark mode, to red and silver instead
-   (app.vue, #duotone-red, as the campaigns tool's card): light mode's pale
-   tone glared there. */
+/* basics (the splash, 22 Nov 2026): in dark mode, the photo itself in black
+   and white (not a negative), a little dimmed, instead: light mode's pale
+   tone glared on the dark page (and a red and silver, then a darker silver,
+   didn't suit). */
 :root[data-theme='dark'] .splash.is-basics.is-stand-hover .splash-image-wrapper.is-pointed img.is-toned {
-  /* Its own, fitted to its tones (toneImages); the shared one until measured. */
-  filter: var(--tone-red, url(#duotone-red)) var(--image-shadow) !important;
+  filter: grayscale(1) brightness(0.85) contrast(1.05) var(--image-shadow) !important;
 }
 
 /* The image a hovered keyword is linked to, or the one hovered: the lines

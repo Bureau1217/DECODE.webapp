@@ -43,6 +43,8 @@ const ORDERS = Object.fromEntries(Object.entries(KINDS).map(([kind, { seed }]) =
  */
 export type CardShapeOffsets = Record<string, { x: number, y: number }>
 export const CARD_SHAPE_OFFSETS: CardShapeOffsets = {
+  'guide-0': { x: -15, y: 5 },
+  'guide-2': { x: 20, y: 0 },
   'tool-0': { x: -15, y: -56 },
   'tool-1': { x: 136, y: 26 },
 }

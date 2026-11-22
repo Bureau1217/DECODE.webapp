@@ -254,7 +254,7 @@ onUnmounted(() => {
 @media (prefers-reduced-motion: no-preference) {
   .site-nav-ticker-track {
     animation:
-      site-nav-ticker-enter 1.4s cubic-bezier(0.16, 1, 0.3, 1) var(--ticker-enter-delay, 0s) backwards,
+      site-nav-ticker-enter 2.6s cubic-bezier(0.16, 1, 0.3, 1) var(--ticker-enter-delay, 0s) backwards,
       site-nav-ticker-scroll 16s linear var(--ticker-enter-delay, 0s) infinite;
   }
 
@@ -405,6 +405,36 @@ onUnmounted(() => {
    (22 Nov 2026). */
 .site-nav.is-intro .nav-tab-wrap--mobile .nav-tab-shape path {
   animation: nav-tab-warm 1.6s ease-in-out 0.2s both;
+}
+
+/* ...and without its bottom edge until the brown index bar has filled in
+   under the row (SiteIndexBar.vue, index-bar-fill: from 0.4s, 1s long): it
+   comes last (22 Nov 2026). The splash's tab had none, only the rule running
+   on past it, which stays on the left (below) until the brown takes it over. */
+@media (max-width: 1150px) {
+  .site-nav.is-intro .nav-tab-wrap--mobile {
+    animation: nav-tab-first-no-base 1.5s backwards;
+  }
+
+  /* The splash's rule, left of the MENU tab, kept as it was: the index bar
+     fills in brown under it from the left, then it goes. Seamless. */
+  .site-nav.is-intro::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 50%;
+    height: 1px;
+    background: var(--color-ink);
+    pointer-events: none;
+    animation: nav-intro-rule-out 0.3s ease 1.4s both;
+  }
+}
+
+@keyframes nav-intro-rule-out {
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes nav-tab-warm {

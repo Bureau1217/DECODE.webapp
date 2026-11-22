@@ -189,25 +189,6 @@ watch(
           <feFuncB type="table" tableValues="0.90588 0.10980" />
         </feComponentTransfer>
       </filter>
-      <!-- The splash's image under the pointer in dark mode (Splash.vue,
-           22 Nov 2026): red and silver, as the campaigns tool's card
-           (ToolCard.vue): the site's silver negative, its brightest quarter
-           (the photo's darkest) easing into the deep red (#e2654f), then its
-           shade. Not light mode's pale tone, which glared on the dark page. -->
-      <filter id="duotone-red">
-        <feColorMatrix
-          type="matrix"
-          values="0.299 0.587 0.114 0 0
-                  0.299 0.587 0.114 0 0
-                  0.299 0.587 0.114 0 0
-                  0     0     0     1 0"
-        />
-        <feComponentTransfer color-interpolation-filters="sRGB">
-          <feFuncR type="table" tableValues="0.9569 0.8902 0.8235 0.7569 0.8667 0.7333" />
-          <feFuncG type="table" tableValues="0.9569 0.8941 0.8275 0.7608 0.4510 0.3412" />
-          <feFuncB type="table" tableValues="0.9490 0.8902 0.8275 0.7647 0.3765 0.2745" />
-        </feComponentTransfer>
-      </filter>
       <!-- A guide or tool card's photo on hover (main.css, ToolCard.vue): the
            same negative, from white to a deep shade of the card's own colour
            (badgeColors.ts, cardHoverFilter), one per badge colour: coral,
