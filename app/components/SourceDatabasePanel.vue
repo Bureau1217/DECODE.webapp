@@ -9,6 +9,8 @@ import { stackDelay } from '~/utils/stackDelay'
 // this tool's own accent — same "page gets its own badge color" pattern
 // Campaigns Maps (coral) and Bot / Troll Detector (teal) already set.
 import type { Source } from '~/types/source'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 
 const props = defineProps<{
   sources: Source[]
@@ -93,8 +95,8 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip } = useHoverTo
       <div class="src-tooltip text-note">
         <strong class="src-tooltip-title">{{ hovered.title }}</strong>
         <span class="src-tooltip-level">{{ hovered.trust_level }} trust — {{ hovered.trust_score_100 }}/100</span>
-        <p v-if="hovered.trust_score_explanation">{{ hovered.trust_score_explanation }}</p>
-        <p v-if="hovered.bias_notes" class="src-tooltip-bias">{{ hovered.bias_notes }}</p>
+        <p v-if="hovered.trust_score_explanation">{{ typeset(hovered.trust_score_explanation) }}</p>
+        <p v-if="hovered.bias_notes" class="src-tooltip-bias">{{ typeset(hovered.bias_notes) }}</p>
       </div>
     </HoverTooltip>
   </InfoPanel>

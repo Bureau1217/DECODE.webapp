@@ -3,7 +3,9 @@ import { decipherFrom, decipherIn, scrambleOut } from '~/utils/decipher'
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
 import { boxReveal } from '~/utils/boxReveal'
 import { startGlobe } from '~/utils/splashGlobe'
+import countryCells from '~/data/countryCells.json'
 import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, refineMass, resizeMass, stampMass } from '~/utils/splashShape'
+import { WORLD_DEFAULTS, WORLD_FIELDS, WORLD_LOOKS, WORLD_LOOK_NAMES, MAP_PROJECTIONS, MAP_PROJECTION_NAMES, MAP_PRESETS, MAP_RESET, MAP_FIELDS, MAP_COMPOSITION_NAMES, MAP_OTHERS_NAMES, isMapProjection, type MapComposition, type MapOthers, type WorldSettings } from '~/utils/worldGlobe'
 
 // Decorative intro screen — fails soft (empty state, no thrown error) if
 // the CMS call doesn't come back, since this isn't core content.
@@ -11,6 +13,10 @@ import { SHAPE_DRAWN, cellPaths, generateMass, morphSteps, mulberry32, refineMas
 interface BankImage {
   url: string
   alt?: string
+  // The original's size, and a sharper copy (keywords,images: the big ones).
+  width?: number
+  height?: number
+  large?: string
 }
 
 interface ArticleTitle {
@@ -38,7 +44,7 @@ const TAB_LINK = 'https://www.graduateinstitute.ch/international-programmes/deco
 
 // Which composition: the images in a band through the middle, behind the headline,
 // or (?splash=shelf) the headline up top and the images on a shelf along the bottom.
-const shelfLayout = useRoute().query.splash === 'shelf'
+const shelfLayout = String(useRoute().query.splash ?? '').split(',').includes('shelf')
 
 // Warm the keywords panel's data while the splash is up — see
 // useKeywordsPanelCategories. Not awaited: the splash doesn't need it.
@@ -56,11 +62,43 @@ const keywordCategories = computed<CategoryWithTags[] | undefined>(() => keyword
 const conceptLabels = computed(() => keywordCategories.value?.find((c) => c.slug === 'concepts')?.tags.map((t) => t.title) ?? [])
 function imageLabel(index: number, alt?: string) {
   const concepts = conceptLabels.value
+  if (SPLASH_BASICS) return basicsLabel(index)
   const label = concepts.length ? concepts[index % concepts.length] : alt?.split(' ')[0]
   if (!label || !shelfLayout) return label
   // Numbered like its color: the same three as the chapters (imageBadgeColor).
   const n = images.value?.length || 1
   return `0${(index % n) % BADGE_COLORS.length + 1} ${label}`
+}
+
+// basics: a caption's keyword never wider than its image. The n-th image's
+// keyword is the first of the concepts, from its own turn on, that fits on
+// the caption's line beside its number (measured in the caption's own fonts);
+// if none does, the image goes without one. Only once the page is measured
+// (the server can't measure: the captions come in with the images anyway).
+let labelMeasure: CanvasRenderingContext2D | null = null
+function captionWidth(text: string, family: string) {
+  labelMeasure ??= document.createElement('canvas').getContext('2d')
+  if (!labelMeasure) return Infinity
+  const size = 10 * (4 / 3) // 10pt: .text-small
+  labelMeasure.font = `400 ${size}px ${family}`
+  return labelMeasure.measureText(text.toUpperCase()).width + text.length * size * 0.03
+}
+const CAPTION_GAP = 12 // .splash-image-caption's gap
+const CAPTION_CHIP_PAD = 12 // .splash-image-name's padding, both sides
+function basicsLabel(index: number) {
+  const concepts = conceptLabels.value
+  if (!measured.value || !concepts.length) return undefined
+  const width = spawnTargetWidth(index)
+  if (!width) return undefined
+  const root = getComputedStyle(document.documentElement)
+  const mono = root.getPropertyValue('--font-mono') || 'monospace'
+  const text = root.getPropertyValue('--font-text') || 'sans-serif'
+  const room = width - (SPLASH_PLAIN ? 0 : captionWidth(imageNumber(index), text) + CAPTION_GAP) - CAPTION_CHIP_PAD - 4
+  for (let k = 0; k < concepts.length; k++) {
+    const label = concepts[(index + k) % concepts.length]!
+    if (captionWidth(label, mono) <= room) return label
+  }
+  return undefined
 }
 
 // BADGE_COLORS itself comes from app/utils/badgeColors.ts (Nuxt
@@ -136,7 +174,7 @@ const EXTEND_MAX = 40 // px, largest outward extension — capped: the backgroun
 const SEGMENTS_PER_EDGE = 4 // top/bottom jumps per line — tuned live via the Reveal Mask Tuner artifact
 const MASK_SEED = 42
 const MASK_SNAP = 24 // px at full size: the smallest step in the silhouette
-const FRAME_MARGIN = 35.8 // px at full size (the headline at 120px): row's even margin round each line
+const FRAME_MARGIN = 16 // px at full size (the headline at 120px): row's even margin round each line, held tight to the letters (35.8 until 12 Nov 2026)
 const FRAME_SCREEN_MARGIN = 0.025 // mobile: of the window's width, kept clear each side of the frame
 
 interface ParagraphMask {
@@ -272,7 +310,280 @@ const colorMode = useColorMode()
 // - (default) one mass under the pointer, only while it's over the grid, its
 //   core steady and its edge re-forming, showing dark mode's map in light mode;
 //   a click changes its form and colour.
-const SPLASH_ALTS = new Set(String(useRoute().query.splash ?? '').split(',').filter(Boolean))
+// The splash by default (22 Nov 2026): basics,world, the pixel world in its
+// WORLD_DEFAULTS (utils/worldGlobe.ts); /?splash=row for the one before.
+const SPLASH_DEFAULT = 'basics,world'
+const SPLASH_ALTS = new Set(String(useRoute().query.splash || SPLASH_DEFAULT).split(',').filter(Boolean))
+// - basics (21 Nov 2026): keywords,images,stand,middle as it is, but no
+//   keywords' sphere: each image's keyword under it instead (its number at the
+//   left, its keyword at the right), and the dotted countries back
+//   (BASICS_COUNTRIES, as the first splash had them, 7 Oct 2026). An image
+//   under the pointer goes to its dark negative, its number and its keyword
+//   inked, the band easing to a stop; a click on it turns the page dark, and
+//   a click anywhere else too, at once (no pixels).
+const SPLASH_BASICS = SPLASH_ALTS.has('basics')
+if (SPLASH_BASICS) for (const word of ['keywords', 'images', 'stand', 'middle']) SPLASH_ALTS.add(word)
+// basics: country silhouettes, drawn in the splash's own way: their pixel-art
+// cells (public/countries/*.svg, public/splash/*.svg, read into
+// app/data/countryCells.json by scripts/country-cells.mjs) as rounds, not
+// squares, each country in its own look (COUNTRY_LOOKS), colour (the files'
+// own, COUNTRY_COLORS), dot size and stroke. Each centred on its point, in %
+// of the grid (top, left), its width in px, turned and scaled; under the
+// images. The layout after the one set on 21 Nov 2026 (br and group-43
+// swapped for others). With `src`, a country is its original file as it is
+// (the top left and bottom right ones, kept as they were).
+type CountryShape = { cols: number, rows: number, cells: [number, number][] }
+// trail: a streak of dots, not a country, made here: TRAIL_COLS cells long,
+// thickening from a single scattered line at its tail (left) to TRAIL_ROWS
+// full rows at its head (right), fewer cells left out towards the head.
+const TRAIL_COLS = 64
+const TRAIL_ROWS = 4
+function trailShape(): CountryShape {
+  const random = mulberry32(2611)
+  const cells: [number, number][] = []
+  for (let c = 0; c < TRAIL_COLS; c++) {
+    const t = c / (TRAIL_COLS - 1)
+    const thick = 1 + Math.floor((TRAIL_ROWS - 1) * t ** 1.5 + 0.5)
+    const first = Math.floor((TRAIL_ROWS - thick) / 2)
+    for (let r = first; r < first + thick; r++) if (random() < 0.3 + 0.7 * t) cells.push([c, r])
+  }
+  return { cols: TRAIL_COLS, rows: TRAIL_ROWS, cells }
+}
+const COUNTRY_SHAPES = { ...(countryCells as Record<string, CountryShape>), trail: trailShape() }
+const COUNTRY_SHAPE_NAMES = Object.keys(COUNTRY_SHAPES).sort()
+// dots: solid rounds; rings: outlined, the stroke as set; halftone: solid,
+// growing across the shape from one corner to the other. basics,bold's (after
+// the Open Graph image of 21 Nov 2026): mass, the cells as squares in patches,
+// the rest as dots in two greys; outline, only the shape's stepped contour,
+// twice (its edge and a cell inside); blobs, big rounds overlapping, on every
+// other cell.
+const COUNTRY_LOOKS = ['dots', 'rings', 'halftone', 'mass', 'outline', 'blobs'] as const
+type CountryLook = typeof COUNTRY_LOOKS[number]
+// The colours the countries' files are drawn in (public/splash/*.svg), at
+// their opacity (COUNTRY_OPACITY).
+// basics,bold adds the reference's: the brand's brown, the badges' teal and
+// coral, at full strength (the looks of its own, BOLD_LOOKS).
+const COUNTRY_COLORS = ['#A09985', '#5B616E', '#5F6368', '#C6C6C6', '#E9F3FF', 'var(--color-brand)', BADGE_COLORS[1]!, BADGE_COLORS[0]!]
+const COUNTRY_OPACITY = 0.5
+const BOLD_LOOKS = new Set<CountryLook>(['mass', 'outline', 'blobs'])
+// dot: a round's radius, in cells (0.5: touching); stroke: in cells.
+interface BasicsCountry { shape: string, src?: string, top: number, left: number, width: number, rotate: number, scale: number, color: number, look: CountryLook, dot: number, stroke: number }
+const BASICS_COUNTRIES: BasicsCountry[] = [
+  { shape: 'variant2', top: 76.5, left: 68.4, width: 60, rotate: 0, scale: 2.7, color: 0, look: 'halftone', dot: 0.42, stroke: 0.1 },
+  { shape: 'us', top: 23.8, left: 24.7, width: 110, rotate: -90, scale: 0.75, color: 1, look: 'dots', dot: 0.3, stroke: 0.1 },
+  { shape: 'ca', src: '/splash/ca.svg', top: 20.4, left: 4.4, width: 126, rotate: 112, scale: 2.55, color: 0, look: 'rings', dot: 0.36, stroke: 0.12 },
+  { shape: 'cd', top: 20.5, left: 59.8, width: 65, rotate: 0, scale: 1.65, color: 0, look: 'rings', dot: 0.4, stroke: 0.2 },
+  { shape: 'variant2', top: 32.7, left: 75.1, width: 40, rotate: 0, scale: 1.55, color: 2, look: 'rings', dot: 0.38, stroke: 0.1 },
+  { shape: 'group-42-dots', src: '/splash/group-42.svg', top: 78.3, left: 85.4, width: 141, rotate: -54, scale: 2.4, color: 2, look: 'rings', dot: 0.4, stroke: 0.08 },
+  { shape: 'mx', top: 24.9, left: 89.7, width: 100, rotate: 180, scale: 1.7, color: 1, look: 'halftone', dot: 0.45, stroke: 0.1 },
+  { shape: 'ml', top: 80.6, left: 27.3, width: 80, rotate: -90, scale: 1.35, color: 0, look: 'halftone', dot: 0.44, stroke: 0.1 },
+  { shape: 'group-45-dots', top: 73.9, left: 7.1, width: 55, rotate: 0, scale: 1.7, color: 2, look: 'rings', dot: 0.25, stroke: 0.1 },
+  // The trail of dots along the grid's top.
+  { shape: 'trail', top: 5, left: 50, width: 640, rotate: 0, scale: 1, color: 0, look: 'halftone', dot: 0.42, stroke: 0.1 },
+]
+// - basics,bold: another art direction (21 Nov 2026): basics' own countries,
+//   in their own looks and colours, but fewer (five) and much bigger, one
+//   to each side of the headline, running over the grid's edge into the
+//   margin round it here and there.
+const SPLASH_BOLD = SPLASH_BASICS && SPLASH_ALTS.has('bold')
+const BOLD_COUNTRIES: BasicsCountry[] = [
+  { shape: 'ca', src: '/splash/ca.svg', top: 24, left: 5, width: 126, rotate: 112, scale: 3.6, color: 0, look: 'rings', dot: 0.36, stroke: 0.12 },
+  { shape: 'group-42-dots', src: '/splash/group-42.svg', top: 80, left: 90, width: 141, rotate: -54, scale: 3.4, color: 2, look: 'rings', dot: 0.4, stroke: 0.08 },
+  { shape: 'mx', top: 18, left: 86, width: 100, rotate: 180, scale: 3.2, color: 1, look: 'halftone', dot: 0.45, stroke: 0.1 },
+  { shape: 'us', top: 16, left: 34, width: 110, rotate: -90, scale: 1.5, color: 1, look: 'dots', dot: 0.3, stroke: 0.1 },
+  { shape: 'cd', top: 86, left: 22, width: 65, rotate: 0, scale: 3.4, color: 0, look: 'rings', dot: 0.4, stroke: 0.14 },
+]
+const BASICS_START = SPLASH_BOLD ? BOLD_COUNTRIES : BASICS_COUNTRIES
+// - basics,plain: basics with no countries at all (22 Nov 2026): the title,
+//   the stripe and its captions alone on the grid.
+// - basics,world (22 Nov 2026): plain's band, each keyword on its image's
+//   bottom left corner (over it), and the world SVG on a sphere turning in
+//   3D behind (SplashWorldGlobe.vue), its shapes coming and going.
+const SPLASH_WORLD = SPLASH_BASICS && SPLASH_ALTS.has('world')
+if (SPLASH_WORLD) SPLASH_ALTS.add('plain')
+const SPLASH_PLAIN = SPLASH_BASICS && SPLASH_ALTS.has('plain')
+// - basics,world,lab (22 Nov 2026): the old map lab (uncertainty's
+//   cartography, the whole splash: drag, zoom, cases, routes, evidence
+//   layers) with its land drawn as world's pixel world, on its globe
+//   (SplashCartography's 'world' variant), in place of world's own sphere.
+//   &edit: world's panel, for the cells' looks, colours, share and cycles
+//   (the sphere's own placement and turn don't apply: the map's view does).
+const SPLASH_WORLD_LAB = SPLASH_WORLD && SPLASH_ALTS.has('lab')
+// basics,world (the splash by default): a quieter arrival (22 Nov 2026).
+// DE.CO.DE shorter and fading out; then only the headline deciphers (the rest
+// fades in); the images fade in where they stand, still a while before they
+// drift; the dotted map comes in dot by dot, still, and only then turns.
+// And one thing at a time (STEPS): the grid, the headline, its subtitle, the
+// strip (drifting as it fades in), the tab and footer, and once all is in
+// place the map. /?intro=together: those all at once instead.
+const CALM_INTRO = SPLASH_WORLD && !SPLASH_WORLD_LAB
+const STEPS_INTRO = CALM_INTRO && useRoute().query.intro !== 'together'
+// Steps: the subtitle shown only after the headline (else with the build).
+const stepSubtitle = ref(!STEPS_INTRO)
+// intro=steps: the strip and the map shown only at their turn (else with the build).
+const stepStrip = ref(!STEPS_INTRO)
+const stepMap = ref(!STEPS_INTRO)
+// - basics,world,countries (22 Nov 2026): world as it is (its band, its
+//   turning globe) with basics' country silhouettes back round the grid.
+//   &edit: both editors, the globe's on the left, the countries' on the
+//   right; the countries kept apart from basics&edit's (COUNTRIES_STORE).
+const SPLASH_WORLD_COUNTRIES = SPLASH_WORLD && SPLASH_ALTS.has('countries')
+// basics' countries shown: basics, not plain, or world,countries.
+const SHOW_COUNTRIES = SPLASH_BASICS && (!SPLASH_PLAIN || SPLASH_WORLD_COUNTRIES)
+// basics,world&edit: the globe's settings in a panel (utils/worldGlobe.ts),
+// kept in this browser (localStorage), "Copier le code" for WORLD_DEFAULTS.
+const WORLD_EDIT = SPLASH_WORLD && useRoute().query.edit !== undefined
+// (-map: the map lab's projections, 22 Nov 2026; the settings before kept apart.)
+const WORLD_STORE = 'decode:world-globe-map-1'
+const worldSettings = ref<WorldSettings>(structuredClone(WORLD_DEFAULTS))
+const worldEditHide = ref(false)
+const worldCopied = ref(false)
+if (WORLD_EDIT) {
+  onMounted(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(WORLD_STORE) ?? 'null')
+      if (saved && typeof saved === 'object') worldSettings.value = { ...structuredClone(WORLD_DEFAULTS), ...saved }
+    }
+    catch {}
+  })
+  watch(worldSettings, (value) => {
+    try { localStorage.setItem(WORLD_STORE, JSON.stringify(value)) }
+    catch {}
+  }, { deep: true })
+}
+// Mobile (22 Nov 2026): the dotted map in circle strokes only (its 'rings'),
+// lighter on a small screen; the rest of its settings as they are.
+const worldMobile = ref(false)
+const worldShownSettings = computed<WorldSettings>(() => (worldMobile.value ? { ...worldSettings.value, looks: ['rings'] } : worldSettings.value))
+if (SPLASH_WORLD && import.meta.client) {
+  const query = window.matchMedia('(max-width: 1150px)')
+  const sync = () => { worldMobile.value = query.matches }
+  onMounted(() => {
+    sync()
+    query.addEventListener('change', sync)
+  })
+  onBeforeUnmount(() => query.removeEventListener('change', sync))
+}
+function worldSet(key: keyof WorldSettings, value: unknown) {
+  worldSettings.value = { ...worldSettings.value, [key]: value }
+}
+function worldToggle<T>(key: 'looks' | 'colors' | 'darkColors', item: T) {
+  const list = worldSettings.value[key] as T[]
+  worldSet(key, list.includes(item) ? list.filter((x) => x !== item) : [...list, item])
+}
+// stereographic: as the nullschool map, flat across the whole screen: far past
+// the horizon, no fading towards a rim (there is none to see).
+function worldProjection(projection: WorldSettings['projection']) {
+  worldSettings.value = projection === 'stereographic'
+    ? { ...worldSettings.value, projection, reach: Math.max(worldSettings.value.reach, 70), rim: 0 }
+    : { ...worldSettings.value, projection }
+}
+// The map lab's presets: the map's own settings reset, then the preset's; the
+// looks, colours and cycles kept.
+const worldPreset = ref('')
+function worldApplyPreset(name: string) {
+  worldPreset.value = name
+  worldSettings.value = { ...worldSettings.value, ...MAP_RESET, ...MAP_PRESETS[name] }
+}
+const worldCountriesText = computed({
+  get: () => worldSettings.value.countries.join(', '),
+  set: (text: string) => worldSet('countries', text.split(',').map((name) => name.trim()).filter(Boolean)),
+})
+const worldFields = computed(() => (isMapProjection(worldSettings.value.projection)
+  ? MAP_FIELDS.filter((field) => !field.when || field.when(worldSettings.value))
+  : WORLD_FIELDS))
+const MAP_COMPOSITIONS = Object.keys(MAP_COMPOSITION_NAMES) as MapComposition[]
+const MAP_OTHERS = Object.keys(MAP_OTHERS_NAMES) as MapOthers[]
+function worldReset() {
+  worldSettings.value = structuredClone(WORLD_DEFAULTS)
+}
+async function worldCopy() {
+  const code = `export const WORLD_DEFAULTS: WorldSettings = ${JSON.stringify(worldSettings.value, null, 2).replace(/"(\w+)":/g, '$1:').replace(/"/g, "'")}\n`
+  try {
+    await navigator.clipboard.writeText(code)
+    worldCopied.value = true
+    setTimeout(() => { worldCopied.value = false }, 1500)
+  }
+  catch {}
+}
+// Smooth noise over the cells (value noise on a lattice every `size` cells),
+// for the mass's patches.
+function cellNoise(seed: number, size: number) {
+  const random = mulberry32(seed)
+  const lattice = new Map<string, number>()
+  const at = (i: number, j: number) => {
+    const key = `${i},${j}`
+    if (!lattice.has(key)) lattice.set(key, random())
+    return lattice.get(key)!
+  }
+  return (c: number, r: number) => {
+    const x = c / size, y = r / size
+    const i = Math.floor(x), j = Math.floor(y)
+    const fx = x - i, fy = y - j
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy)
+    const top = at(i, j) + (at(i + 1, j) - at(i, j)) * sx
+    const bottom = at(i, j + 1) + (at(i + 1, j + 1) - at(i, j + 1)) * sx
+    return top + (bottom - top) * sy
+  }
+}
+// A set of cells' stepped contour: each side of a cell with no cell beyond it.
+function cellContour(cells: Set<string>) {
+  let d = ''
+  for (const key of cells) {
+    const [c, r] = key.split(',').map(Number) as [number, number]
+    if (!cells.has(`${c},${r - 1}`)) d += `M${c} ${r}H${c + 1}`
+    if (!cells.has(`${c + 1},${r}`)) d += `M${c + 1} ${r}V${r + 1}`
+    if (!cells.has(`${c},${r + 1}`)) d += `M${c} ${r + 1}H${c + 1}`
+    if (!cells.has(`${c - 1},${r}`)) d += `M${c} ${r}V${r + 1}`
+  }
+  return d
+}
+// One country's marks, in its cells' units (viewBox 0 0 cols rows): rounds
+// (each its own fill, or the country's), squares, and a contour.
+function countryMarks(country: BasicsCountry) {
+  const shape = COUNTRY_SHAPES[country.shape]
+  const marks = { dots: [] as { x: number, y: number, r: number, fill?: string }[], squares: [] as { x: number, y: number }[], contour: '' }
+  if (!shape) return marks
+  const span = Math.max(1, shape.cols + shape.rows - 2)
+  if (country.look === 'mass') {
+    const patch = cellNoise(4211, 4)
+    const tone = cellNoise(977, 3)
+    for (const [c, r] of shape.cells) {
+      if (patch(c, r) > 0.48) marks.squares.push({ x: c, y: r })
+      else marks.dots.push({ x: c + 0.5, y: r + 0.5, r: country.dot, fill: tone(c, r) > 0.5 ? COUNTRY_COLORS[0] : COUNTRY_COLORS[3] })
+    }
+    return marks
+  }
+  if (country.look === 'outline') {
+    const all = new Set(shape.cells.map(([c, r]) => `${c},${r}`))
+    const inner = new Set([...all].filter((key) => {
+      const [c, r] = key.split(',').map(Number) as [number, number]
+      for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) if (!all.has(`${c + dc},${r + dr}`)) return false
+      return true
+    }))
+    marks.contour = cellContour(all) + cellContour(inner)
+    return marks
+  }
+  for (const [c, r] of shape.cells) {
+    if (country.look === 'blobs' && (c + r) % 2) continue
+    marks.dots.push({
+      x: c + 0.5,
+      y: r + 0.5,
+      r: country.look === 'halftone' ? country.dot * (0.3 + 0.7 * ((c + r) / span)) : country.dot,
+    })
+  }
+  return marks
+}
+function countryHeight(country: BasicsCountry) {
+  const shape = COUNTRY_SHAPES[country.shape]
+  return shape ? (country.width * shape.rows) / shape.cols : country.width
+}
+// /?splash=basics&edit: the countries' editor (countriesEdit*, the panel in
+// the template). Its changes are kept in this browser (localStorage) until
+// copied into BASICS_COUNTRIES with its "Copier le code".
+const COUNTRIES_EDIT = SHOW_COUNTRIES && useRoute().query.edit !== undefined
+const COUNTRIES_STORE = SPLASH_WORLD_COUNTRIES ? 'decode:world-countries-1' : SPLASH_BOLD ? 'decode:bold-countries-2' : 'decode:basics-countries-5'
+const basicsCountries = ref<BasicsCountry[]>(BASICS_START.map((country) => ({ ...country })))
 const ALT_BLACK = SPLASH_ALTS.has('black')
 const ALT_CELLS = SPLASH_ALTS.has('cells')
 const ALT_LINES = SPLASH_ALTS.has('lines')
@@ -303,6 +614,95 @@ let rowGlobes: Awaited<ReturnType<typeof startGlobe>>[] = []
 //   headline), the headline small at its left, the subtitle at its right, both
 //   flush left on the image's middle; no grid, no strip, no shapes.
 const SPLASH_PANELS = SPLASH_ALTS.has('panels')
+// - collage (with the row, the default): everything as the row, but the images
+//   no longer a band through the middle: all of them at once, laid around the
+//   headline at different sizes (COLLAGE_PIECES), one tucked under the frame's
+//   edges, as the "Talking Archives" layout (12 Nov 2026).
+// - board: the collage as an investigation board (the NYT Magazine and
+//   Roswell boards shared on 12 Nov 2026): the photos overlapping in clusters
+//   round the headline, several under the frame's edges.
+// - archive: the board laid as the "Talking Archives" reference, piece by
+//   piece (ARCHIVE_PIECES), every caption in sight.
+const SPLASH_ARCHIVE = SPLASH_ALTS.has('archive')
+const SPLASH_BOARD = SPLASH_ALTS.has('board') || SPLASH_ARCHIVE
+const SPLASH_COLLAGE = SPLASH_ALTS.has('collage') || SPLASH_BOARD
+// - atlas: the investigation archive as a poster (13 Nov 2026): the images
+//   and the headline composed together on a fixed 16-column CSS grid
+//   (ATLAS_PIECES), one dominant document, medium ones, small fragments,
+//   the headline as three staggered paper strips over them. Its own layer
+//   (.splash-atlas); the band and the centred headline are kept, hidden, for
+//   the machinery that measures them.
+const SPLASH_ATLAS = SPLASH_ALTS.has('atlas')
+// - uncertainty: "Mapping uncertainty" (13 Nov 2026), an experimental,
+//   interactive cartography in place of the whole splash
+//   (SplashCartography.vue, utils/cartography.ts), on synthetic data; only
+//   the tab, the button and the footer kept.
+const SPLASH_UNCERTAINTY = SPLASH_ALTS.has('uncertainty') || SPLASH_ALTS.has('ice') || SPLASH_WORLD_LAB
+// - ice: the same cartography after the fishing-effort map (13 Nov 2026):
+//   pale, the oceans one dark mass (SplashCartography's 'ice' variant).
+const SPLASH_ICE = SPLASH_ALTS.has('ice')
+// - keywords: the row's images given over to the site's keywords on a
+//   turning sphere, after RUNOUT (SplashKeywordGlobe.vue): each framed in its
+//   category's colour, on a row of the grid; hovering one stops the turn and
+//   shows its visual in silver. The headline, the grid, the button, the tab
+//   and the footer as they are, over it.
+const SPLASH_KEYWORDS = SPLASH_ALTS.has('keywords')
+// - keywords,images: the same, with the row's band of grey images going by
+//   behind it, kept, but the images lined up on their middles (not hanging
+//   from their tops).
+const SPLASH_KEYWORDS_IMAGES = SPLASH_KEYWORDS && (SPLASH_ALTS.has('images') || shelfLayout)
+// - keywords,images,stand: the same, the headline, the subtitle and the button
+//   where they are, the band centred on the grid's middle line, its images
+//   standing on one line by their bottoms (their numbers under it), not lifted
+//   with the headline (21 Nov 2026).
+const SPLASH_KEYWORDS_STAND = SPLASH_KEYWORDS_IMAGES && !shelfLayout && SPLASH_ALTS.has('stand')
+// - keywords,images,stand,screen: the band centred to the eye on the
+//   headline: standing on their bottoms, most images short, its weight sits
+//   low, so its box's middle reads low. Instead the middle of an average image
+//   (the phrase's mean height, standing on the band's line) on the headline's
+//   middle (placeStandStrip; the screen's optical centre, STAND_OPTICAL of
+//   its height down, until the headline is placed).
+// - keywords,images,stand,middle: the images lined up on their middles, not
+//   their bottoms, that line on the grid's middle; going by a little slower (STAND_MIDDLE_SPEED); the headline and its
+//   subtitle 5% smaller.
+const STAND_SCREEN = SPLASH_KEYWORDS_STAND && SPLASH_ALTS.has('screen')
+const STAND_MIDDLE = SPLASH_KEYWORDS_STAND && SPLASH_ALTS.has('middle')
+const STAND_MIDDLE_SPEED = 45 // px/s (the row's: 90; 70 until 22 Nov 2026, the splash's strip slowed)
+// basics: the gap between the headline's frame and its subtitle.
+const BASICS_SUBTITLE_GAP = 0.02 // of the splash's height
+// stand,middle: the keywords' sphere a little wider than the row's (0.36 of
+// the grid's width), so they reach nearer the grid's corners.
+const STAND_MIDDLE_RADIUS = 0.44
+// stand,middle: no more than this many keywords in sight at once.
+const STAND_MIDDLE_WORDS = 3
+const STAND_OPTICAL = 0.47
+// A number and its gap under the image (keep in sync with the CSS below).
+const STAND_CAPTION = 30
+// stand: a click on a keyword or an image turns the page dark (and back),
+// in the site's fade between the two (useToggleColorMode).
+const toggleColorMode = useToggleColorMode()
+function standPick() {
+  toggleColorMode()
+}
+// - shelf,keywords: the shelf and the keywords' sphere together (20 Nov 2026).
+//   The band as keywords,images has it (only drifting, nothing unfolding at
+//   the right; only numbers under the images; a hovered keyword linked to
+//   one), along the grid's lower part; the headline, the subtitle and the
+//   button on one rhythm above and below it (placeShelfKeywords). The images
+//   stand on one line by their bottoms (after the reference of 21 Nov 2026);
+//   shelf,keywords,top: they hang from one line by their tops.
+const SPLASH_SHELF_KEYWORDS = shelfLayout && SPLASH_KEYWORDS
+// The stand's hover and click (SplashKeywordGlobe's stand: a keyword's line to
+// a number, an image's to its keywords, the band easing to a stop under the
+// pointer, a click turning the page dark), shelf,keywords's too.
+const STAND_HOVER = SPLASH_KEYWORDS_STAND || SPLASH_SHELF_KEYWORDS
+// After the reference of 21 Nov 2026, standing by default; shelf,keywords,top:
+// hanging from their tops again.
+const SHELF_STAND = SPLASH_SHELF_KEYWORDS && !SPLASH_ALTS.has('top')
+// shelf,keywords (22 Nov 2026): no footer while the splash is up; the splash
+// takes its height, and the grid, with the same margin all round, grows
+// down into it (the gap under it the same as between the tab and its top).
+if (SPLASH_SHELF_KEYWORDS) useHead({ htmlAttrs: { class: 'splash-no-footer' } })
 // /?title=silver (with any splash): the headline's letters in embossed silver,
 // as Kunsthalle Basel's: a pale silver lit from the top left, each letter
 // pillowed (its edges rounded: a white highlight on the upper left inside it,
@@ -350,7 +750,11 @@ function placeSideBars() {
   // The bar's middle, from the images' top line: where each grows out of.
   rowOriginY.value = strip.height / 2 - rowTop.value
 }
-const imageNumber = (index: number) => String(((index % (images.value?.length || 1)) + 1)).padStart(2, '0')
+const imageNumber = (index: number) => {
+  const number = String(((index % (images.value?.length || 1)) + 1)).padStart(2, '0')
+  // keywords,images: in brackets, as the hover's and the grid's.
+  return SPLASH_KEYWORDS_IMAGES ? `[${number}]` : number
+}
 const ALT_GLOBE = SPLASH_ALTS.has('globe') || SPLASH_BEAT
 // /?splash=globe,difference: its lines over the images, in difference.
 const ALT_GLOBE_DIFFERENCE = ALT_GLOBE && SPLASH_ALTS.has('difference')
@@ -395,7 +799,9 @@ function setSentenceRef(el: Element | null, index: number) {
 // so a shorter one doesn't move the subtitle under it.
 const HEADLINE_MAX_FONT_SIZE = 120
 const HEADLINE_MAX_FONT_SIZE_MOBILE = 0.13 // of the viewport's width
-const HEADLINE_MAX_HEIGHT = shelfLayout ? 0.4 : 0.62 // of the splash's height
+// shelf,keywords: the headline 2pt under the others' (5% under, then 2pt).
+const SHELF_HEADLINE_LESS = 8 / 3 // px
+const HEADLINE_MAX_HEIGHT = SPLASH_SHELF_KEYWORDS ? 0.36 : shelfLayout ? 0.4 : 0.62 // of the splash's height
 const HEADLINE_CLEARANCE = 84 // px kept free above and below the headline and subtitle
 const HEADLINE_MAX_HEIGHT_MOBILE = shelfLayout ? 0.3 : 0.42
 const HEADLINE_LINE_HEIGHT = 0.84
@@ -429,8 +835,9 @@ function fitHeadlines() {
   // strip and the top tab, its frame's tallest step included.
   const roomAboveStrip = stripTop.value - stripGap * 2 - subtitleHeight - (tabTop.value + tabHeight.value + stripGap)
   // Row (the splash by default): a tenth smaller, with its subtitle.
-  // Optical balance: a twentieth bigger again, twice.
-  headlineFontSize.value = (SPLASH_ROW ? 0.9 * (BALANCE_OPTICAL ? 1.05 * 1.05 : 1) : 1) * Math.min(
+  // Optical balance: a twentieth bigger again, twice. shelf,keywords and
+  // stand,middle: 5% smaller.
+  headlineFontSize.value = -(SPLASH_SHELF_KEYWORDS ? SHELF_HEADLINE_LESS : 0) + (SPLASH_ROW ? 0.9 * (BALANCE_OPTICAL ? 1.05 * 1.05 : 1) : 1) * (SPLASH_SHELF_KEYWORDS || STAND_MIDDLE ? 0.95 : 1) * Math.min(
     isMobile ? window.innerWidth * HEADLINE_MAX_FONT_SIZE_MOBILE : HEADLINE_MAX_FONT_SIZE,
     widestEm ? headlineMaxWidth.value / widestEm : Infinity,
     maxHeight / (headlineMaxLines.value * HEADLINE_LINE_HEIGHT),
@@ -664,9 +1071,88 @@ function observeLines() {
 const { data: images } = await useAsyncData('splash:bank-images', () =>
   useKqlCollection<BankImage>({
     query: "page('wiki').files.filterBy('type', 'image').limit(10)",
-    select: { url: "file.thumb('web-splash').url", alt: true },
+    select: { url: "file.thumb('web-splash').url", alt: true, width: 'file.width', height: 'file.height', large: 'file.resize(1800).url' },
   }),
 )
+
+// keywords,images: the band's rhythm. Its heights in a five-beat pattern
+// (BAND_BEATS: big, small, medium, small, medium, of the band); each image in
+// its own shape, not cropped to a set one: landscape between 5:4 and 16:9,
+// an upright one (the bank has one) at 4:5, never small. Only a sharp
+// original (BAND_SHARP_W wide at least, its 1800px copy shown) takes a big
+// beat: the sharp ones are brought onto those beats, the rest keep their order.
+// (shelf,keywords and stand: their own phrases, SHELF_PHRASE, STAND_PHRASE.)
+const BAND_BEATS = [0.86, 0.48, 0.62, 0.48, 0.62]
+const BAND_BIG = 0.86
+const BAND_SHARP_W = 1800
+const bandSlots = computed(() => {
+  const list = images.value ?? []
+  const upright = (image: BankImage) => (image.height ?? 0) > (image.width ?? 1)
+  const sharp = list.filter((image) => (image.width ?? 0) >= BAND_SHARP_W && !upright(image))
+  const rest = list.filter((image) => !sharp.includes(image))
+  return list.map((_, k) => {
+    const beat = BAND_BEATS[k % BAND_BEATS.length]!
+    const image = (beat === BAND_BIG ? sharp.shift() : rest.shift()) ?? sharp.shift() ?? rest.shift()!
+    const isSharp = (image.width ?? 0) >= BAND_SHARP_W
+    const ratio = upright(image) ? 4 / 5 : Math.min(16 / 9, Math.max(5 / 4, (image.width ?? 3) / (image.height ?? 2)))
+    const height = beat === BAND_BIG && !isSharp ? 0.62 : upright(image) ? Math.max(0.62, beat) : beat
+    return { image, ratio, height, src: height === BAND_BIG && image.large ? image.large : image.url }
+  })
+})
+const bandSlot = (n: number) => (SPLASH_KEYWORDS_STAND || SPLASH_SHELF_KEYWORDS ? standSlots.value : bandSlots.value)[n % (bandSlots.value.length || 1)]
+// keywords,images,stand: the band's rhythm, after the reference shared on
+// 21 Nov 2026: few images, large, about four across the screen, nearly all
+// square or upright. A four-beat phrase, heights from that reference (of the
+// screen there: 0.28, 0.42, 0.57, 0.35; here in the band's unit, half the
+// grid less half a row; then all 10% smaller): a 4:5 portrait, a square,
+// the big square, a near-square 9:10. Each image is given the beat its own
+// shape suits best (least cropped), a sharp one for the big beats.
+// basics,plain (22 Nov 2026): closer to that reference again, at its own
+// size: its four heights as they are there (0.28, 0.42, 0.57, 0.35 of the
+// screen; here of the tallest, which is the band's unit, PLAIN_UNIT), the
+// shapes it has: a 4:5 portrait, a square, the big square, a 9:10. A phrase
+// the screen's width across (PLAIN_SPAN), as the reference's four fill its
+// screen: a crescendo to the big one, then the drop.
+const PLAIN_PHRASE = [
+  { height: 0.49, ratio: 4 / 5 },
+  { height: 0.74, ratio: 1 },
+  { height: 0.85, ratio: 1 }, // the big one 15% under the reference's (22 Nov 2026)
+  { height: 0.61, ratio: 9 / 10 },
+]
+const PLAIN_SPAN = 0.9 // of the screen's width, one phrase and its gaps (the others as they were)
+const PLAIN_MAX = 0.8 // of the grid's height at most, the tallest
+const STAND_PHRASE = SPLASH_PLAIN ? PLAIN_PHRASE : [
+  { height: 0.738, ratio: 4 / 5 },
+  { height: 1.125, ratio: 1 },
+  { height: 1.512, ratio: 1 },
+  { height: 0.927, ratio: 9 / 10 },
+]
+// shelf,keywords: the band after the second reference shared on 21 Nov 2026
+// (an Open Graph image): five images standing on one line just above the
+// grid's foot, the tallest SHELF_TALLEST of the splash's height, the others
+// in its proportion: a square, a smaller square, a low 5:3, a 9:8, a 4:3.
+const SHELF_PHRASE = [
+  { height: 1, ratio: 1 },
+  { height: 0.74, ratio: 1 },
+  { height: 0.61, ratio: 5 / 3 },
+  { height: 0.82, ratio: 9 / 8 },
+  { height: 0.63, ratio: 4 / 3 },
+]
+const SHELF_TALLEST = 0.39
+// The tallest beat, in units of the band (imagesBandHeight), and the mean.
+const STAND_TALLEST = Math.max(...STAND_PHRASE.map((beat) => beat.height))
+const STAND_MEAN = STAND_PHRASE.reduce((sum, beat) => sum + beat.height, 0) / STAND_PHRASE.length
+const standSlots = computed(() => {
+  const pool = [...(images.value ?? [])]
+  const phrase = SPLASH_SHELF_KEYWORDS ? SHELF_PHRASE : STAND_PHRASE
+  return (images.value ?? []).map((_, k) => {
+    const beat = phrase[k % phrase.length]!
+    const big = beat.height >= (SPLASH_PLAIN ? 0.7 : 0.786)
+    const cost = (image: BankImage) => Math.abs(Math.log(((image.width ?? 3) / (image.height ?? 2)) / beat.ratio)) + (big && (image.width ?? 0) < BAND_SHARP_W ? 0.4 : 0)
+    const image = pool.sort((a, b) => cost(a) - cost(b)).shift()!
+    return { image, ratio: beat.ratio, height: beat.height, src: big && image.large ? image.large : image.url }
+  })
+})
 
 // The images as GGGGab's CodePen (codepen.io/GGGGab/pen/mdxVgWY), endless:
 // the strip still and held against the screen's right side, filled across the
@@ -677,10 +1163,15 @@ const { data: images } = await useAsyncData('splash:bank-images', () =>
 // keeps its own size and ratio: only its frame widens, to the image's width,
 // so it slides in from the right. Those gone off the left are dropped.
 // By default; /?images=scroll: the strip scrolling as before.
-const IMAGES_SPAWN = useRoute().query.images !== 'scroll'
+// The collage lays them all at once, still: no spawn, no scroll.
+const IMAGES_SPAWN = useRoute().query.images !== 'scroll' && !SPLASH_COLLAGE
 // /?images=portrait: every image the same, 5:6 upright and one height.
 const IMAGES_PORTRAIT = useRoute().query.images === 'portrait'
-const SPAWN_GAP_VW = 0.5
+// keywords,images: a gap between every two (about 15px on a laptop).
+// (keywords,images: 1.5vw, at least SPAWN_GAP_MIN px; 1vw until 22 Nov 2026.)
+const SPAWN_GAP_VW = SPLASH_KEYWORDS_IMAGES ? 1.5 : 0.5
+const SPAWN_GAP_MIN = SPLASH_KEYWORDS_IMAGES ? 8 : 0
+const spawnGapPx = () => Math.max((window.innerWidth * SPAWN_GAP_VW) / 100, SPAWN_GAP_MIN)
 // /?spawn=flow: no pause between them, each starting as the last one lands
 // (every SPAWN_GROW_MS) and growing at an even pace (linear): one uninterrupted
 // flow.
@@ -705,9 +1196,15 @@ function flowNext() {
 // fades out at both edges; each image has a soft shadow.
 // The row's default (/?spawn=grow: each image opening, then a pause).
 const SPAWN_DRIFT = useRoute().query.spawn === 'drift' || (SPLASH_ROW && !useRoute().query.spawn)
-const DRIFT_SPEED = 90
+// shelf,keywords: half as fast; stand,middle: a little slower.
+const DRIFT_SPEED = SPLASH_SHELF_KEYWORDS ? 45 : STAND_MIDDLE ? STAND_MIDDLE_SPEED : 90
 const DRIFT_FADE = 0 // px: a clean cut at the screen's edges
 let driftOffset = 0 // px the track sits right of its place: what's still to come in
+// keywords,images,stand: an image under the pointer (SplashKeywordGlobe's
+// image-hover) eases the band to a stop (over about a second), and off it,
+// back to its speed.
+const standHover = ref<number | null>(null)
+let driftRate = 1
 let driftFrame = 0
 let driftLast = 0
 // Drawn from the start (the first images unfolded where they are), moving
@@ -723,7 +1220,9 @@ function driftTick(now: number) {
   // Hidden, then back: no leap (the frames stopped, the clock didn't).
   const dt = Math.min(50, now - (driftLast || now))
   driftLast = now
-  if (driftMoving) driftOffset -= (DRIFT_SPEED * dt) / 1000
+  driftRate += ((standHover.value === null ? 1 : 0) - driftRate) * Math.min(1, (dt / 1000) * (standHover.value === null ? 1.5 : 2.5))
+  // Still while the theme fades (useToggleColorMode): the old picture is frozen.
+  if (driftMoving && !document.documentElement.classList.contains('vt-theme')) driftOffset -= (DRIFT_SPEED * driftRate * dt) / 1000
   // The last one wholly in: the next joins, out of sight, the track pushed
   // right by as much so nothing on screen moves.
   // The push waits for the new one to be laid out (Vue's update, just before
@@ -735,7 +1234,7 @@ function driftTick(now: number) {
     spawnNext()
     if (spawnCount.value > before) {
       driftJoining = true
-      const gap = (window.innerWidth * SPAWN_GAP_VW) / 100
+      const gap = spawnGapPx()
       const push = (spawnWidths.value[before] ?? 0) + (before > spawnBase.value ? gap : 0)
       nextTick(() => {
         driftOffset += push
@@ -774,12 +1273,15 @@ function driftTick(now: number) {
     // grows out of it), nothing sliding.
     // Just joined (not laid out yet: still shut, no width): folded this frame.
     const laidOut = !wrapper.classList.contains('is-shut') && wrapper.offsetWidth > 0
-    const s = laidOut ? Math.min(1, Math.max(0, (edge - left) / width)) : 0
+    // keywords,images: no growing, only going by: whole as it comes in.
+    const s = SPLASH_KEYWORDS_IMAGES ? 1 : laidOut ? Math.min(1, Math.max(0, (edge - left) / width)) : 0
     const t = s
     const img = wrapper.querySelector<HTMLElement>('img')
     const caption = wrapper.querySelector<HTMLElement>('.splash-image-caption')
     if (img) img.style.transform = `scale(${s.toFixed(4)})`
-    if (caption && img) caption.style.transform = `translateY(${(-(1 - s) * img.offsetHeight).toFixed(1)}px)`
+    // Under its bottom left corner all the way: grown from its top (half that,
+    // grown from its middle: keywords,images).
+    if (caption && img) caption.style.transform = `translateY(${(-(1 - s) * img.offsetHeight * (SPLASH_KEYWORDS_IMAGES ? 0.5 : 1)).toFixed(1)}px)`
     if (t >= 1 && !driftRevealed.has(n)) {
       driftRevealed.add(n)
       revealLabel(n, 0)
@@ -789,7 +1291,8 @@ function driftTick(now: number) {
 const SPAWN_EVERY_MS = SPAWN_FLOW ? 1800 : 3200
 const SPAWN_AFTER_MS = 2200
 // Shut ones rendered ahead (so they load, and can be measured).
-const SPAWN_AHEAD = 6
+// shelf,keywords: its images smaller, more of them to cross the screen at once.
+const SPAWN_AHEAD = SPLASH_SHELF_KEYWORDS ? 16 : 6
 // While the row is filled at once: no widening.
 const spawnInstant = ref(false)
 const spawnBase = ref(0) // the first still kept
@@ -805,7 +1308,7 @@ function spawnWidth(n: number) {
 // As many open as cross the screen, at once.
 function fillSpawn() {
   if (!IMAGES_SPAWN || spawnCount.value) return
-  const gap = (window.innerWidth * SPAWN_GAP_VW) / 100
+  const gap = spawnGapPx()
   const widths: Record<number, number> = {}
   let total = 0
   let n = 0
@@ -851,13 +1354,15 @@ function startSpawn() {
   if (headlines.value.length > 1 && !HEADLINE_STILL) return
   spawnStartTimer = setTimeout(() => {
     if (SPAWN_DRIFT) {
+      // Calm: from still, easing up to its speed (driftTick).
+      if (CALM_INTRO) driftRate = 0
       driftMoving = true
       return
     }
     if (SPAWN_FLOW) return flowNext()
     spawnNext()
     spawnTimer = setInterval(spawnNext, SPAWN_EVERY_MS)
-  }, SPAWN_AFTER_MS)
+  }, CALM_INTRO ? CALM_STILL_MS : SPAWN_AFTER_MS)
 }
 function spawnStyle(n: number) {
   if (!IMAGES_SPAWN) return undefined
@@ -865,7 +1370,7 @@ function spawnStyle(n: number) {
   return {
     ...(SPAWN_FLOW && width ? { '--grow-s': `${(width / FLOW_SPEED).toFixed(2)}s` } : {}),
     width: width ? `${width}px` : '0px',
-    marginLeft: width && n > spawnBase.value ? `${SPAWN_GAP_VW}vw` : '0px',
+    marginLeft: width && n > spawnBase.value ? `max(${SPAWN_GAP_VW}vw, ${SPAWN_GAP_MIN}px)` : '0px',
   }
 }
 // Doubled so the track can loop seamlessly: animating from translateX(0)
@@ -876,11 +1381,563 @@ const scrollingImages = computed(() => {
   if (IMAGES_SPAWN) {
     return Array.from({ length: spawnCount.value - spawnBase.value + SPAWN_AHEAD }, (_, k) => {
       const n = spawnBase.value + k
-      return { image: list[n % list.length]!, n }
+      return { image: SPLASH_KEYWORDS_IMAGES && bandSlot(n) ? bandSlot(n)!.image : list[n % list.length]!, n }
     })
   }
+  // The collage: each once; layoutCollage decides which go on the board.
+  if (SPLASH_COLLAGE) return list.map((image, n) => ({ image, n }))
   return [...list, ...list].map((image, n) => ({ image, n }))
 })
+
+// The collage: as the "Talking Archives" reference, the photos laid freely
+// round the headline (not on the grid), a few, with room between them, the
+// large one's corner under the frame's. Each piece (COLLAGE_PIECES, in its stacking order)
+// has its own format, for rhythm (wide, upright, square, panoramic, tall and
+// narrow), and its own scale, from one large to a few small; it takes the
+// unused photo closest to that format, cropped to it. Placed from the
+// headline's frame as measured on screen (fx/fy: the piece's left and top, in
+// the frame's own width and height from its top left corner; s: its height,
+// in the frame's height), so the composition follows the headline at any
+// size. `cap`: the caption above the photo where its foot runs under the frame.
+// Phones: COLLAGE_PIECES_PHONE, above and below the headline.
+type CollagePiece = { r: number, s: number, fx: number, fy: number, cap?: 'top', tuck?: boolean, img?: number }
+// After the "Talking Archives" reference (12 Nov 2026), piece by piece, each
+// measured there against its title block and carried over to this headline
+// (at 1440×900 its frame is 275–1163 across, 225–546 down): the wide sheet
+// at the top's middle running under the frame's top (the plant sheet), the
+// portrait nested in the frame's step at the top right, the letter in the top
+// right corner, the cropped face and the small portrait at the top left, the
+// hand on the left, the large document under CAMPAIGNS' corner, the tall face
+// standing right of DEEPFAKES, the framed rose at the bottom right. Its small
+// objects (the fox, the pipe, the round box) left out: with their captions
+// (always whole) they'd have no room. `tuck`: allowed under the frame. `img`:
+// which of the bank's photos (its index); without it, the unused one closest
+// to the format. Recomposed by hand in the edit mode (/?splash=collage&edit),
+// which copies this list out.
+const COLLAGE_PIECES: CollagePiece[] = [
+  // The wide sheet, top middle, under the frame's top.
+  { r: 2, s: 0.467, fx: 0.366, fy: -0.421, cap: 'top', tuck: true },
+  // The portrait nested in the step, top right.
+  { r: 0.75, s: 0.636, fx: 0.816, fy: -0.402, cap: 'top' },
+  // The letter, top right corner.
+  { r: 1.2, s: 0.474, fx: 1.03, fy: -0.352 },
+  // The cropped face, top left of the headline.
+  { r: 1.7, s: 0.349, fx: 0.062, fy: -0.483 },
+  // The small portrait, top left.
+  { r: 0.79, s: 0.592, fx: -0.175, fy: -0.402 },
+  // The hand, left.
+  { r: 1.45, s: 0.321, fx: -0.233, fy: 0.374 },
+  // The large document, under CAMPAIGNS' corner.
+  { r: 1.1, s: 0.651, fx: -0.22, fy: 0.872, tuck: true },
+  // The tall face, right of DEEPFAKES.
+  { r: 0.615, s: 0.81, fx: 1.036, fy: 0.296 },
+  // The framed rose, bottom right.
+  { r: 1, s: 0.386, fx: 0.929, fy: 1.274 },
+]
+// The board (SPLASH_BOARD): composed by hand in its edit mode
+// (/?splash=board&edit, 12 Nov 2026, on a 1728×884 screen): six photos run
+// in under the headline's frame from every side, close to it, shown as placed;
+// on a screen where they'd cover each other's captions, shrunk till they
+// don't (layoutCollage).
+const BOARD_PIECES: CollagePiece[] = [
+  { r: 1.392, s: 0.522, fx: 0.806, fy: -0.139, img: 0 },
+  { r: 1.785, s: 0.271, fx: 1.171, fy: 0.435, img: 5 },
+  { r: 1.273, s: 0.649, fx: -0.363, fy: 0.455, img: 4 },
+  { r: 0.935, s: 0.716, fx: 0.883, fy: 0.747, img: 3 },
+  { r: 0.777, s: 0.554, fx: -0.018, fy: -0.208, img: 1 },
+  { r: 0.966, s: 0.53, fx: -0.014, fy: 0.972, img: 8 },
+]
+// The archive (SPLASH_ARCHIVE): the "Talking Archives" reference, each piece
+// carried over in proportion to the screen (as on a 1728×884 one), then set
+// against this headline's frame: the sketched portrait and the cropped face at
+// the top left, the botanical sheet running under the frame's top, the photo
+// portrait in its top right corner, the letter in the screen's corner, the hand
+// on the left, the large document under the frame's left corner, the tall
+// face right of it, the round box under its bottom, the framed rose at the
+// bottom right. Its fox, pipe and the small portrait on the document left out
+// (no room with their captions). The ones whose foot runs under the frame
+// have their caption above.
+const ARCHIVE_PIECES: CollagePiece[] = [
+  // Sketched portrait, top left.
+  { r: 0.839, s: 0.443, fx: -0.257, fy: -0.294 },
+  // Cropped face, over the headline's top left.
+  { r: 2.348, s: 0.285, fx: -0.021, fy: -0.39 },
+  // Botanical sheet, its foot under the frame's top.
+  { r: 2.903, s: 0.35, fx: 0.333, fy: -0.263, cap: 'top' },
+  // Photo portrait, in the frame's top right step.
+  { r: 0.901, s: 0.498, fx: 0.867, fy: -0.263, cap: 'top' },
+  // Letter, the screen's top right corner.
+  { r: 1.6, s: 0.464, fx: 1.105, fy: -0.307 },
+  // Hand, left.
+  { r: 2.043, s: 0.285, fx: -0.399, fy: 0.272 },
+  // Large document, bottom left.
+  { r: 1.091, s: 0.681, fx: -0.316, fy: 0.69 },
+  // Tall face, right.
+  { r: 0.59, s: 0.839, fx: 1.082, fy: 0.35 },
+  // Round box, by the frame's bottom right.
+  { r: 1.545, s: 0.341, fx: 0.862, fy: 0.783 },
+  // Framed rose, bottom right.
+  { r: 1.13, s: 0.356, fx: 0.896, fy: 1.297 },
+]
+const COLLAGE_PIECES_PHONE: CollagePiece[] = [
+  // Two small ones above the headline, two larger between the subtitle and the button.
+  { r: 1.4, s: 0.5, fx: 0.02, fy: -0.75 },
+  { r: 1, s: 0.5, fx: 0.62, fy: -0.75 },
+  { r: 1.5, s: 1, fx: 0, fy: 1.55 },
+  { r: 0.75, s: 1.05, fx: 0.7, fy: 1.62 },
+]
+
+// /?splash=collage&edit: the collage composed by hand, on screen. Each photo
+// dragged to move it; its corner handle drawn to size it, width and height
+// apart (its ratio), or together with Shift; a small panel for the one
+// selected (its photo, its caption above or below, under the frame or not,
+// removed) and for the whole (a photo added, the list copied out as code, back
+// to COLLAGE_PIECES). Kept in this browser (localStorage) between reloads.
+// No shrinking for room while editing (what's placed is what's shown): a
+// photo too close to another or over the headline is outlined in red instead.
+const COLLAGE_EDIT = SPLASH_COLLAGE && useRoute().query.edit !== undefined
+const COLLAGE_EDIT_KEY = SPLASH_ARCHIVE ? 'decode-splash-archive-pieces' : SPLASH_BOARD ? 'decode-splash-board-pieces' : 'decode-splash-collage-pieces-v2'
+// The list composed (and edited): the board's or the collage's.
+const COLLAGE_BASE = SPLASH_ARCHIVE ? ARCHIVE_PIECES : SPLASH_BOARD ? BOARD_PIECES : COLLAGE_PIECES
+const editPieces = ref<CollagePiece[]>(COLLAGE_BASE.map((p) => ({ ...p })))
+const editSelected = ref<number | null>(null)
+const editWarn = ref(new Set<number>())
+const editCopied = ref(false)
+
+type CollageRect = { left: number, top: number, width: number, height: number, cap?: 'top', z: number }
+const CAPTION_SPACE = 26 // px: a caption's line and its gap to the photo
+const collageLayout = ref<Record<number, CollageRect>>({})
+const collageRatios = ref<Record<number, number>>({})
+// The headline frame's box (splash px), what the pieces are placed from.
+const collageFrame = ref({ left: 0, top: 0, width: 1, height: 1 })
+// Each photo's caption at its own width (its number and its whole label): no
+// photo is ever narrower, so every label fits whole.
+const captionWidths = ref<Record<number, number>>({})
+function measureCaptions() {
+  const out: Record<number, number> = {}
+  splashEl.value?.querySelectorAll<HTMLElement>('.splash-images-track [data-n]').forEach((el) => {
+    const num = el.querySelector<HTMLElement>('.splash-image-number')
+    const name = el.querySelector<HTMLElement>('.splash-image-name')
+    const w = (num?.scrollWidth ?? 0) + (name?.scrollWidth ?? 0) + 14
+    if (w > 14) out[Number(el.dataset.n)] = Math.ceil(w)
+  })
+  captionWidths.value = out
+}
+function onCollageImageLoad(n: number, e: Event) {
+  const img = e.target as HTMLImageElement
+  if (img.naturalWidth && img.naturalHeight && !collageRatios.value[n]) {
+    collageRatios.value = { ...collageRatios.value, [n]: img.naturalWidth / img.naturalHeight }
+  }
+}
+function layoutCollage() {
+  const splash = splashEl.value
+  if (!SPLASH_COLLAGE || !splash) return
+  const origin = splash.getBoundingClientRect()
+  // The frame's box: each line's own box grown by its margin, together.
+  const m = FRAME_MARGIN * headlineFontSize.value / HEADLINE_MAX_FONT_SIZE
+  const lines = sentenceRefs.value.slice(0, headlineWords.value.length).filter((el): el is HTMLElement => !!el).map((el) => el.getBoundingClientRect())
+  if (!lines.length) return
+  const left = Math.min(...lines.map((r) => r.left)) - origin.left - m
+  const top = Math.min(...lines.map((r) => r.top)) - origin.top - m
+  const width = Math.max(...lines.map((r) => r.right)) - origin.left + m - left
+  const height = Math.max(...lines.map((r) => r.bottom)) - origin.top + m - top
+  collageFrame.value = { left, top, width, height }
+  const phone = origin.width < 700
+  const pieces = phone ? COLLAGE_PIECES_PHONE : COLLAGE_EDIT ? editPieces.value : COLLAGE_BASE
+  const ratios = collageRatios.value
+  const caps = captionWidths.value
+  const unused = new Set(Object.keys(ratios).map(Number))
+  const layout: Record<number, CollageRect> = {}
+  pieces.forEach((piece, z) => {
+    if (!unused.size) return
+    let pick = piece.img !== undefined && unused.has(piece.img) ? piece.img : -1
+    if (pick < 0) {
+      for (const n of unused) {
+        if (pick < 0 || Math.abs(Math.log(ratios[n]! / piece.r)) < Math.abs(Math.log(ratios[pick]! / piece.r))) pick = n
+      }
+    }
+    unused.delete(pick)
+    if (COLLAGE_EDIT && !phone && piece.img === undefined) piece.img = pick
+    let h = piece.s * height
+    let w = h * piece.r
+    // Never narrower than its caption: grown, at its ratio, until it fits.
+    if (caps[pick] && w < caps[pick]!) {
+      h *= caps[pick]! / w
+      w = caps[pick]!
+    }
+    let x = left + piece.fx * width
+    let y = top + piece.fy * height
+    // Kept inside the grid, its caption too (CAPTION_SPACE under it). Not
+    // while editing: placed where it's put.
+    const g = grid.value
+    if (g && !COLLAGE_EDIT) {
+      x = Math.min(Math.max(x, g.left), g.right - w)
+      y = Math.min(Math.max(y, g.top + (piece.cap === 'top' ? CAPTION_SPACE : 0)), g.bottom - h - (piece.cap === 'top' ? 0 : CAPTION_SPACE) - 12)
+    }
+    layout[pick] = { left: x, top: y, width: w, height: h, cap: piece.cap, z }
+  })
+  // Room to breathe, at any size: a photo (its caption with it) closer than
+  // COLLAGE_GAP to another, or over the headline, the subtitle or the button,
+  // shrinks round its own middle until it isn't; under COLLAGE_MIN_SCALE of
+  // its size, or narrower than its caption, it's left out instead. Only a
+  // piece marked `tuck` may run under the frame. While editing, nothing
+  // shrinks: the culprits are outlined (editWarn).
+  const keepOut: CollageRect[] = []
+  const addKeepOut = (r?: DOMRect) => {
+    if (r?.width) keepOut.push({ left: r.left - origin.left, top: r.top - origin.top, width: r.width, height: r.height, z: -1 })
+  }
+  const frameRects = lines.map((r) => ({ left: r.left - origin.left - m, top: r.top - origin.top - m, width: r.width + m * 2, height: r.height + m * 2, z: -1 }))
+  addKeepOut(splash.querySelector('.splash-subtitle-box')?.getBoundingClientRect())
+  addKeepOut(splash.querySelector('.splash-cta')?.getBoundingClientRect())
+  const box = (r: CollageRect, gap: number) => ({
+    left: r.left - gap,
+    top: r.top - gap - (r.cap === 'top' ? CAPTION_SPACE : 0),
+    right: r.left + r.width + gap,
+    bottom: r.top + r.height + gap + (r.cap === 'top' ? 0 : CAPTION_SPACE),
+  })
+  const hits = (a: ReturnType<typeof box>, b: CollageRect) => a.left < b.left + b.width && a.right > b.left && a.top < b.top + b.height && a.bottom > b.top
+  const order = Object.keys(layout).map(Number).sort((a, b) => layout[a]!.z - layout[b]!.z)
+  const full = Object.fromEntries(order.map((n) => [n, layout[n]!.width]))
+  const crowded = (n: number) => {
+    const r = layout[n]!
+    const others = order.filter((k) => k !== n && layout[k]).map((k) => {
+      const b = box(layout[k]!, 0)
+      return { left: b.left, top: b.top, width: b.right - b.left, height: b.bottom - b.top, z: layout[k]!.z }
+    })
+    // (On phones, no tuck: there's no room for a caption hidden under it.)
+    const tucked = pieces[r.z]?.tuck && !phone
+    // The board: photos may lie on photos and under the frame, but every
+    // caption stays whole in sight: its own off the frame, the subtitle, the
+    // button and the other photos, and no photo over another's caption.
+    if (SPLASH_BOARD && !phone) {
+      const capOf = (q: CollageRect) => (q.cap === 'top'
+        ? { left: q.left, top: q.top - CAPTION_SPACE, right: q.left + q.width, bottom: q.top }
+        : { left: q.left, top: q.top + q.height, right: q.left + q.width, bottom: q.top + q.height + CAPTION_SPACE })
+      const asRect = (b: ReturnType<typeof capOf>) => ({ left: b.left, top: b.top, width: b.right - b.left, height: b.bottom - b.top, z: -1 })
+      const img = (q: CollageRect) => ({ left: q.left, top: q.top, right: q.left + q.width, bottom: q.top + q.height })
+      // (Stacked by z: a caption may lie over a photo below it; a photo may
+      // not lie over the caption of one below it.)
+      const otherKeys = order.filter((k) => k !== n && layout[k])
+      const imagesAbove = otherKeys.filter((k) => layout[k]!.z > r.z).map((k) => ({ ...layout[k]! }))
+      const capsBelow = otherKeys.filter((k) => layout[k]!.z < r.z).map((k) => asRect(capOf(layout[k]!)))
+      const allCaps = otherKeys.map((k) => asRect(capOf(layout[k]!)))
+      // (The frame left out: the board is composed by hand, its photos and
+      // captions placed under the frame's edges where wanted.)
+      // (The archive keeps its captions off the frame too.)
+      return [...keepOut, ...(SPLASH_ARCHIVE ? frameRects : []), ...imagesAbove, ...allCaps].some((o) => hits(capOf(r), o))
+        || [...keepOut, ...capsBelow].some((o) => hits(img(r), o))
+    }
+    return [...keepOut, ...(tucked ? [] : frameRects), ...others].some((o) => hits(box(r, COLLAGE_GAP / 2), o))
+  }
+  if (COLLAGE_EDIT && !phone) {
+    editWarn.value = new Set(order.filter(crowded).map((n) => layout[n]!.z))
+  } else {
+    for (let pass = 0; pass < 40; pass++) {
+      let moved = false
+      for (const n of order) {
+        const r = layout[n]
+        if (!r || !crowded(n)) continue
+        const k = 0.94
+        const next = { ...r, left: r.left + (r.width * (1 - k)) / 2, top: r.top + (r.height * (1 - k)) / 2, width: r.width * k, height: r.height * k }
+        if (next.width < full[n]! * COLLAGE_MIN_SCALE || next.width < (caps[n] ?? 0)) delete layout[n]
+        else layout[n] = next
+        moved = true
+      }
+      if (!moved) break
+    }
+  }
+  collageLayout.value = layout
+}
+const COLLAGE_GAP = 28 // px: the least room between two photos (captions included)
+const COLLAGE_MIN_SCALE = 0.55 // of its size: smaller than this, a photo is left out
+function collageStyle(n: number) {
+  const rect = collageLayout.value[n]
+  // Off the board, but laid out (its caption measured: measureCaptions).
+  if (!rect) return { left: '-9999px', top: '0px', visibility: 'hidden' as const }
+  return {
+    left: `${Math.round(rect.left)}px`,
+    top: `${Math.round(rect.top)}px`,
+    width: `${Math.round(rect.width)}px`,
+    zIndex: rect.z,
+    '--collage-img-h': `${Math.round(rect.height)}px`,
+    '--n': n,
+  }
+}
+
+// ---- Edit mode ----
+const round3 = (v: number) => Math.round(v * 1000) / 1000
+// The panel itself: dragged by its head anywhere on the screen, folded to its head.
+const editFolded = ref(false)
+const editPanelAt = ref<{ x: number, y: number } | null>(null)
+const editPanelPos = computed(() => (editPanelAt.value ? { left: `${editPanelAt.value.x}px`, top: `${editPanelAt.value.y}px`, right: 'auto' } : undefined))
+// basics,world's globe panel: its own place and fold, so it can sit beside
+// the countries' (basics,world,countries&edit: on the left by default).
+const worldPanelAt = ref<{ x: number, y: number } | null>(null)
+const worldPanelPos = computed(() => (worldPanelAt.value
+  ? { left: `${worldPanelAt.value.x}px`, top: `${worldPanelAt.value.y}px`, right: 'auto' }
+  : SPLASH_WORLD_COUNTRIES ? { left: '16px', right: 'auto' } : undefined))
+const worldFolded = ref(false)
+function onEditPanelDown(e: PointerEvent, which: 'edit' | 'world' = 'edit') {
+  // (By name: in the template, a ref passed along arrives unwrapped.)
+  const at = which === 'world' ? worldPanelAt : editPanelAt
+  const panel = (e.currentTarget as HTMLElement).parentElement!
+  const r = panel.getBoundingClientRect()
+  const dx = e.clientX - r.left
+  const dy = e.clientY - r.top
+  const move = (ev: PointerEvent) => { at.value = { x: ev.clientX - dx, y: ev.clientY - dy } }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', () => window.removeEventListener('pointermove', move), { once: true })
+}
+function saveEdit() {
+  try { localStorage.setItem(COLLAGE_EDIT_KEY, JSON.stringify(editPieces.value)) } catch {}
+}
+let editDrag: { z: number, mode: 'move' | 'resize', x: number, y: number, rect: CollageRect, cap: number } | null = null
+function onCollagePointerDown(n: number, e: PointerEvent) {
+  if (!COLLAGE_EDIT) return
+  const rect = collageLayout.value[n]
+  if (!rect) return
+  e.preventDefault()
+  e.stopPropagation()
+  editSelected.value = rect.z
+  const resize = (e.target as HTMLElement).classList.contains('collage-edit-handle')
+  editDrag = { z: rect.z, mode: resize ? 'resize' : 'move', x: e.clientX, y: e.clientY, rect: { ...rect }, cap: captionWidths.value[n] ?? 40 }
+  window.addEventListener('pointermove', onCollagePointerMove)
+  window.addEventListener('pointerup', onCollagePointerUp, { once: true })
+}
+function onCollagePointerMove(e: PointerEvent) {
+  if (!editDrag) return
+  const piece = editPieces.value[editDrag.z]
+  if (!piece) return
+  const F = collageFrame.value
+  const dx = e.clientX - editDrag.x
+  const dy = e.clientY - editDrag.y
+  const { rect } = editDrag
+  if (editDrag.mode === 'move') {
+    piece.fx = round3((rect.left + dx - F.left) / F.width)
+    piece.fy = round3((rect.top + dy - F.top) / F.height)
+  } else {
+    const w = Math.max(editDrag.cap, rect.width + dx)
+    const h = e.shiftKey ? w / (rect.width / rect.height) : Math.max(24, rect.height + dy)
+    piece.s = round3(h / F.height)
+    piece.r = round3(w / h)
+  }
+  layoutCollage()
+}
+function onCollagePointerUp() {
+  window.removeEventListener('pointermove', onCollagePointerMove)
+  editDrag = null
+  saveEdit()
+}
+const editPiece = computed(() => (editSelected.value === null ? null : editPieces.value[editSelected.value] ?? null))
+function editUpdate(change: Partial<CollagePiece>) {
+  const piece = editPiece.value
+  if (!piece) return
+  Object.assign(piece, change)
+  if (change.cap === undefined && 'cap' in change) delete piece.cap
+  if (change.tuck === false) delete piece.tuck
+  layoutCollage()
+  saveEdit()
+}
+// Another photo for the selected piece: the next in the bank; if another piece
+// has it, the two swap.
+function editCyclePhoto(step: number) {
+  const piece = editPiece.value
+  const count = images.value?.length ?? 0
+  if (!piece || !count) return
+  const next = (((piece.img ?? 0) + step) % count + count) % count
+  const holder = editPieces.value.find((p) => p !== piece && p.img === next)
+  if (holder) holder.img = piece.img
+  piece.img = next
+  layoutCollage()
+  saveEdit()
+}
+function editAdd() {
+  editPieces.value.push({ r: 1.5, s: 0.35, fx: 0.4, fy: -0.45 })
+  editSelected.value = editPieces.value.length - 1
+  nextTick(layoutCollage)
+  saveEdit()
+}
+function editRemove() {
+  if (editSelected.value === null) return
+  editPieces.value.splice(editSelected.value, 1)
+  editSelected.value = null
+  nextTick(layoutCollage)
+  saveEdit()
+}
+function editReset() {
+  editPieces.value = COLLAGE_BASE.map((p) => ({ ...p }))
+  editSelected.value = null
+  nextTick(layoutCollage)
+  saveEdit()
+}
+const editCode = computed(() => `const ${SPLASH_ARCHIVE ? 'ARCHIVE_PIECES' : SPLASH_BOARD ? 'BOARD_PIECES' : 'COLLAGE_PIECES'}: CollagePiece[] = [\n${editPieces.value.map((p) => {
+  const parts = [`r: ${round3(p.r)}`, `s: ${round3(p.s)}`, `fx: ${round3(p.fx)}`, `fy: ${round3(p.fy)}`]
+  if (p.cap) parts.push(`cap: 'top'`)
+  if (p.tuck) parts.push('tuck: true')
+  if (p.img !== undefined) parts.push(`img: ${p.img}`)
+  return `  { ${parts.join(', ')} },`
+}).join('\n')}\n]`)
+async function editCopy() {
+  try {
+    await navigator.clipboard.writeText(editCode.value)
+    editCopied.value = true
+    setTimeout(() => { editCopied.value = false }, 1600)
+  } catch {
+    window.prompt('Copier :', editCode.value)
+  }
+}
+
+if (SPLASH_COLLAGE) {
+  let collageFrameId = 0
+  const relayout = () => {
+    cancelAnimationFrame(collageFrameId)
+    collageFrameId = requestAnimationFrame(() => {
+      measureCaptions()
+      layoutCollage()
+    })
+  }
+  onMounted(() => {
+    if (COLLAGE_EDIT) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(COLLAGE_EDIT_KEY) ?? 'null')
+        if (Array.isArray(saved) && saved.length) editPieces.value = saved
+      } catch {}
+    }
+    // Here, not at setup: grid, the headline and splashIntro are declared
+    // further down this file.
+    watch(() => [grid.value, collageRatios.value, headlineFontSize.value, conceptLabels.value], () => nextTick(relayout), { deep: true, immediate: true })
+    // Again once everything has landed (the arrival moves the headline).
+    watch(() => splashIntro.value, (phase) => { if (phase === 'done' || phase === 'footer') setTimeout(relayout, 400) })
+    window.addEventListener('resize', relayout)
+    document.fonts?.ready.then(relayout)
+    // Images already in the cache don't fire their load event after hydration.
+    nextTick(() => splashEl.value?.querySelectorAll<HTMLImageElement>('.splash-images-track img').forEach((img) => {
+      const n = Number(img.closest<HTMLElement>('[data-n]')?.dataset.n)
+      if (img.complete && img.naturalWidth && !collageRatios.value[n]) collageRatios.value = { ...collageRatios.value, [n]: img.naturalWidth / img.naturalHeight }
+    }))
+  })
+  onBeforeUnmount(() => window.removeEventListener('resize', relayout))
+}
+
+// ---- The atlas (/?splash=atlas) ----
+// Composition map. The grid: ATLAS_COLS columns by ATLAS_ROWS visible rows
+// (the grey lines, computeGrid), each row split in two for the CSS grid
+// (ATLAS_TRACKS half-rows), so a piece can start on a line or halfway
+// between two. Coordinates below are CSS grid lines: `col` [start, end] of
+// 1–17, `row` [start, end] of 1–19 (half-rows). Stacking: z 1 the documents
+// under the headline, z 2 the ones laid over another document, the headline
+// z 3. Each piece is picked from the bank by its file name (`match`); one
+// not found takes the next unused photo, so a changed bank still fills it.
+//
+// Desktop (16 × 18 half-rows), the silhouette a descent from the top left
+// to the bottom right, the top middle and the bottom middle left empty:
+// - A, dominant: the Greenland AI image (the deepfake), cols 8–16, rows
+//   2–12, its right edge bleeding into the margin; DEEPFAKES runs over its
+//   lower left, SPOTTING touches its left edge.
+// - M1, the John Bull print (the archive's oldest document), cols 1–6,
+//   rows 1–7, its foot under SPOTTING.
+// - M2, the tall "Big B(r)other" poster, cols 15–17, rows 9–17, laid over
+//   A's bottom right corner (z 2): the one document-on-document overlap.
+// - M3, the AI pool image, cols 1–4, rows 14–19, its top right corner
+//   under CAMPAIGNS.
+// - Fragments: 55 Savushkina Street (cols 6–8, rows 2–5, alone in the empty
+//   top middle), the Minsk protest left of DEEPFAKES, the satellite map and
+//   the city map small in the bottom right, by the description.
+// - Headline: from row 6, SPOTTING from col 2, DEEPFAKES from col 5,
+//   CAMPAIGNS from col 3 (letters on the column lines, the paper bleeding
+//   past them), one outline round the three.
+// - Description and button: cols 10–15, the button's middle on the grid's
+//   bottom line, flush left with the description.
+// Phones (8 × 16, ATLAS_PIECES_PHONE): A across the top, the headline over
+// its foot, the poster (under CAMPAIGNS' end) and the print staggered
+// below it, the description and the button at the bottom.
+const ATLAS_COLS = 16
+const ATLAS_ROWS = 9
+const ATLAS_COLS_PHONE = 8
+const ATLAS_ROWS_PHONE = 16
+const ATLAS_PHONE_MAX = 760 // px, the window's width
+type AtlasPiece = {
+  key: string
+  match: RegExp
+  role: 'dominant' | 'medium' | 'fragment'
+  col: [number, number]
+  row: [number, number]
+  z?: number
+  // Where the crop keeps the picture (object-position).
+  focus?: string
+  // Its caption above it (its foot is under something).
+  capTop?: boolean
+  // Its caption flush right (another piece holds its left end).
+  capEnd?: boolean
+  // Bleeds past the grid's right edge into the margin, in columns.
+  bleed?: number
+}
+const ATLAS_PIECES: AtlasPiece[] = [
+  { key: 'A', match: /greenland/, role: 'dominant', col: [9, 17], row: [2, 12], focus: '70% 40%', capTop: true, capEnd: true, bleed: 0.55 },
+  { key: 'M1', match: /bodleian|iohn-bull/, role: 'medium', col: [1, 5], row: [2, 8], focus: '50% 40%', capTop: true },
+  { key: 'M2', match: /big-b/, role: 'medium', col: [15, 17], row: [11, 18], z: 2, focus: '50% 40%', bleed: 0.9 },
+  { key: 'M3', match: /lincoln|reflecting-pool/, role: 'medium', col: [11, 14], row: [13, 17], focus: '40% 60%' },
+  { key: 'S1', match: /savushkina/, role: 'fragment', col: [8, 10], row: [1, 4], z: 2, focus: '45% 50%', capTop: true },
+  { key: 'S2', match: /belarus/, role: 'fragment', col: [1, 3], row: [10, 13], focus: '35% 50%' },
+]
+const ATLAS_PIECES_PHONE: AtlasPiece[] = [
+  { key: 'A', match: /greenland/, role: 'dominant', col: [2, 9], row: [2, 7], focus: '62% 40%', capTop: true, capEnd: true, bleed: 0.4 },
+  { key: 'M2', match: /big-b/, role: 'medium', col: [6, 9], row: [8, 12], z: 2, focus: '50% 35%', bleed: 0.4 },
+  { key: 'M1', match: /bodleian|iohn-bull/, role: 'medium', col: [1, 5], row: [10, 13], focus: '50% 45%' },
+]
+// Headline: each line's start, in columns from the grid's left edge, and the
+// half-row it starts on.
+const ATLAS_TITLE = { shifts: [1, 4, 3], row: 6 }
+const ATLAS_TITLE_PHONE = { shifts: [0, 1, 0.5], row: 6 }
+const atlasPhone = ref(false)
+function bankFileName(url: string) {
+  return url.split('/').pop() ?? ''
+}
+const atlasPieces = computed(() => {
+  const list = images.value ?? []
+  if (!SPLASH_ATLAS || !list.length) return []
+  const pieces = atlasPhone.value ? ATLAS_PIECES_PHONE : ATLAS_PIECES
+  const used = new Set<number>()
+  const found = pieces.map((piece) => {
+    const n = list.findIndex((image, k) => !used.has(k) && piece.match.test(bankFileName(image.url)))
+    if (n >= 0) used.add(n)
+    return n
+  })
+  return pieces.map((piece, k) => {
+    let n = found[k]!
+    if (n < 0) {
+      n = list.findIndex((_, j) => !used.has(j))
+      if (n < 0) return null
+      used.add(n)
+    }
+    const image = list[n]!
+    return { ...piece, n, image, alt: cleanAlt(image.alt) }
+  }).filter((piece): piece is NonNullable<typeof piece> => !!piece)
+})
+// A piece's grid reference, from where it stands: its column and its
+// visible row, as the grid's own row numbers (01…) at the left.
+function atlasRef(piece: AtlasPiece) {
+  const row = Math.floor((piece.row[0] - 1) / 2) + 1
+  return `C${String(piece.col[0]).padStart(2, '0')}·R${String(row).padStart(2, '0')}`
+}
+function atlasPieceStyle(piece: AtlasPiece & { n: number }, index: number) {
+  return {
+    gridColumn: `${piece.col[0]} / ${piece.col[1]}`,
+    gridRow: `${piece.row[0]} / ${piece.row[1]}`,
+    zIndex: piece.z ?? 1,
+    '--bleed': piece.bleed ?? 0,
+    '--focus': piece.focus ?? '50% 50%',
+    '--i': index,
+  }
+}
+if (SPLASH_ATLAS) {
+  const measure = () => { atlasPhone.value = window.innerWidth <= ATLAS_PHONE_MAX }
+  onMounted(() => {
+    measure()
+    window.addEventListener('resize', measure)
+  })
+  onBeforeUnmount(() => window.removeEventListener('resize', measure))
+}
 
 // The splash's images (only these: not the tool cards' and the rest of the
 // site's): each one's duotone fitted to its own tones, so a mostly dark
@@ -983,7 +2040,7 @@ const SPAWN_MIN_W = 280 // px
 const SPAWN_MAX_W = 420 // px
 // As GGGGab's pen: the image fills its frame's width as the frame opens, so it
 // grows in both ways at once (from the side and in height), not sliding in.
-const spawnRatio = (index: number) => SPAWN_RATIOS[(index % (images.value?.length || 1)) % SPAWN_RATIOS.length]!
+const spawnRatio = (index: number) => (SPLASH_KEYWORDS_IMAGES && bandSlot(index) ? bandSlot(index)!.ratio : SPAWN_RATIOS[(index % (images.value?.length || 1)) % SPAWN_RATIOS.length]!)
 // Flow and drift: calmer, two heights only (CALM_HEIGHTS of the band, in
 // turn), each image as wide as its shape makes it (no clamping, which would
 // change its height).
@@ -991,9 +2048,18 @@ const CALM_HEIGHTS = [0.62, 0.48]
 function spawnTargetWidth(index: number) {
   if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return 0
   const band = imagesBandHeight.value || window.innerHeight * ((shelfLayout ? SHELF_BAND_VH : 44) / 100)
+  if (SPLASH_KEYWORDS_IMAGES && bandSlot(index)) return band * bandSlot(index)!.height * spawnRatio(index)
   if (SPAWN_FLOW || SPAWN_DRIFT) return band * CALM_HEIGHTS[(index % (images.value?.length || 1)) % CALM_HEIGHTS.length]! * spawnRatio(index)
   const variant = Math.max(SPAWN_MIN_VARIANT, imageVariant(index))
   return Math.min(SPAWN_MAX_W, Math.max(SPAWN_MIN_W, band * variant * spawnRatio(index)))
+}
+// /?splash=keywords: a keyword's visual (SplashKeywordGlobe) at the row's two
+// sizes, as drift has them: CALM_HEIGHTS of the band in turn, each in its own
+// SPAWN_RATIOS shape (the band at its CSS height: the row isn't laid out).
+function keywordImageSize(index: number) {
+  const band = window.innerHeight * ((shelfLayout ? SHELF_BAND_VH : 44) / 100)
+  const height = Math.round(band * CALM_HEIGHTS[index % CALM_HEIGHTS.length]!)
+  return { width: Math.round(height * SPAWN_RATIOS[index % SPAWN_RATIOS.length]!), height }
 }
 function spawnImageStyle(index: number) {
   if (!IMAGES_SPAWN || IMAGES_PORTRAIT) return {}
@@ -1128,6 +2194,10 @@ const TAB_CORNER_R_RATIO = 8 / 80
 const tabWidth = ref(0)
 const tabHeight = ref(0)
 const tabTop = ref(0)
+// The tab's left edge (px): 0, but on its way out (leave) it slides to where
+// the site's own tab is (SiteNav.vue: desktop's first, mobile's MENU on the
+// right half), so the switch to the guide is seamless (22 Nov 2026).
+const tabLeft = ref(0)
 // Full viewport width — the baseline rule (folderTabPath below) is drawn
 // as part of the same path/stroke all the way out to this, rather than as
 // a second, separately-positioned element. Two elements meeting edge to
@@ -1183,13 +2253,17 @@ const folderTabPath = computed(() => {
   // met each diagonal's shoulder at a sharp, near-180°-apart miter join,
   // and the default miter linejoin spiked the visible stroke width right
   // at both bottom corners.
+  // (Moved by tabLeft: the rule then runs from the page's left edge to it too.)
+  const x = tabLeft.value
+  const at = (px: number, py: number) => `${(px + x).toFixed(2)},${py.toFixed(2)}`
   return [
     `M 0,${h}`,
-    `L ${leftBefore.x.toFixed(2)},${leftBefore.y.toFixed(2)}`,
-    `Q ${leftDx.toFixed(2)},0 ${leftAfter.x.toFixed(2)},${leftAfter.y.toFixed(2)}`,
-    `L ${rightBefore.x.toFixed(2)},${rightBefore.y.toFixed(2)}`,
-    `Q ${rightApexX.toFixed(2)},0 ${rightAfter.x.toFixed(2)},${rightAfter.y.toFixed(2)}`,
-    `L ${w},${h}`,
+    ...(x > 0 ? [`L ${x.toFixed(2)},${h}`] : []),
+    `L ${at(leftBefore.x, leftBefore.y)}`,
+    `Q ${at(leftDx, 0)} ${at(leftAfter.x, leftAfter.y)}`,
+    `L ${at(rightBefore.x, rightBefore.y)}`,
+    `Q ${at(rightApexX, 0)} ${at(rightAfter.x, rightAfter.y)}`,
+    `L ${at(w, h)}`,
     // The baseline rule — same path, same stroke, out to the full
     // viewport width.
     `L ${pw},${h}`,
@@ -1266,13 +2340,17 @@ function computeGrid() {
   const fullH = boxH - fullTop - margin
   // Mobile: 20% shorter than the space allows, centered in it — the full
   // height reads too tall and narrow on a phone.
-  const usableH = isMobile ? fullH * 0.8 : fullH
+  // (The atlas takes the whole height: its composition needs it.)
+  const usableH = isMobile && !SPLASH_ATLAS ? fullH * 0.8 : fullH
   const gridTop = fullTop + (fullH - usableH) / 2
   const gridBottomGap = boxH - gridTop - usableH
 
   const square = isMobile ? SQUARE_TARGET_MOBILE : SQUARE_TARGET
-  const cols = Math.max(1, Math.round(usableW / square))
-  const rows = Math.max(1, Math.round(usableH / square))
+  // The atlas: its own fixed grid (ATLAS_COLS × ATLAS_ROWS), the one its
+  // composition is drawn on, whatever the screen.
+  const atlasPhone = SPLASH_ATLAS && window.innerWidth <= ATLAS_PHONE_MAX
+  const cols = SPLASH_ATLAS ? (atlasPhone ? ATLAS_COLS_PHONE : ATLAS_COLS) : Math.max(1, Math.round(usableW / square))
+  const rows = SPLASH_ATLAS ? (atlasPhone ? ATLAS_ROWS_PHONE : ATLAS_ROWS) : Math.max(1, Math.round(usableH / square))
   const cellWidth = usableW / cols
   const cellHeight = usableH / rows
 
@@ -1332,7 +2410,7 @@ function computeGrid() {
     const stripCenter = gridTop + halfGrid * 1.5
     stripTop.value = stripCenter - stripRoom / 2
     stripFullHeight = stripHeight
-    imagesBandHeight.value = stripHeight
+    setBandHeight(stripHeight)
     stripStyle.value = { top: `${stripCenter}px`, height: `${stripHeight}px` }
     // The grid's margin, unless the window is so short that it would squeeze the text.
     stripGap = Math.min(margin, window.innerHeight * STRIP_GAP_MAX)
@@ -1346,6 +2424,30 @@ function computeGrid() {
   const gridMiddle = (gridTop + boxH - gridBottomGap) / 2
   stripStyle.value = { top: `${gridMiddle}px` }
   infoStyle.value = { top: `${gridTop}px`, bottom: `${gridBottomGap}px` }
+  // keywords,images,stand: the band centred on the grid's middle line, its
+  // unit half the grid less half a row (the tallest beat a step over it); the
+  // numbers under its foot.
+  if (SPLASH_KEYWORDS_STAND) {
+    const phraseWidth = STAND_PHRASE.reduce((sum, beat) => sum + beat.height * beat.ratio, 0)
+    const gapPx = spawnGapPx()
+    const unit = SPLASH_PLAIN
+      ? Math.round(Math.min(usableH * PLAIN_MAX, (window.innerWidth * PLAIN_SPAN - STAND_PHRASE.length * gapPx) / phraseWidth))
+      : Math.round(usableH / 2 - cellHeight / 2)
+    const tallest = Math.round(unit * STAND_TALLEST)
+    // The strip's top (inline) is its images' box's middle (the CSS's
+    // translate), their line half the tallest under it. screen: that line
+    // where an average image's middle falls on the optical centre.
+    const optical = window.innerHeight * STAND_OPTICAL - splashEl.value.getBoundingClientRect().top
+    const screenTop = optical + (STAND_MEAN * unit) / 2 - tallest / 2
+    stripStyle.value = { top: `${Math.round(STAND_SCREEN ? screenTop : gridMiddle)}px`, height: `${tallest + STAND_CAPTION}px` }
+    if (Math.abs(unit - imagesBandHeight.value) > 0.5) {
+      imagesBandHeight.value = unit
+      const widths: Record<number, number> = {}
+      for (const n of Object.keys(spawnWidths.value).map(Number)) widths[n] = spawnTargetWidth(n) || spawnWidths.value[n]!
+      spawnWidths.value = widths
+    }
+    return
+  }
   if (imagesEl.value) {
     imagesBandHeight.value = imagesEl.value.getBoundingClientRect().height
   }
@@ -1413,6 +2515,18 @@ const OUT_AT = 4700
 const QUICK_OUT_AT = 3200 // DE.CO.DE held 1.5s longer
 const QUICK_BUILD_AT = QUICK_OUT_AT + 550
 const QUICK_STAGGER = 320
+// Calm (CALM_INTRO): DE.CO.DE held less, fading out slowly before the build;
+// the images still this long after the build before they drift (intro=steps:
+// counted from the strip's arrival).
+const CALM_OUT_AT = 2300
+const CALM_LOGO_FADE_MS = 1200
+const CALM_BUILD_AT = CALM_OUT_AT + CALM_LOGO_FADE_MS
+// intro=steps: when each comes, after the build (grid, button, corners).
+// (The subtitle with the button; the tab and footer with the strip.)
+const STEPS = { headline: 1200, subtitle: 2400, strip: 3400, tab: 3400, footer: 3700, done: 4600, map: 4600 }
+// The strip: together, still a while before it drifts; steps, drifting
+// (easing up) from its arrival, as it fades in.
+const CALM_STILL_MS = STEPS_INTRO ? STEPS.strip : 3000
 const OUT_MS = 900
 const MOVE_AT = OUT_AT + OUT_MS
 const MOVE_MS = 900
@@ -1429,6 +2543,8 @@ function buildIn() {
   startSpawn()
   logoVisible.value = false
   constructShapes()
+  // Calm: they fade in (CSS), only the headline deciphers.
+  if (CALM_INTRO) return
   for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.corner-title, .corner-badge, .splash-cta, .image-label') ?? []) {
     decipherIn(el)
   }
@@ -1940,58 +3056,143 @@ function onSplashLeave() {
 // THEME_STEPS steps over THEME_MS), each cell's moment by its distance from
 // the click, a little loosely, so the front is ragged. Without view
 // transitions (or with reduced motion), the theme just changes.
+// The countries' editor: a click picks one; dragging it moves it; the wheel
+// over it scales it, with Shift turns it; the arrows nudge the picked one
+// (Shift: more), [ and ] turn it, - and + scale it. The panel shows and sets
+// its values, hides the images to see under them, and copies the code.
+const countriesEditPick = ref<number | null>(null)
+const countriesEditHide = ref(false)
+const countriesEditCopied = ref(false)
+const countriesEl = ref<HTMLElement | null>(null)
+let countriesDrag: { index: number, x: number, y: number, top: number, left: number } | null = null
+const round1 = (value: number) => Math.round(value * 10) / 10
+function countriesSave() {
+  try { localStorage.setItem(COUNTRIES_STORE, JSON.stringify(basicsCountries.value)) }
+  catch {}
+}
+function countriesUpdate(index: number, change: Partial<BasicsCountry>) {
+  const country = basicsCountries.value[index]
+  if (!country) return
+  Object.assign(country, change)
+  countriesSave()
+}
+function onCountryDown(index: number, event: PointerEvent) {
+  if (!COUNTRIES_EDIT) return
+  event.preventDefault()
+  event.stopPropagation()
+  countriesEditPick.value = index
+  const country = basicsCountries.value[index]!
+  countriesDrag = { index, x: event.clientX, y: event.clientY, top: country.top, left: country.left }
+  window.addEventListener('pointermove', onCountryMove)
+  window.addEventListener('pointerup', onCountryUp, { once: true })
+}
+function onCountryMove(event: PointerEvent) {
+  const box = countriesEl.value?.getBoundingClientRect()
+  if (!countriesDrag || !box?.width) return
+  countriesUpdate(countriesDrag.index, {
+    left: round1(countriesDrag.left + ((event.clientX - countriesDrag.x) / box.width) * 100),
+    top: round1(countriesDrag.top + ((event.clientY - countriesDrag.y) / box.height) * 100),
+  })
+}
+function onCountryUp() {
+  countriesDrag = null
+  window.removeEventListener('pointermove', onCountryMove)
+}
+function onCountryWheel(index: number, event: WheelEvent) {
+  if (!COUNTRIES_EDIT) return
+  event.preventDefault()
+  event.stopPropagation()
+  countriesEditPick.value = index
+  const country = basicsCountries.value[index]!
+  const step = Math.sign(event.deltaY || event.deltaX)
+  if (event.shiftKey) countriesUpdate(index, { rotate: Math.round(country.rotate - step * 3) })
+  else countriesUpdate(index, { scale: Math.max(0.1, Math.round((country.scale - step * 0.05) * 100) / 100) })
+}
+function onCountriesKey(event: KeyboardEvent) {
+  const index = countriesEditPick.value
+  if (index === null || (event.target as HTMLElement | null)?.closest?.('input')) return
+  const country = basicsCountries.value[index]!
+  const nudge = event.shiftKey ? 1 : 0.1
+  const changes: Record<string, Partial<BasicsCountry>> = {
+    ArrowLeft: { left: round1(country.left - nudge) },
+    ArrowRight: { left: round1(country.left + nudge) },
+    ArrowUp: { top: round1(country.top - nudge) },
+    ArrowDown: { top: round1(country.top + nudge) },
+    '[': { rotate: country.rotate - (event.shiftKey ? 15 : 1) },
+    ']': { rotate: country.rotate + (event.shiftKey ? 15 : 1) },
+    '-': { scale: Math.max(0.1, Math.round((country.scale - 0.05) * 100) / 100) },
+    '+': { scale: Math.round((country.scale + 0.05) * 100) / 100 },
+    '=': { scale: Math.round((country.scale + 0.05) * 100) / 100 },
+  }
+  const change = changes[event.key]
+  if (!change) return
+  event.preventDefault()
+  countriesUpdate(index, change)
+}
+function countriesReset() {
+  basicsCountries.value = BASICS_START.map((country) => ({ ...country }))
+  try { localStorage.removeItem(COUNTRIES_STORE) }
+  catch {}
+}
+async function countriesCopy() {
+  const lines = basicsCountries.value.map((c) => `  { shape: '${c.shape}', ${c.src ? `src: '${c.src}', ` : ''}top: ${c.top}, left: ${c.left}, width: ${c.width}, rotate: ${c.rotate}, scale: ${c.scale}, color: ${c.color}, look: '${c.look}', dot: ${c.dot}, stroke: ${c.stroke} },`)
+  const code = `const ${SPLASH_BOLD ? 'BOLD_COUNTRIES' : 'BASICS_COUNTRIES'}: BasicsCountry[] = [\n${lines.join('\n')}\n]\n`
+  try {
+    await navigator.clipboard.writeText(code)
+    countriesEditCopied.value = true
+    setTimeout(() => { countriesEditCopied.value = false }, 1500)
+  }
+  catch { console.info(code) }
+}
+if (COUNTRIES_EDIT && import.meta.client) {
+  onMounted(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COUNTRIES_STORE) ?? 'null') as BasicsCountry[] | null
+      if (Array.isArray(saved) && saved.length && saved.every((country) => country.shape in COUNTRY_SHAPES)) basicsCountries.value = saved
+    }
+    catch {}
+    window.addEventListener('keydown', onCountriesKey)
+  })
+  onBeforeUnmount(() => window.removeEventListener('keydown', onCountriesKey))
+}
+
 function onSplashClick(event: MouseEvent) {
+  if (COUNTRIES_EDIT) return
   if (!overGrid(event) || (event.target as HTMLElement).closest('a, button')) return
-  themePixels(event.clientX, event.clientY)
+  // The theme, by the site's fade (useToggleColorMode), no pixels.
+  standPick()
 }
-let themeBusy = false
-function themePixels(x: number, y: number) {
-  const toggle = () => { colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark' }
-  const doc = document as Document & { startViewTransition?: (update: () => Promise<void> | void) => { ready: Promise<void>, finished: Promise<void> } }
-  if (themeBusy) return
-  if (!doc.startViewTransition || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return toggle()
-  themeBusy = true
-  const w = window.innerWidth
-  const h = window.innerHeight
-  const cols = Math.ceil(w / THEME_PIXEL)
-  const rows = Math.ceil(h / THEME_PIXEL)
-  const far = Math.hypot(Math.max(x, w - x), Math.max(y, h - y))
-  const cells: { c: number, r: number, at: number }[] = []
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const d = Math.hypot((c + 0.5) * THEME_PIXEL - x, (r + 0.5) * THEME_PIXEL - y) / far
-      cells.push({ c, r, at: Math.min(1, Math.max(0, d * 0.82 + Math.random() * 0.18)) })
-    }
-  }
-  // The mask at progress p: a white cell for each one shown.
-  const maskAt = (p: number) => {
-    const rects = cells.filter((cell) => cell.at <= p).map((cell) => `<rect x='${cell.c}' y='${cell.r}' width='1.02' height='1.02'/>`).join('')
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 ${cols} ${rows}' preserveAspectRatio='none' shape-rendering='crispEdges'><g fill='white'>${rects}</g></svg>`
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`
-  }
-  const root = document.documentElement
-  root.style.setProperty('--theme-mask', maskAt(0))
-  root.style.setProperty('--theme-ms', `${THEME_MS + 200}ms`)
-  root.classList.add('theme-pixels')
-  const transition = doc.startViewTransition(async () => {
-    toggle()
-    await nextTick()
-  })
-  transition.ready.then(() => {
-    for (let k = 1; k <= THEME_STEPS; k++) {
-      setTimeout(() => root.style.setProperty('--theme-mask', maskAt(k / THEME_STEPS)), (THEME_MS * k) / THEME_STEPS)
-    }
-  }).catch(() => {})
-  transition.finished.finally(() => {
-    root.classList.remove('theme-pixels')
-    root.style.removeProperty('--theme-mask')
-    root.style.removeProperty('--theme-ms')
-    themeBusy = false
-  })
+// A band image's click: the collage's editor keeps it; basics turns the page
+// dark (once: not again as the click reaches the splash).
+function onWrapperClick(event: MouseEvent) {
+  if (COLLAGE_EDIT) event.stopPropagation()
+  if (!SPLASH_BASICS || COUNTRIES_EDIT) return
+  event.stopPropagation()
+  standPick()
+  holdStandHover(event)
 }
-const THEME_PIXEL = 30 // px
-const THEME_MS = 950
-const THEME_STEPS = 18
+// basics: once an image is clicked (the page turning dark), the pointer
+// still on it no longer holds the band: its hover let go, and none taken
+// again until the pointer moves (a still one, the band going by under it,
+// would stop it on the next image).
+let standHoverHeld = false
+// Calm: for a while after the strip arrives (playCalmIntro), the pointer
+// already in its way doesn't stop it (its hover not taken).
+let stripArrivedAt = 0
+const STRIP_FREE_MS = 2000
+// (Nor before it shows: unseen, its images still take the pointer.)
+const stripArriving = () => !stepStrip.value || (!!stripArrivedAt && performance.now() - stripArrivedAt < STRIP_FREE_MS)
+function holdStandHover(event: MouseEvent) {
+  standHover.value = null
+  standHoverHeld = true
+  const from = { x: event.clientX, y: event.clientY }
+  const move = (ev: PointerEvent) => {
+    if (Math.hypot(ev.clientX - from.x, ev.clientY - from.y) < 4) return
+    standHoverHeld = false
+    window.removeEventListener('pointermove', move)
+  }
+  window.addEventListener('pointermove', move)
+}
 
 function constructShapes() {
   clearTimeout(shapeTimer)
@@ -2604,6 +3805,41 @@ function stopHeadlineCycle() {
   clearScramble()
 }
 
+// The calm arrival (CALM_INTRO; STEPS_INTRO: one thing at a time).
+function playCalmIntro(at: (ms: number, fn: () => void) => void) {
+  at(CALM_OUT_AT, () => {
+    logoReveal?.stop()
+    splashEl.value?.querySelector<HTMLElement>('.splash-logo-word')?.classList.add('is-fading')
+  })
+  at(CALM_BUILD_AT - 300, fillSpawn)
+  const B = CALM_BUILD_AT
+  const steps = STEPS_INTRO ? STEPS : { headline: 0, subtitle: 0, strip: 0, map: 0, tab: QUICK_STAGGER, footer: QUICK_STAGGER * 2, done: QUICK_STAGGER * 2 + 900 }
+  at(B, () => {
+    subtitleShown.value = true
+    subtitleMoving.value = true
+    buildIn()
+  })
+  at(B + steps.headline, headlineIn)
+  // The subtitle and the button at once, their letters deciphering (as the
+  // headline's): a fade let the grid show through their white boxes.
+  at(B + steps.subtitle, () => {
+    stepSubtitle.value = true
+    if (!STEPS_INTRO) return
+    for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.splash-subtitle-box, .splash-cta') ?? []) decipherIn(el)
+  })
+  at(B + steps.strip, () => {
+    stepStrip.value = true
+    stripArrivedAt = performance.now()
+  })
+  at(B + steps.map, () => { stepMap.value = true })
+  at(B + steps.tab, () => { splashIntro.value = 'tab' })
+  at(B + steps.footer, () => { splashIntro.value = 'footer' })
+  at(B + steps.done, () => {
+    splashIntro.value = 'done'
+    introSeen.value = '1'
+    startHeadlineCycle()
+  })
+}
 function playIntro() {
   if (splashIntro.value !== 'logo') return startHeadlineCycle()
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -2615,6 +3851,7 @@ function playIntro() {
   // Row (the splash by default): shorter. Only DE.CO.DE comes in (as ever) and
   // goes; then everything at once: the grid, the images opening, the headline
   // and subtitle deciphering, the tab and the footer.
+  if (CALM_INTRO) return playCalmIntro(at)
   if (SPLASH_ROW) {
     at(QUICK_OUT_AT, () => {
       const logo = splashEl.value?.querySelector<HTMLElement>('.splash-logo-word')
@@ -2743,6 +3980,27 @@ const gridNumbers = computed(() => gridHorizontals.value
     y: y === grid.value?.bottom ? y - 0.5 : y + 0.5,
     label: String(index + 1).padStart(2, '0'),
   })))
+// On the way out: the tab glides to the site's own (SiteNav.vue: a quarter of
+// the width at the left on desktop, mobile's MENU tab on the right half), so
+// that when the guide replaces the splash, its tab is exactly where this one
+// was (it used to jump: this one sized on its label).
+const TAB_SLIDE_MS = 900
+function slideTabToNav() {
+  const mobile = window.innerWidth <= 1150
+  const toWidth = window.innerWidth * (mobile ? 0.5 : 0.25)
+  const toLeft = mobile ? window.innerWidth * 0.5 : 0
+  const fromWidth = tabWidth.value
+  const fromLeft = tabLeft.value
+  const start = performance.now()
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / TAB_SLIDE_MS)
+    const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
+    tabWidth.value = fromWidth + (toWidth - fromWidth) * e
+    tabLeft.value = fromLeft + (toLeft - fromLeft) * e
+    if (t < 1) requestAnimationFrame(step)
+  }
+  requestAnimationFrame(step)
+}
 function leave() {
   if (leaving.value) return
   stopHeadlineCycle()
@@ -2753,8 +4011,9 @@ function leave() {
   }
   leaving.value = true
   closeFrame()
+  slideTabToNav()
   introSeen.value = '1'
-  for (const el of splashEl.value.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box, .corner-title, .corner-badge, .splash-cta, .splash-tab-ticker-track, .image-label')) {
+  for (const el of splashEl.value.querySelectorAll<HTMLElement>('.sentence-text, .splash-subtitle-box, .corner-title, .corner-badge, .splash-cta, .splash-tab-ticker-track, .image-label, .atlas-scramble')) {
     scrambleOut(el, TEXT_OUT_MS)
   }
   setTimeout(() => emit('continue'), OUTRO_MS)
@@ -2801,7 +4060,10 @@ const OPTICAL_SUBTITLE_GAP = 0.5
 const OPTICAL_SUBTITLE_DROP = 4 // px lower than that
 const SUBTITLE_APART = SPLASH_ROW
 function placeSubtitle() {
-  if (!SUBTITLE_APART || !splashEl.value || window.innerWidth <= 1150) {
+  if (SPLASH_SHELF_KEYWORDS && window.innerWidth > 1150) return placeShelfKeywords()
+  // uncertainty (and basics,world,lab): the headline is hidden under the map,
+  // nothing to place; measuring it anyway, basics' lift chased itself forever.
+  if (!SUBTITLE_APART || SPLASH_UNCERTAINTY || !splashEl.value || window.innerWidth <= 1150) {
     subtitleTop.value = null
     return
   }
@@ -2827,6 +4089,22 @@ function placeSubtitle() {
   // height / 2.
   const g = grid.value
   const splashTop = splashEl.value.getBoundingClientRect().top
+  // basics: the subtitle close under the headline (BASICS_SUBTITLE_GAP of the
+  // splash's height), the two as one block centred in the grid, up or down.
+  if (SPLASH_BASICS && g) {
+    const gap = Math.round(g.boxH * BASICS_SUBTITLE_GAP)
+    const block = frameBottom - frameTop + gap + subtitle.offsetHeight
+    const target = splashTop + (g.top + g.bottom) / 2 - block / 2
+    const lift = Math.round(frameTop + groupLift.value - target)
+    if (Math.abs(lift - groupLift.value) > 1) {
+      groupLift.value = lift
+      splashEl.value.style.setProperty('--group-lift', `${lift}px`)
+      nextTick(placeSubtitle)
+      return
+    }
+    subtitleTop.value = Math.round(frameBottom + gap - info.top)
+    return
+  }
   if (g) {
     const middle = splashTop + (g.top + g.bottom) / 2
     const frame = frameBottom - frameTop
@@ -2846,6 +4124,67 @@ function placeSubtitle() {
   const evenGap = (cta.top - frameBottom - subtitle.offsetHeight) / 2
   const gap = BALANCE_OPTICAL ? evenGap * OPTICAL_SUBTITLE_GAP + OPTICAL_SUBTITLE_DROP : evenGap
   subtitleTop.value = Math.round(frameBottom + gap - info.top)
+  placeStandStrip(frameTop, frameBottom)
+}
+// stand,screen (desktop): the band on the headline's middle (its frame's,
+// where its boxes are), once the headline has settled: an average image's
+// middle on it. (stand,middle stays on the grid's middle, computeGrid.)
+function placeStandStrip(frameTop: number, frameBottom: number) {
+  if (!STAND_SCREEN || !splashEl.value || !imagesBandHeight.value) return
+  const unit = imagesBandHeight.value
+  const mid = (frameTop + frameBottom) / 2 - splashEl.value.getBoundingClientRect().top
+  const top = `${Math.round(mid + (STAND_MEAN * unit) / 2 - (STAND_TALLEST * unit) / 2)}px`
+  if (stripStyle.value.top !== top) stripStyle.value = { ...stripStyle.value, top }
+}
+// shelf,keywords (desktop), after the reference of 21 Nov 2026: the headline
+// half a row under the grid's top; the subtitle close under its frame
+// (SHELF_SUBTITLE_GAP of the splash's height); the button a beat (a third of
+// a grid row) under the subtitle; the band's images standing below the grid's
+// bottom line, by half what its numbers leave of the margin under it, the
+// tallest SHELF_TALLEST of the splash's height, the others by SHELF_PHRASE.
+// The sphere centred on what's above the band (shelfSphereGrid), its keywords
+// kept off the band (only their lines reach it).
+const SHELF_SUBTITLE_GAP = 0.02
+const SHELF_HEAD_ROWS = 1 // the headline's top under the grid's, in rows (was half)
+const SHELF_LINE_SHARE = 0.5 // where the band stands in the margin under the grid: half way (lower with the grid, the footer gone)
+const SHELF_CAPTION = 30 // px: a caption and its gap under the image
+const shelfSphereGrid = ref<typeof grid.value>(null)
+function placeShelfKeywords() {
+  const g = grid.value
+  const splash = splashEl.value
+  if (!g || !splash) return
+  const info = splash.querySelector<HTMLElement>('.splash-info')?.getBoundingClientRect()
+  const subtitle = splash.querySelector<HTMLElement>('.splash-subtitle')
+  const cta = splash.querySelector<HTMLElement>('.splash-cta')
+  const head = sentencesEl.value?.getBoundingClientRect()
+  if (!info || !subtitle || !cta || !head) return
+  const splashTop = splash.getBoundingClientRect().top
+  const beat = Math.round(g.cellH / 3)
+  groupLift.value = 0
+  splash.style.setProperty('--group-lift', '0px')
+  splash.style.setProperty('--shelf-head-top', `${Math.round(g.cellH * SHELF_HEAD_ROWS)}px`)
+  const masked = maskedEl.value?.getBoundingClientRect()
+  const frameBottom = masked && paragraphMask.value.base.length
+    ? masked.top + Math.max(...paragraphMask.value.base.map((rect) => rect.top + rect.height))
+    : head.bottom
+  const subtitleGap = Math.round(g.boxH * SHELF_SUBTITLE_GAP)
+  subtitleTop.value = Math.round(frameBottom + subtitleGap - info.top)
+  const subtitleBottom = frameBottom - splashTop + subtitleGap + subtitle.offsetHeight
+  ctaStyle.value = { top: `${Math.round(subtitleBottom + beat + cta.offsetHeight / 2)}px` }
+  const line = Math.round(g.bottom + Math.max(0, g.boxH - g.bottom - SHELF_CAPTION) * SHELF_LINE_SHARE)
+  const tallest = Math.round(g.boxH * SHELF_TALLEST)
+  const bandTop = line - tallest
+  stripStyle.value = { top: `${bandTop}px`, height: `${tallest + SHELF_CAPTION}px` }
+  // The phrase's unit: its tallest beat is 1.
+  const band = tallest
+  if (Math.abs(band - imagesBandHeight.value) > 0.5) {
+    imagesBandHeight.value = band
+    const widths: Record<number, number> = {}
+    for (const n of Object.keys(spawnWidths.value).map(Number)) widths[n] = spawnTargetWidth(n) || spawnWidths.value[n]!
+    spawnWidths.value = widths
+  }
+  const sphere = { ...g, bottom: bandTop }
+  if (JSON.stringify(sphere) !== JSON.stringify(shelfSphereGrid.value)) shelfSphereGrid.value = sphere
 }
 function placeCta() {
   placeBeatEdge()
@@ -2856,7 +4195,7 @@ function placeCta() {
   const cta = splashEl.value.querySelector<HTMLElement>('.splash-cta')
   if (!subtitle || !cta) return
   const subtitleBottom = subtitle.offsetTop + subtitle.offsetHeight
-  if (shelfLayout) ctaStyle.value = { top: `${subtitleBottom + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
+  if (shelfLayout && !SPLASH_SHELF_KEYWORDS) ctaStyle.value = { top: `${subtitleBottom + SHELF_CTA_GAP + cta.offsetHeight / 2}px` }
   // Centred on the grid's bottom line.
   else if (window.innerWidth > 1150) ctaStyle.value = { top: `${grid.value.bottom}px` }
 }
@@ -2882,16 +4221,63 @@ function stripFitHeight(room: number) {
 // it moved. Measured, so it runs again as each image arrives (onStripImageLoad).
 // First, the strip's height is brought down if an image would leave less than a
 // margin each side (stripFitHeight).
+// The band's height, the frames' widths remeasured with it (spawnTargetWidth
+// follows it; the frames kept their old width, so the gaps between images grew
+// and shrank, 22 Nov 2026).
+function setBandHeight(height: number) {
+  if (Math.abs(height - imagesBandHeight.value) <= 0.5) return
+  imagesBandHeight.value = height
+  const widths: Record<number, number> = {}
+  for (const n of Object.keys(spawnWidths.value).map(Number)) widths[n] = spawnTargetWidth(n) || spawnWidths.value[n]!
+  spawnWidths.value = widths
+}
+// keywords,images,stand (the splash, basics) on mobile (22 Nov 2026): one
+// space, the same, between the grid's top and the headline, the headline and
+// the subtitle, the subtitle and the strip's tallest image, and the strip and
+// the button; the strip's height from its phrase of sizes (its tallest beat),
+// not from the images on screen (they change as they go by: so did the
+// band's height and place, the images growing and shrinking, the gaps
+// between them too). At least 16px.
+const STAND_MOBILE_MIN_SPACE = 16
+function placeStandMobile() {
+  if (!grid.value || !splashEl.value) return false
+  const head = sentencesEl.value?.getBoundingClientRect().height ?? 0
+  const subtitle = splashEl.value.querySelector<HTMLElement>('.splash-subtitle-box')?.offsetHeight ?? 0
+  if (!head) return false
+  const beat = Math.max(0, ...standSlots.value.map((slot) => slot.height)) || 1
+  const ctaTop = grid.value.bottom - (splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0) / 2
+  const free = ctaTop - grid.value.top - head - subtitle
+  let tallest = Math.round(stripFullHeight * beat)
+  let space = (free - tallest) / 4
+  if (space < STAND_MOBILE_MIN_SPACE) {
+    space = STAND_MOBILE_MIN_SPACE
+    tallest = Math.round(free - space * 4)
+  }
+  space = Math.round(space)
+  stripTallest = tallest
+  const band = Math.round(tallest / beat)
+  const imagesBottom = ctaTop - space
+  // (The band sits STAND_CAPTION / 2 lower, room for numbers under it: the
+  // CSS's translate on .is-keywords-stand .splash-images.)
+  const top = `${Math.round(imagesBottom - band / 2 - STAND_CAPTION / 2)}px`
+  const paddingBottom = `${Math.round(grid.value.boxH - (imagesBottom - tallest - space))}px`
+  const changed = Math.abs(band - imagesBandHeight.value) > 0.5 || stripStyle.value.top !== top || infoStyle.value.paddingBottom !== paddingBottom
+  setBandHeight(band)
+  stripStyle.value = { ...stripStyle.value, top, height: `${band}px` }
+  infoStyle.value = { ...infoStyle.value, paddingBottom, '--subtitle-gap': `${space}px` }
+  return changed
+}
 function placeStrip() {
+  if (SPLASH_KEYWORDS_STAND && stripTop.value) return placeStandMobile()
   if (!stripTop.value || !grid.value || !splashEl.value) return false
+  const subtitleBottom = stripTop.value - stripGap
+  const ctaTop = grid.value.bottom - (splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0) / 2
   const tallest = Math.max(0, ...[...splashEl.value.querySelectorAll<HTMLElement>('.splash-images-track img')].map((img) => img.offsetHeight))
   if (!tallest) return false
   stripTallest = tallest
-  const subtitleBottom = stripTop.value - stripGap
-  const ctaTop = grid.value.bottom - (splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0) / 2
   const height = stripFitHeight(ctaTop - subtitleBottom - stripGap * 2)
   if (Math.abs(height - imagesBandHeight.value) > 0.5) {
-    imagesBandHeight.value = height
+    setBandHeight(height)
     stripStyle.value = { ...stripStyle.value, height: `${height}px` }
     nextTick(() => {
       placeStrip()
@@ -3065,6 +4451,28 @@ onUnmounted(() => {
       'is-beat': SPLASH_BEAT,
       'is-row': SPLASH_ROW,
       'is-panels': SPLASH_PANELS,
+      'is-collage': SPLASH_COLLAGE,
+      'is-board': SPLASH_BOARD,
+      'is-atlas': SPLASH_ATLAS,
+      'is-uncertainty': SPLASH_UNCERTAINTY,
+      'is-keywords': SPLASH_KEYWORDS,
+      'is-keywords-images': SPLASH_KEYWORDS_IMAGES,
+      'is-keywords-stand': SPLASH_KEYWORDS_STAND,
+      'is-stand-hover': STAND_HOVER,
+      'is-basics': SPLASH_BASICS,
+      'is-bold': SPLASH_BOLD,
+      'is-plain': SPLASH_PLAIN,
+      'is-world': SPLASH_WORLD,
+      'is-calm': CALM_INTRO,
+      'is-step-strip-hidden': !stepStrip,
+      'is-step-subtitle-hidden': !stepSubtitle,
+      'is-world-bare': WORLD_EDIT && worldEditHide,
+      'is-countries-edit': COUNTRIES_EDIT,
+      'is-countries-bare': COUNTRIES_EDIT && countriesEditHide,
+      'is-stand-middle': STAND_MIDDLE,
+      'is-shelf-keywords': SPLASH_SHELF_KEYWORDS,
+      'is-shelf-stand': SHELF_STAND,
+      'is-atlas-phone': SPLASH_ATLAS && atlasPhone,
       'is-title-silver': TITLE_SILVER,
       'is-flow': SPAWN_FLOW,
       'is-drift': SPAWN_DRIFT,
@@ -3124,7 +4532,7 @@ onUnmounted(() => {
       class="splash-tab-ticker"
       :style="{
         top: `${tabTop}px`,
-        left: `${tabLeftInset}px`,
+        left: `${tabLeft + tabLeftInset}px`,
         width: `${tabWidth - tabLeftInset - tabRightInset}px`,
         height: `${tabHeight}px`,
         paddingLeft: `${(tabWidth - tabLeftInset - tabRightInset) * 0.02}px`,
@@ -3350,16 +4758,293 @@ onUnmounted(() => {
         </filter>
       </template>
     </svg>
+    <!-- /?splash=collage&edit: composing the collage by hand (COLLAGE_EDIT). -->
+    <div v-if="COLLAGE_EDIT" class="collage-edit-panel" :style="editPanelPos" @pointerdown.stop @click.stop @mousemove.stop>
+      <div class="collage-edit-head" title="Tirer pour déplacer le panneau" @pointerdown="onEditPanelDown">
+        <strong>Collage — réglage</strong>
+        <button @pointerdown.stop @click="editFolded = !editFolded">{{ editFolded ? '+' : '–' }}</button>
+      </div>
+      <template v-if="!editFolded">
+      <p>Glisser une photo pour la déplacer, sa poignée (coin) pour la taille et le ratio, Maj pour garder le ratio. Rouge : trop près d'une autre ou sur le titre.</p>
+      <template v-if="editPiece">
+        <div class="collage-edit-row">
+          <span>Photo {{ String((editPiece.img ?? 0) + 1).padStart(2, '0') }}</span>
+          <button @click="editCyclePhoto(-1)">←</button>
+          <button @click="editCyclePhoto(1)">→</button>
+        </div>
+        <div class="collage-edit-row">
+          <button :class="{ 'is-on': editPiece.cap !== 'top' }" @click="editUpdate({ cap: undefined })">Légende dessous</button>
+          <button :class="{ 'is-on': editPiece.cap === 'top' }" @click="editUpdate({ cap: 'top' })">dessus</button>
+        </div>
+        <div class="collage-edit-row">
+          <button :class="{ 'is-on': editPiece.tuck }" @click="editUpdate({ tuck: !editPiece.tuck })">Sous le cadre : {{ editPiece.tuck ? 'oui' : 'non' }}</button>
+          <button class="is-danger" @click="editRemove">Supprimer</button>
+        </div>
+        <div class="collage-edit-row collage-edit-values">
+          r {{ editPiece.r }} · s {{ editPiece.s }} · fx {{ editPiece.fx }} · fy {{ editPiece.fy }}
+        </div>
+      </template>
+      <p v-else class="collage-edit-hint">Cliquer une photo pour la régler.</p>
+      <div class="collage-edit-row">
+        <button @click="editAdd">+ Ajouter une photo</button>
+        <button @click="editReset">Réinitialiser</button>
+      </div>
+      <button class="collage-edit-copy" @click="editCopy">{{ editCopied ? 'Copié ✓' : 'Copier le code' }}</button>
+      </template>
+    </div>
+
+    <!-- /?splash=uncertainty: the cartography, the whole splash. -->
+    <ClientOnly v-if="SPLASH_UNCERTAINTY"><SplashCartography class="splash-cartography" :variant="SPLASH_WORLD_LAB ? 'world' : SPLASH_ICE ? 'ice' : 'night'" :settings="worldSettings" :colors="COUNTRY_COLORS" /></ClientOnly>
+
+    <!-- /?splash=keywords: the keywords' sphere, the whole splash, under the headline. -->
+    <ClientOnly v-if="SPLASH_KEYWORDS && !SPLASH_BASICS"><SplashKeywordGlobe class="splash-keyword-globe" :grid="SPLASH_SHELF_KEYWORDS && shelfSphereGrid ? shelfSphereGrid : grid" :avoid-band="SPLASH_SHELF_KEYWORDS" :image-size="keywordImageSize" :link-strip="SPLASH_KEYWORDS_IMAGES" :stand="STAND_HOVER" :spread="SPLASH_SHELF_KEYWORDS" :anchor-image="SPLASH_SHELF_KEYWORDS" :radius-share="STAND_MIDDLE ? STAND_MIDDLE_RADIUS : undefined" :max-shown="STAND_MIDDLE ? STAND_MIDDLE_WORDS : undefined" @image-hover="standHover = $event" @pick="standPick" /></ClientOnly>
+
+    <!-- /?splash=atlas: the composition (ATLAS_PIECES, the map above it). -->
+    <div
+      v-if="SPLASH_ATLAS && grid"
+      class="splash-atlas"
+      :style="{ top: `${grid.top}px`, left: `${grid.left}px`, width: `${grid.right - grid.left}px`, height: `${grid.bottom - grid.top}px`, '--cols': grid.cols, '--tracks': grid.rows * (atlasPhone ? 1 : 2) }"
+    >
+      <figure
+        v-for="(piece, index) in atlasPieces"
+        :key="piece.key"
+        class="atlas-piece"
+        :class="[`is-${piece.role}`, { 'is-cap-top': piece.capTop, 'is-cap-end': piece.capEnd, 'is-hovered': hoveredIndex === piece.n }]"
+        :style="atlasPieceStyle(piece, index)"
+        @mouseenter="hoveredIndex = canHover() ? piece.n : null"
+        @mouseleave="hoveredIndex = null"
+      >
+        <div class="atlas-frame">
+          <img
+            :src="piece.image.url"
+            :alt="piece.alt"
+            :class="{ 'is-toned': toneTables[piece.image.url] }"
+            :style="{ '--tone-light': `url(#${toneId(piece.image.url)}-light)`, '--tone-dark': `url(#${toneId(piece.image.url)}-dark)` }"
+            :loading="piece.role === 'dominant' ? 'eager' : 'lazy'"
+          >
+        </div>
+        <figcaption class="atlas-cap text-small">
+          <span class="atlas-cap-head">
+            <span class="atlas-cap-number atlas-scramble">{{ imageNumber(piece.n) }}</span>
+            <span v-if="imageLabel(piece.n, piece.image.alt)" class="atlas-cap-label atlas-scramble" :style="{ backgroundColor: imageBadgeColor(piece.n) }">{{ imageLabel(piece.n, piece.image.alt) }}</span>
+            <span v-if="piece.role !== 'fragment'" class="atlas-cap-ref atlas-scramble">{{ atlasRef(piece) }}</span>
+          </span>
+          <span v-if="piece.alt && piece.role !== 'fragment'" class="atlas-cap-alt atlas-scramble" :title="piece.alt">{{ piece.alt }}</span>
+        </figcaption>
+      </figure>
+      <h1 v-if="headlineWords.length" class="atlas-title" :style="{ '--title-row': (atlasPhone ? ATLAS_TITLE_PHONE : ATLAS_TITLE).row }">
+        <span
+          v-for="(word, index) in headlineWords"
+          :key="index"
+          class="atlas-line"
+          :style="{ '--shift': (atlasPhone ? ATLAS_TITLE_PHONE : ATLAS_TITLE).shifts[index % 3] }"
+        ><span class="atlas-scramble">{{ word }}</span></span>
+      </h1>
+      <p v-if="subtitleLines.length" class="atlas-desc text-label">
+        <span class="atlas-scramble">{{ subtitleLines.join(' ') }}</span>
+      </p>
+    </div>
+
+    <!-- basics: the dotted countries, in the grid's box, under the images. -->
+    <ClientOnly v-if="SPLASH_WORLD && !SPLASH_WORLD_LAB"><div class="splash-world"><SplashWorldGlobe :colors="COUNTRY_COLORS" :settings="worldShownSettings" :grid="grid" :dark="colorMode === 'dark'" :visible="splashIntro !== 'logo' && stepMap" /></div></ClientOnly>
+    <div v-if="WORLD_EDIT" class="collage-edit-panel countries-edit-panel world-edit-panel" :style="worldPanelPos" @pointerdown.stop @click.stop @mousemove.stop>
+      <div class="collage-edit-head" title="Tirer pour déplacer le panneau" @pointerdown="onEditPanelDown($event, 'world')">
+        <strong>Globe — réglages</strong>
+        <button @pointerdown.stop @click="worldFolded = !worldFolded">{{ worldFolded ? '+' : '–' }}</button>
+      </div>
+      <template v-if="!worldFolded">
+      <div class="collage-edit-row">
+        <span>Préréglages</span>
+        <button v-for="name in Object.keys(MAP_PRESETS)" :key="name" :class="{ 'is-on': worldPreset === name }" @click="worldApplyPreset(name)">{{ name }}</button>
+      </div>
+      <div class="collage-edit-row">
+        <span>Projection</span>
+        <button v-for="projection in MAP_PROJECTIONS" :key="projection" :class="{ 'is-on': worldSettings.projection === projection }" @click="worldProjection(projection)">{{ MAP_PROJECTION_NAMES[projection] }}</button>
+      </div>
+      <div class="collage-edit-row">
+        <span>Remplissage</span>
+        <button :class="{ 'is-on': worldSettings.fill === 'filled' }" @click="worldSet('fill', 'filled')">plein</button>
+        <button :class="{ 'is-on': worldSettings.fill === 'lines' }" @click="worldSet('fill', 'lines')">lignes (non rempli)</button>
+        <button v-if="worldSettings.fill === 'lines'" :class="{ 'is-on': worldSettings.fillPulse }" @click="worldSet('fillPulse', !worldSettings.fillPulse)">Parfois rempli : {{ worldSettings.fillPulse ? 'oui' : 'non' }}</button>
+      </div>
+      <div class="collage-edit-row">
+        <span>Composition</span>
+        <button v-for="composition in MAP_COMPOSITIONS" :key="composition" :class="{ 'is-on': worldSettings.composition === composition }" @click="worldSet('composition', composition)">{{ MAP_COMPOSITION_NAMES[composition] }}</button>
+      </div>
+      <template v-if="worldSettings.composition === 'countries'">
+        <div class="collage-edit-row">
+          <span>Les autres</span>
+          <button v-for="others in MAP_OTHERS" :key="others" :class="{ 'is-on': worldSettings.others === others }" @click="worldSet('others', others)">{{ MAP_OTHERS_NAMES[others] }}</button>
+        </div>
+        <label class="collage-edit-row world-edit-text">
+          <span>Pays (virgules, vide : au hasard)</span>
+          <input v-model.lazy="worldCountriesText" type="text" placeholder="France, Germany, Italy">
+        </label>
+      </template>
+      <div class="collage-edit-row">
+        <button :class="{ 'is-on': worldSettings.borders }" @click="worldSet('borders', !worldSettings.borders)">Frontières : {{ worldSettings.borders ? 'oui' : 'non' }}</button>
+        <button :class="{ 'is-on': worldSettings.coast }" @click="worldSet('coast', !worldSettings.coast)">Côtes : {{ worldSettings.coast ? 'oui' : 'non' }}</button>
+        <button :class="{ 'is-on': worldSettings.inGrid }" @click="worldSet('inGrid', !worldSettings.inGrid)">Dans la grille : {{ worldSettings.inGrid ? 'oui' : 'non' }}</button>
+        <button :class="{ 'is-on': worldSettings.sync }" @click="worldSet('sync', !worldSettings.sync)">Points ensemble : {{ worldSettings.sync ? 'oui' : 'non' }}</button>
+      </div>
+      <div class="collage-edit-row">
+        <span>Styles</span>
+        <button v-for="look in WORLD_LOOKS" :key="look" :class="{ 'is-on': worldSettings.looks.includes(look) }" @click="worldToggle('looks', look)">{{ WORLD_LOOK_NAMES[look] }}</button>
+      </div>
+      <div class="collage-edit-row">
+        <span>Couleurs</span>
+        <button
+          v-for="(color, k) in COUNTRY_COLORS"
+          :key="color"
+          class="countries-edit-swatch"
+          :class="{ 'is-on': worldSettings.colors.includes(k) }"
+          :style="{ background: color }"
+          :title="color"
+          @click="worldToggle('colors', k)"
+        />
+      </div>
+      <div class="collage-edit-row">
+        <span>Couleurs (sombre)</span>
+        <button
+          v-for="(color, k) in COUNTRY_COLORS"
+          :key="color"
+          class="countries-edit-swatch"
+          :class="{ 'is-on': worldSettings.darkColors.includes(k) }"
+          :style="{ background: color }"
+          :title="`${color}, en mode sombre (aucune : les mêmes)`"
+          @click="worldToggle('darkColors', k)"
+        />
+      </div>
+      <label v-for="field in worldFields" :key="field.key" class="collage-edit-row countries-edit-field world-edit-field">
+        <span>{{ field.label }}</span>
+        <input type="range" :min="field.min" :max="field.max" :step="field.step" :value="worldSettings[field.key] as number" @input="worldSet(field.key, Number(($event.target as HTMLInputElement).value))">
+        <input type="number" :step="field.step" :value="worldSettings[field.key] as number" @change="worldSet(field.key, Number(($event.target as HTMLInputElement).value))">
+      </label>
+      <div v-if="!isMapProjection(worldSettings.projection)" class="collage-edit-row">
+        <button :class="{ 'is-on': worldSettings.rotate3d }" @click="worldSet('rotate3d', !worldSettings.rotate3d)">3D : {{ worldSettings.rotate3d ? 'oui (sphère)' : 'non (tourne à plat)' }}</button>
+        <button :class="{ 'is-on': worldSettings.mirror }" @click="worldSet('mirror', !worldSettings.mirror)">Face arrière : {{ worldSettings.mirror ? 'oui' : 'non' }}</button>
+        <button @click="worldSet('seed', Math.floor(Math.random() * 9998) + 1)">Nouveau tirage</button>
+      </div>
+      <div class="collage-edit-row">
+        <button :class="{ 'is-on': worldEditHide }" @click="worldEditHide = !worldEditHide">Images : {{ worldEditHide ? 'cachées' : 'visibles' }}</button>
+        <button @click="worldReset">Réinitialiser</button>
+      </div>
+      <button class="collage-edit-copy" @click="worldCopy">{{ worldCopied ? 'Copié ✓' : 'Copier le code' }}</button>
+      </template>
+    </div>
+    <div v-if="SHOW_COUNTRIES" ref="countriesEl" class="splash-countries" :style="gridStyle" aria-hidden="true">
+      <template v-for="(country, index) in basicsCountries" :key="index">
+      <img
+        v-if="country.src"
+        :src="country.src"
+        alt=""
+        draggable="false"
+        class="splash-country no-duotone"
+        :class="{ 'is-picked': COUNTRIES_EDIT && countriesEditPick === index }"
+        :style="{ top: `${country.top}%`, left: `${country.left}%`, width: `${country.width}px`, height: 'auto', transform: `translate(-50%, -50%) rotate(${country.rotate}deg) scale(${country.scale})` }"
+        @pointerdown="onCountryDown(index, $event)"
+        @wheel="onCountryWheel(index, $event)"
+      >
+      <svg
+        v-else
+        class="splash-country"
+        :class="{ 'is-picked': COUNTRIES_EDIT && countriesEditPick === index }"
+        :viewBox="`0 0 ${COUNTRY_SHAPES[country.shape]?.cols ?? 1} ${COUNTRY_SHAPES[country.shape]?.rows ?? 1}`"
+        :style="{ top: `${country.top}%`, left: `${country.left}%`, width: `${country.width}px`, height: `${countryHeight(country)}px`, transform: `translate(-50%, -50%) rotate(${country.rotate}deg) scale(${country.scale})` }"
+        @pointerdown="onCountryDown(index, $event)"
+        @wheel="onCountryWheel(index, $event)"
+      >
+        <g
+          v-for="marks in [countryMarks(country)]"
+          :key="country.look"
+          :fill="country.look === 'rings' || country.look === 'outline' ? 'none' : COUNTRY_COLORS[country.color % COUNTRY_COLORS.length]"
+          :stroke="country.look === 'rings' || country.look === 'outline' ? COUNTRY_COLORS[country.color % COUNTRY_COLORS.length] : 'none'"
+          :stroke-width="country.stroke"
+          :opacity="BOLD_LOOKS.has(country.look) ? 1 : COUNTRY_OPACITY"
+        >
+          <path v-if="marks.contour" :d="marks.contour" stroke-linecap="square" />
+          <rect v-for="(square, k) in marks.squares" :key="`s${k}`" :x="square.x" :y="square.y" width="1.02" height="1.02" shape-rendering="crispEdges" />
+          <circle v-for="(dot, k) in marks.dots" :key="k" :cx="dot.x" :cy="dot.y" :r="dot.r" :fill="dot.fill" />
+        </g>
+      </svg>
+      </template>
+    </div>
+    <div v-if="COUNTRIES_EDIT" class="collage-edit-panel countries-edit-panel" :style="editPanelPos" @pointerdown.stop @click.stop @mousemove.stop>
+      <div class="collage-edit-head" title="Tirer pour déplacer le panneau" @pointerdown="onEditPanelDown">
+        <strong>Pays — réglage</strong>
+        <button @pointerdown.stop @click="editFolded = !editFolded">{{ editFolded ? '+' : '–' }}</button>
+      </div>
+      <template v-if="!editFolded">
+      <p>Cliquer un pays pour le choisir, le glisser pour le déplacer. Molette : taille ; Maj + molette : rotation. Flèches : déplacer (Maj : plus) ; [ ] : tourner ; - + : taille.</p>
+      <template v-if="countriesEditPick !== null && basicsCountries[countriesEditPick]">
+        <div v-if="basicsCountries[countriesEditPick]!.src" class="collage-edit-row">
+          <span>Fichier d'origine : {{ basicsCountries[countriesEditPick]!.src }}</span>
+          <button @click="countriesUpdate(countriesEditPick!, { src: undefined })">En points</button>
+        </div>
+        <label v-else class="collage-edit-row countries-edit-field">
+          <span>Forme</span>
+          <select :value="basicsCountries[countriesEditPick]!.shape" @change="countriesUpdate(countriesEditPick!, { shape: ($event.target as HTMLSelectElement).value })">
+            <option v-for="name in COUNTRY_SHAPE_NAMES" :key="name" :value="name">{{ name }} ({{ COUNTRY_SHAPES[name]!.cells.length }})</option>
+          </select>
+        </label>
+        <div class="collage-edit-row">
+          <span>Style</span>
+          <button v-for="look in COUNTRY_LOOKS" :key="look" :class="{ 'is-on': basicsCountries[countriesEditPick]!.look === look }" @click="countriesUpdate(countriesEditPick!, { look })">{{ { dots: 'points', rings: 'cercles', halftone: 'trame', mass: 'masse', outline: 'contour', blobs: 'bulles' }[look] }}</button>
+        </div>
+        <div class="collage-edit-row">
+          <span>Couleur</span>
+          <button
+            v-for="(color, k) in COUNTRY_COLORS"
+            :key="color"
+            class="countries-edit-swatch"
+            :class="{ 'is-on': basicsCountries[countriesEditPick]!.color === k }"
+            :style="{ background: color }"
+            :title="color"
+            @click="countriesUpdate(countriesEditPick!, { color: k })"
+          />
+        </div>
+        <label v-for="field in (['left', 'top', 'width', 'rotate', 'scale', 'dot', 'stroke'] as const)" :key="field" class="collage-edit-row countries-edit-field">
+          <span>{{ { left: 'Gauche %', top: 'Haut %', width: 'Largeur px', rotate: 'Rotation °', scale: 'Échelle', dot: 'Point', stroke: 'Trait' }[field] }}</span>
+          <input
+            type="range"
+            :min="{ left: -10, top: -10, width: 10, rotate: -180, scale: 0.1, dot: 0.05, stroke: 0.02 }[field]"
+            :max="{ left: 110, top: 110, width: 400, rotate: 180, scale: 4, dot: 0.6, stroke: 0.4 }[field]"
+            :step="{ left: 0.1, top: 0.1, width: 1, rotate: 1, scale: 0.05, dot: 0.01, stroke: 0.01 }[field]"
+            :value="basicsCountries[countriesEditPick]![field]"
+            @input="countriesUpdate(countriesEditPick!, { [field]: Number(($event.target as HTMLInputElement).value) })"
+          >
+          <input
+            type="number"
+            :step="{ left: 0.1, top: 0.1, width: 1, rotate: 1, scale: 0.05, dot: 0.01, stroke: 0.01 }[field]"
+            :value="basicsCountries[countriesEditPick]![field]"
+            @change="countriesUpdate(countriesEditPick!, { [field]: Number(($event.target as HTMLInputElement).value) })"
+          >
+        </label>
+      </template>
+      <p v-else class="collage-edit-hint">Cliquer un pays pour le régler.</p>
+      <div class="collage-edit-row">
+        <button :class="{ 'is-on': countriesEditHide }" @click="countriesEditHide = !countriesEditHide">Images : {{ countriesEditHide ? 'cachées' : 'visibles' }}</button>
+        <button @click="countriesReset">Réinitialiser</button>
+      </div>
+      <button class="collage-edit-copy" @click="countriesCopy">{{ countriesEditCopied ? 'Copié ✓' : 'Copier le code' }}</button>
+      </template>
+    </div>
     <div v-if="images?.length" ref="imagesEl" class="splash-images" :style="SPLASH_BEAT && beatEdge ? { ...stripStyle, clipPath: `inset(-50% 0 -50% ${beatEdge}px)` } : stripStyle" aria-hidden="true">
       <div class="splash-images-track" :style="SPLASH_ROW ? { 'paddingTop': `${rowTop}px`, '--row-origin-y': `${rowOriginY}px` } : undefined">
         <div
           v-for="{ image, n: index } in scrollingImages"
           :key="index"
           class="splash-image-wrapper"
-          :class="{ 'is-shut': IMAGES_SPAWN && spawnWidths[index] === undefined }"
+          :class="{ 'is-pointed': SPLASH_BASICS && standHover === index, 'is-shut': IMAGES_SPAWN && spawnWidths[index] === undefined, 'is-cap-top': SPLASH_COLLAGE && collageLayout[index]?.cap === 'top', 'is-editing': COLLAGE_EDIT, 'is-selected': COLLAGE_EDIT && collageLayout[index] && collageLayout[index]!.z === editSelected, 'is-warn': COLLAGE_EDIT && collageLayout[index] && editWarn.has(collageLayout[index]!.z) }"
           :data-n="index"
-          :style="spawnStyle(index)"
+          :data-label="imageLabel(index, image.alt)"
+          :style="SPLASH_COLLAGE ? collageStyle(index) : spawnStyle(index)"
+          @pointerdown="COLLAGE_EDIT && onCollagePointerDown(index, $event)"
+          @click="onWrapperClick($event)"
+          @mouseenter="SPLASH_BASICS && canHover() && !standHoverHeld && !stripArriving() && (standHover = index)"
+          @mouseleave="SPLASH_BASICS && standHover === index && (standHover = null)"
         >
+          <span v-if="COLLAGE_EDIT" class="collage-edit-handle" title="Taille (Maj : garder le ratio)" />
           <span
             v-if="!SPLASH_ROW && imageLabel(index, image.alt)"
             class="image-label text-small"
@@ -3369,16 +5054,17 @@ onUnmounted(() => {
             {{ imageLabel(index, image.alt) }}
           </span>
           <img
-            :src="image.url"
+            :src="SPLASH_KEYWORDS_IMAGES ? bandSlot(index)?.src ?? image.url : image.url"
             :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
             :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, ...(SPAWN_DRIFT ? {} : { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' }) } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
-            @load="onStripImageLoad"
+            :draggable="!COLLAGE_EDIT"
+            @load="SPLASH_COLLAGE ? onCollageImageLoad(index, $event) : onStripImageLoad()"
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
             @mouseleave="hoveredIndex = null"
           >
           <div v-if="SPLASH_ROW" class="splash-image-caption text-small" :style="!SPAWN_DRIFT && measured && spawnTargetWidth(index) ? { transform: spawnWidths[index] === undefined ? `translateY(${-spawnTargetWidth(index) / spawnRatio(index)}px)` : 'none' } : undefined">
-            <span class="splash-image-number">{{ imageNumber(index) }}</span>
+            <span v-if="!SPLASH_PLAIN" class="splash-image-number">{{ imageNumber(index) }}</span>
             <span
               v-if="imageLabel(index, image.alt)"
               class="splash-image-name is-revealing"
@@ -3544,7 +5230,7 @@ onUnmounted(() => {
     <!-- Its own element (not inside .splash-info, which is centered on the
          full viewport) so its vertical position can be pinned to the
          grid's bottom line instead. -->
-    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="SPLASH_BEAT && grid ? { ...ctaStyle, left: `${grid.left + grid.cellW}px` } : ctaStyle" @click.capture="enterGuide">
+    <NuxtLink to="/guide" class="splash-cta btn-fill text-label" :style="SPLASH_ATLAS && grid ? { ...ctaStyle, left: `${grid.left}px` } : SPLASH_BEAT && grid ? { ...ctaStyle, left: `${grid.left + grid.cellW}px` } : ctaStyle" @click.capture="enterGuide">
       Enter the investigation guide
     </NuxtLink>
 
@@ -4785,6 +6471,190 @@ onUnmounted(() => {
   translate: 0 calc(var(--group-lift, 0px) * -1);
 }
 
+/* The collage (SPLASH_COLLAGE): no band. The whole splash is the images'
+   layer, each placed by collageStyle (left/top/width), still, under the
+   headline's frame; !important over the band's inline sizes (stripStyle,
+   the row's padding, the images' max heights). */
+.splash.is-collage {
+  /* No glow round the images: their edges sharp. */
+  --image-shadow: drop-shadow(0 0 0 transparent);
+}
+.splash.is-collage .splash-images {
+  /* Nor the row's fade at the screen's sides. */
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  inset: 0 !important;
+  top: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  transform: none !important;
+  translate: none !important;
+  clip-path: none !important;
+  overflow: visible;
+}
+.splash.is-collage .splash-images-track {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: auto;
+  height: auto;
+  padding: 0 !important;
+  animation: none;
+}
+.splash.is-collage .splash-image-wrapper {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.splash.is-collage .splash-images-track img {
+  /* Cropped to its block (layoutCollage), edge to edge on the grid's lines. */
+  width: 100% !important;
+  height: var(--collage-img-h, auto) !important;
+  object-fit: cover;
+  min-width: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  transform: none !important;
+}
+.splash.is-collage .splash-image-caption {
+  transform: none !important;
+  height: 20px;
+  margin-top: 6px;
+}
+/* Its label whole, always: the photo is never narrower than its caption
+   (captionWidths, layoutCollage). */
+.splash.is-collage .splash-image-caption {
+  white-space: nowrap;
+}
+.splash.is-collage .splash-image-number,
+.splash.is-collage .splash-image-name {
+  flex: none;
+}
+
+/* The headline's layer runs the whole screen over the photos: let the pointer
+   through to them (their colour on hover, the edit mode's dragging), its own
+   links and buttons still taking it. */
+.splash.is-collage .splash-info {
+  pointer-events: none;
+}
+.splash.is-collage .splash-info :is(a, button) {
+  pointer-events: auto;
+}
+
+/* ---- The board (/?splash=board) ----
+   Laid as the collage (no border, no turn, the caption under each), only
+   overlapping in clusters (BOARD_PIECES, layoutCollage). */
+
+/* ---- Edit mode (/?splash=collage&edit) ---- */
+.splash.is-collage .splash-image-wrapper.is-editing {
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+.splash.is-collage .splash-image-wrapper.is-editing:hover {
+  outline: 1px dashed var(--color-ink);
+  outline-offset: 3px;
+}
+.splash.is-collage .splash-image-wrapper.is-selected {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 3px;
+}
+.splash.is-collage .splash-image-wrapper.is-warn {
+  outline: 2px solid #d93025;
+  outline-offset: 3px;
+}
+.collage-edit-handle {
+  position: absolute;
+  right: -7px;
+  top: calc(var(--collage-img-h) - 7px);
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  background: var(--color-ink);
+  border: 2px solid var(--color-surface);
+  cursor: nwse-resize;
+}
+.is-cap-top > .collage-edit-handle {
+  top: calc(var(--collage-img-h) + 19px);
+}
+.collage-edit-panel {
+  position: fixed;
+  right: 16px;
+  top: 64px;
+  z-index: 1000;
+  width: 270px;
+  padding: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--color-ink);
+}
+.collage-edit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -12px -12px 10px;
+  padding: 6px 6px 6px 12px;
+  background: var(--color-ink);
+  color: var(--color-surface);
+  cursor: grab;
+  user-select: none;
+}
+.collage-edit-head strong {
+  text-transform: uppercase;
+}
+.collage-edit-panel .collage-edit-head button {
+  padding: 0 7px;
+  border-color: var(--color-surface);
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+.collage-edit-panel p {
+  margin: 0 0 10px;
+}
+.collage-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.collage-edit-panel button {
+  padding: 4px 8px;
+  border: 1px solid var(--color-ink);
+  background: var(--color-surface);
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.collage-edit-panel button:hover,
+.collage-edit-panel button.is-on {
+  background: var(--color-ink);
+  color: var(--color-surface);
+}
+.collage-edit-panel button.is-danger {
+  border-color: #d93025;
+  color: #d93025;
+}
+.collage-edit-values {
+  opacity: 0.6;
+}
+.collage-edit-copy {
+  width: 100%;
+  background: var(--color-brand) !important;
+  border-color: var(--color-brand) !important;
+  color: var(--color-on-fill) !important;
+}
+/* Its foot under the frame: the caption over the photo instead. */
+.splash.is-collage .splash-image-wrapper.is-cap-top {
+  flex-direction: column-reverse;
+}
+.splash.is-collage .splash-image-wrapper.is-cap-top .splash-image-caption {
+  margin: 0 0 6px;
+}
 @media (max-width: 1150px) {
   .splash.is-row .splash-info,
   .splash.is-row .splash-images {
@@ -5240,6 +7110,686 @@ onUnmounted(() => {
     white-space: nowrap;
     font-size: min(12pt, 3.9vw);
   }
+}
+
+/* ---- The atlas (/?splash=atlas) ----
+   One CSS grid over the visible one, the same box (grid's lines), its
+   columns the grid's columns, its rows the grid's rows halved (the map:
+   ATLAS_PIECES). The band and the centred headline stay, hidden: the
+   splash's machinery still measures them. */
+.splash.is-atlas .splash-images,
+.splash.is-atlas .splash-info {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+.splash-atlas {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--tracks), minmax(0, 1fr));
+  container-type: size;
+  pointer-events: none;
+}
+
+.splash-atlas > * {
+  --col: calc(100cqw / var(--cols));
+  --track: calc(100cqh / var(--tracks));
+}
+
+/* A document: its picture fills its cells, cropped (object-fit), the
+   caption outside them, under (or over) it, so the cells are the
+   picture's own edges. */
+.atlas-piece {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  margin-right: calc(var(--bleed) * var(--col) * -1);
+  pointer-events: auto;
+  /* Widened past the picture for its caption: the clip only closes it (the
+     arrival and the exit). */
+  clip-path: inset(-120px -400px -120px 0);
+  transition: clip-path 1.1s cubic-bezier(0.7, 0, 0.9, 0.4);
+}
+
+.atlas-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  outline: 1px solid var(--color-ink);
+}
+
+.atlas-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--focus);
+}
+
+.atlas-frame img.is-toned {
+  filter: var(--tone-light);
+}
+
+:root[data-theme='dark'] .atlas-frame img.is-toned {
+  filter: var(--tone-dark);
+}
+
+/* Its colours back while the pointer is on it. */
+.atlas-piece.is-hovered .atlas-frame img {
+  filter: none !important;
+}
+
+.atlas-cap {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* The picture's width: its description wraps in it; its number and
+     label, on one line, may run past. */
+  width: 100%;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Over it, one line: its number and label, then its description cut to
+   the picture's width (whole on hover, as the picture's title). Flush
+   right (is-cap-end): the description before them. */
+.atlas-piece.is-cap-top .atlas-cap {
+  top: auto;
+  bottom: calc(100% + 6px);
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.atlas-piece.is-cap-top .atlas-cap-alt {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.atlas-piece.is-cap-end .atlas-cap {
+  left: auto;
+  right: 0;
+  width: 72%;
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* On paper, over the grid's lines. */
+.atlas-cap-head > *,
+.atlas-cap-alt {
+  background: var(--color-surface);
+}
+
+/* Its description three lines at most. */
+.atlas-piece:not(.is-cap-top) .atlas-cap-alt {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.atlas-cap-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.atlas-cap-number {
+  font-family: var(--font-text);
+  font-feature-settings: 'zero', 'ss11', 'ss05', 'ss06';
+}
+
+.atlas-cap-label {
+  padding: 2px 6px;
+  color: #1a1a1a;
+}
+
+.atlas-cap-ref,
+.atlas-cap-alt,
+.atlas-desc-ref {
+  font-family: var(--font-mono);
+  color: var(--color-text-soft);
+  letter-spacing: 0.02em;
+}
+
+.atlas-cap-alt {
+  font-size: 10px;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+/* The headline: three strips of paper, each starting on a column line
+   (--shift columns in), stacked with no gap, so their union steps; one
+   outline round all three (the drop shadows, as .splash-info's). */
+.atlas-title {
+  grid-column: 1 / -1;
+  grid-row: var(--title-row) / -1;
+  z-index: 3;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  font-family: var(--font-text);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: min(calc(var(--col) * 1.42), calc(var(--track) * 3));
+  line-height: 0.86;
+  letter-spacing: -0.01em;
+  pointer-events: none;
+  filter:
+    drop-shadow(1px 0 0 var(--color-ink))
+    drop-shadow(-1px 0 0 var(--color-ink))
+    drop-shadow(0 1px 0 var(--color-ink))
+    drop-shadow(0 -1px 0 var(--color-ink));
+}
+
+.atlas-line {
+  --pad-x: 0.11em;
+  display: block;
+  margin-left: calc(var(--shift) * var(--col) - var(--pad-x));
+  padding: 0.12em var(--pad-x) 0.06em;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+/* The description: small, mono, flush left over the button. */
+.atlas-desc {
+  grid-column: 1 / 5;
+  grid-row: 16 / -1;
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Clear of the button, whose middle is on the grid's bottom line. */
+  margin: 0 0 calc(var(--track) * 1.1 + 12px);
+  text-align: left;
+  text-transform: uppercase;
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: 0.03em;
+  pointer-events: auto;
+}
+
+.atlas-desc > span:last-child {
+  background: var(--color-surface);
+  padding: 2px 0;
+}
+
+.splash.is-atlas .splash-cta {
+  transform: translate(0, -50%);
+}
+
+/* Arrival: each piece opening from its middle line, one after another,
+   as the band's images do; the headline after them. */
+.splash.is-atlas.intro-logo .atlas-piece {
+  clip-path: inset(50% 0 50% 0);
+  transition: none;
+}
+
+.splash.is-atlas.intro-build .atlas-piece {
+  transition: clip-path 0.9s cubic-bezier(0.2, 0.6, 0.3, 1) calc(0.12s * var(--i));
+}
+
+.splash.is-atlas.intro-logo .atlas-title,
+.splash.is-atlas.intro-logo .atlas-desc {
+  visibility: hidden;
+}
+
+/* Exit: the pieces closing onto their middle line, the strips fading once
+   their letters are gone (scrambleOut). */
+.splash.is-atlas.is-leaving .atlas-piece {
+  clip-path: inset(50% 0 50% 0);
+}
+
+.splash.is-atlas.is-leaving .atlas-title,
+.splash.is-atlas.is-leaving .atlas-desc {
+  opacity: 0;
+  transition: opacity 0.35s ease 1.15s;
+}
+
+/* Narrow columns: the grid references go, the captions would run into
+   each other. */
+@container (max-width: 1100px) {
+  .atlas-cap-ref {
+    display: none;
+  }
+}
+
+/* Phones (ATLAS_PIECES_PHONE): the same pieces, fewer, on 8 columns. */
+.splash.is-atlas-phone .atlas-title {
+  font-size: min(calc(var(--col) * 1.18), calc(var(--track) * 1.3));
+}
+
+.splash.is-atlas-phone .atlas-desc {
+  grid-column: 1 / -1;
+  grid-row: 14 / -1;
+}
+
+.splash.is-atlas-phone .atlas-piece.is-cap-end .atlas-cap {
+  width: 100%;
+}
+
+.splash.is-atlas-phone .atlas-cap-alt {
+  display: none;
+}
+
+/* ---- Mapping uncertainty (/?splash=uncertainty) ----
+   The cartography fills the splash; the grid, the band, the headline and
+   the pixel masses go. The tab, the button and the footer stay. */
+.splash.is-uncertainty {
+  background: #04080b;
+}
+
+.splash.is-uncertainty :is(.splash-grid, .splash-grid-lines, .splash-grid-numbers, .splash-shapes, .splash-images, .splash-info, .splash-corner, .splash-grid-frame, .splash-grid-ticks) {
+  display: none !important;
+}
+
+.splash-cartography {
+  z-index: 1;
+}
+
+.splash.is-uncertainty .splash-tab,
+.splash.is-uncertainty .splash-tab-ticker {
+  z-index: 3;
+}
+
+.splash.is-uncertainty .splash-cta {
+  z-index: 3;
+  left: auto;
+  right: 28px;
+  transform: translate(0, -50%);
+}
+
+.splash.is-uncertainty.intro-logo .splash-cartography {
+  opacity: 0 !important;
+}
+
+.splash.is-uncertainty.is-leaving .splash-cartography {
+  opacity: 0 !important;
+  transition: opacity 1s ease 0.6s;
+  pointer-events: none;
+}
+
+.splash.is-keywords :is(.splash-images, .splash-shapes, .splash-side-bar, .splash-row-globes, .splash-grid-numbers) {
+  display: none !important;
+}
+
+/* keywords,images: the band kept, its images on one middle line (their
+   captions under them, all the same height, so the images' middles line up
+   too), opening from the left of that line. */
+.splash.is-keywords-images .splash-images {
+  display: flex !important;
+}
+
+/* basics,world,lab: basics brings keywords,images's band; the map is the
+   whole splash, so it goes as uncertainty's does. */
+.splash.is-uncertainty.is-keywords-images .splash-images {
+  display: none !important;
+}
+
+.splash.is-keywords-images .splash-images-track {
+  align-items: center;
+  padding-top: 0 !important;
+}
+
+.splash.is-keywords-images .splash-images-track img {
+  transform-origin: left center !important;
+}
+
+/* Only their numbers under them, no coloured labels. */
+.splash.is-keywords-images .splash-image-name {
+  display: none !important;
+}
+
+/* The image a hovered keyword is linked to (SplashKeywordGlobe, linkStrip):
+   framed in ink. */
+.splash.is-keywords-images .splash-image-wrapper.is-linked img {
+  outline: 1px solid var(--color-ink);
+  outline-offset: 0;
+}
+
+/* keywords,images,stand: the band's images standing on one line by their
+   bottoms, the band (the tallest image's height) centred on the grid's
+   middle line (the strip's top, inline); their numbers (30px each with its
+   gap: STAND_CAPTION) hang under it. Not lifted with the headline. */
+.splash.is-keywords-stand .splash-images {
+  transform: translateY(calc(-50% + 15px));
+  translate: none;
+}
+
+/* stand,middle: the images on one middle line instead (their numbers all
+   the same height under them, so the images' middles line up), that line
+   the band's, on the grid's middle. */
+.splash.is-keywords-stand.is-stand-middle .splash-images-track {
+  align-items: center;
+}
+
+.splash.is-keywords-stand.is-stand-middle .splash-images-track img {
+  transform-origin: left center !important;
+}
+
+/* Mobile (22 Nov 2026): back on one bottom line, standing. */
+@media (max-width: 1150px) {
+  .splash.is-keywords-stand.is-stand-middle .splash-images-track {
+    align-items: flex-end;
+  }
+
+  .splash.is-keywords-stand.is-stand-middle .splash-images-track img {
+    transform-origin: left bottom !important;
+  }
+}
+
+/* basics: the dotted countries (BASICS_COUNTRIES), in the grid's box. */
+.splash-countries {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.splash-country {
+  position: absolute;
+  overflow: visible;
+}
+
+.splash.intro-logo .splash-countries,
+.splash.is-leaving .splash-countries {
+  opacity: 0;
+}
+
+/* basics&edit: the countries where they are (over the grid, under the rest);
+   the images let the pointer through to them, to be picked and dragged. */
+.splash.is-countries-edit .splash-images,
+.splash.is-countries-edit .splash-images * {
+  pointer-events: none !important;
+}
+
+.splash.is-countries-edit .splash-country {
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+}
+
+.splash.is-countries-edit .splash-country.is-picked {
+  outline: 1px dashed var(--color-ink);
+  outline-offset: 2px;
+}
+
+.splash.is-countries-bare .splash-images {
+  opacity: 0.12;
+}
+
+.countries-edit-field {
+  display: grid !important;
+  grid-template-columns: 78px 1fr 64px;
+}
+
+.countries-edit-field select {
+  grid-column: 2 / 4;
+  font: inherit;
+}
+
+.countries-edit-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0 !important;
+}
+
+.countries-edit-swatch.is-on {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 1px;
+}
+
+.countries-edit-field input[type='number'] {
+  width: 64px;
+  font: inherit;
+}
+
+/* basics: each image's keyword under it, at the right of its caption (its
+   number at the left). */
+.splash.is-keywords-images.is-basics .splash-image-name {
+  display: block !important;
+}
+
+/* basics: the images can be clicked (the page turns dark): the hand. */
+.splash.is-basics:not(.is-countries-edit) .splash-image-wrapper {
+  cursor: pointer;
+}
+
+/* basics: the image under the pointer's keyword inked too, as its number. */
+.splash.is-basics .splash-image-wrapper.is-pointed .splash-image-name {
+  --box-color: #1a1a1a !important;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+/* The image under the pointer (SplashKeywordGlobe's is-pointed): turned to
+   dark mode's negative (its tone there); in dark mode, to light mode's. */
+.splash.is-stand-hover .splash-image-wrapper.is-pointed img.is-toned {
+  filter: var(--tone-dark) var(--image-shadow) !important;
+}
+
+:root[data-theme='dark'] .splash.is-stand-hover .splash-image-wrapper.is-pointed img.is-toned {
+  filter: var(--tone-light) var(--image-shadow) !important;
+}
+
+/* basics (the splash, 22 Nov 2026): in dark mode, to red and silver instead
+   (app.vue, #duotone-red, as the campaigns tool's card): light mode's pale
+   tone glared there. */
+:root[data-theme='dark'] .splash.is-basics.is-stand-hover .splash-image-wrapper.is-pointed img.is-toned {
+  filter: url(#duotone-red) var(--image-shadow) !important;
+}
+
+/* The image a hovered keyword is linked to, or the one hovered: the lines
+   end on its number, reversed out of black. */
+.splash.is-stand-hover .splash-image-wrapper.is-linked img {
+  outline: none;
+}
+
+.splash.is-stand-hover .splash-image-wrapper.is-linked .splash-image-number,
+.splash.is-stand-hover .splash-image-wrapper.is-pointed .splash-image-number {
+  padding: 0 3px;
+  margin-left: -3px;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.splash.is-keywords-stand .splash-images-track {
+  align-items: flex-end;
+}
+
+.splash.is-keywords-stand .splash-images-track img {
+  transform-origin: left bottom !important;
+}
+
+/* The keywords over the band, still under the headline. */
+.splash.is-keywords-images .splash-keyword-globe {
+  z-index: 2;
+}
+
+.splash-keyword-globe {
+  inset: 0;
+  z-index: 1;
+}
+
+/* The headline and its boxes over the sphere; the pointer goes through them
+   to it (the sphere follows hover on the window), not through the button. */
+.splash.is-keywords .splash-info {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.splash.is-keywords :is(.splash-tab, .splash-tab-ticker, .splash-cta) {
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.splash.is-keywords.intro-logo .splash-keyword-globe {
+  opacity: 0 !important;
+}
+
+.splash.is-keywords.is-leaving .splash-keyword-globe {
+  opacity: 0 !important;
+  transition: opacity 1s ease 0.6s;
+  pointer-events: none;
+}
+
+/* shelf,keywords (placeShelfKeywords): the headline half a row under the
+   grid's top, nothing lifted; the band where it's placed (top and height
+   inline), its images hanging from its top line (by their tops), or, with
+   bottom, standing on one line (by their bottoms). */
+.splash.is-shelf-keywords .splash-info {
+  padding-top: var(--shelf-head-top, 6vh);
+}
+
+/* No button: the headline, its subtitle and the band only. */
+.splash.is-shelf-keywords .splash-cta {
+  display: none;
+}
+
+/* The subtitle 5% under the row's (12.6pt); on shelf,keywords 2pt less
+   again, its numbers too (10pt → 8pt). */
+.splash.is-stand-middle .splash-subtitle-box {
+  font-size: 12pt;
+}
+
+.splash.is-shelf-keywords .splash-subtitle-box {
+  font-size: 10pt;
+}
+
+.splash.is-shelf-keywords .splash-image-number {
+  font-size: 8pt;
+}
+
+.splash.is-shelf-keywords .splash-info,
+.splash.is-shelf-keywords .splash-images {
+  translate: none;
+}
+
+.splash.is-shelf-keywords .splash-images {
+  bottom: auto;
+  transform: none;
+}
+
+.splash.is-shelf-keywords .splash-images-track {
+  align-items: flex-start;
+}
+
+.splash.is-shelf-keywords.is-shelf-stand .splash-images-track {
+  align-items: flex-end;
+}
+
+/* basics,plain: no number, the word alone on the caption's right. */
+.splash.is-plain .splash-image-caption {
+  justify-content: flex-end;
+}
+
+/* basics,world: the word on the image's top left corner, over it. */
+.splash.is-world .splash-image-wrapper {
+  position: relative;
+}
+
+.splash.is-world .splash-image-caption {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: auto;
+  height: auto;
+  margin: 0;
+  justify-content: flex-start;
+}
+
+/* The globe: over the grid, under the rest, on the whole splash (placed and
+   sized off the grid by its settings, so it can run into the margin). */
+.splash-world {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 1.2s ease;
+}
+
+.splash.is-world-bare .splash-images {
+  opacity: 0.12;
+}
+
+.world-edit-panel {
+  width: 320px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+}
+
+.world-edit-field {
+  grid-template-columns: 112px minmax(0, 1fr) 56px !important;
+  gap: 6px;
+}
+
+.world-edit-field input[type='range'] {
+  min-width: 0;
+  width: 100%;
+}
+
+.world-edit-text {
+  display: grid !important;
+  gap: 4px;
+}
+
+.world-edit-text input {
+  width: 100%;
+  font: inherit;
+}
+
+.world-edit-field input[type='number'] {
+  width: 56px !important;
+}
+
+.splash.intro-logo .splash-world,
+.splash.is-leaving .splash-world {
+  opacity: 0;
+}
+
+/* The calm arrival (CALM_INTRO, 22 Nov 2026). DE.CO.DE fading out slowly
+   (playCalmIntro), not wiped. */
+.splash.is-calm .splash-logo-word.is-fading {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+/* The images fading in where they stand (not opening from their middle);
+   the exit's closing kept. */
+.splash.is-calm.intro-logo .splash-image-wrapper {
+  clip-path: inset(-40px) !important;
+  opacity: 0;
+}
+
+.splash.is-calm:not(.is-leaving) .splash-image-wrapper {
+  clip-path: inset(-40px) !important;
+  transition: opacity 1.4s ease !important;
+}
+
+/* intro=steps: the strip unseen until its turn. */
+.splash.is-calm.is-step-strip-hidden .splash-image-wrapper {
+  opacity: 0;
+}
+
+/* Steps: the subtitle and the button unseen until the headline is in
+   (stepSubtitle), then there at once, deciphering (playCalmIntro). */
+.splash.is-calm.is-step-subtitle-hidden :is(.splash-subtitle-box, .splash-cta) {
+  visibility: hidden;
 }
 </style>
 

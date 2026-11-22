@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { decipherHtml } from '~/utils/decipher'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 // Entrance state of the DE.CO.DE Extension and Bot / Troll Detector pages
 // (TemplateToolPageLayout.vue's `intro.cover`, the fill color): the same
 // layout as an opened resource (TemplateRessource.vue): the tool's name
@@ -18,11 +20,16 @@ defineProps<{
 defineEmits<{
   start: []
 }>()
+
+// Its card's dotted country, in the same corner (utils/cardCountry.ts).
+const route = useRoute()
+const toolIndex = useToolIndex(() => String(route.params.tool ?? ''))
 </script>
 
 <template>
   <div class="tool-cover" :style="{ '--cover-fill': fill }">
     <header class="tool-cover-header">
+      <div v-if="toolIndex >= 0" class="tool-cover-country"><CardCountry kind="tool" :index="toolIndex" /></div>
       <div />
       <h1 class="tool-cover-title text-h1"><DecipherText :text="title" grow :grow-max="1" /></h1>
       <p v-if="credits" class="tool-cover-credits text-row">Idea by {{ credits }}</p>
@@ -36,7 +43,7 @@ defineEmits<{
 
     <TemplateDetailBody v-if="description" color="var(--tool-cover-text)" class="tool-cover-body">
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <div v-decipher="{ grow: true }" v-html="decipherHtml(description)" />
+      <div v-decipher="{ grow: true }" v-html="decipherHtml(typeset(description))" />
     </TemplateDetailBody>
   </div>
 </template>
@@ -56,6 +63,7 @@ defineEmits<{
 /* Same fixed 32vh header as TemplateRessource.vue: the title centered in
    it both ways whatever its line count, credits hanging below it. */
 .tool-cover-header {
+  position: relative;
   height: max(32vh, 220px);
   display: grid;
   grid-template-rows: 1fr auto 1fr;
@@ -65,7 +73,26 @@ defineEmits<{
 }
 
 .tool-cover-title {
+  position: relative;
+  z-index: 1;
   margin: 0;
+}
+
+/* Its card's dotted country (CardCountry.vue), in the same corner of the
+   header, cropped by its own layer; about as big as on the card. Out of the
+   header's grid (absolutely placed). */
+.tool-cover-country {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  --country-size: 34%;
+}
+
+.tool-cover-credits {
+  position: relative;
+  z-index: 1;
 }
 
 .tool-cover-credits {

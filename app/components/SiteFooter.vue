@@ -31,9 +31,8 @@ function rememberLanguage(value: Language) {
 }
 
 const colorMode = useColorMode()
-function toggleColorMode() {
-  colorMode.value = colorMode.value === 'dark' ? 'light' : 'dark'
-}
+// In the site's fade between the two themes.
+const toggleColorMode = useToggleColorMode()
 </script>
 
 <template>

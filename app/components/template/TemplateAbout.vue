@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { decipherHtml } from '~/utils/decipher'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 interface ContentBlock {
   type: string
   isHidden?: boolean
@@ -79,7 +81,7 @@ const activeIndex = ref(0)
             :key="bIndex"
             class="about-detail-paragraph"
             :class="{ 'about-detail-alinea': bIndex === 0 }"
-            v-decipher v-html="decipherHtml(block.content?.text)"
+            v-decipher v-html="decipherHtml(typeset(block.content?.text))"
           />
         </section>
       </TemplateDetailBody>

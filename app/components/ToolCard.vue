@@ -120,11 +120,13 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
   <NuxtLink
     :to="`/tools/${item.slug}`"
     class="tool-card"
-    :class="{ 'is-pale': isPale }"
+    :class="{ 'is-pale': isPale, 'is-first': index === 0, 'is-on-image': index < 2 }"
     :style="[{ '--card-accent': badgeColor }, morphStyle]"
     @mouseenter="onHover"
     @mouseleave="onLeave"
   >
+    <!-- A country in white dots at one of its right-hand corners (CardCountry.vue). -->
+    <CardCountry kind="tool" :index="index" editable />
     <div class="tool-card-image-wrap">
       <svg v-if="tableValues" width="0" height="0" class="tool-card-filter" aria-hidden="true">
         <filter :id="filterId" color-interpolation-filters="sRGB">
@@ -160,6 +162,11 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
 
 <style scoped>
 .tool-card {
+  /* CardCountry: a width (the card is wide and short). */
+  --country-size: 34%;
+  /* Where the image's right edge is (.tool-card-image-wrap: 40%, its right
+     padding 5px): the country straddles it. */
+  --image-edge: calc(40% - 5px);
   position: relative;
   flex: none;
   height: calc((100vh - 8.5vh - var(--footer-height) - 2px) / 3);
@@ -217,6 +224,9 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
    subtitle chip's own bottom edge up with the image's own bottom edge,
    since both are then inset the same amount from the shared card bottom. */
 .tool-card-body {
+  /* Over the card's country (CardCountry.vue). */
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
@@ -226,6 +236,37 @@ const morphStyle = computed(() => (toolMorph.value === props.item.slug ? toolMor
   gap: 6px;
   padding: 16px 16px 20px 10px;
   box-sizing: border-box;
+}
+
+/* The first two cards' dotted country (CardCountry.vue) on the image's right
+   edge: half behind the image, half out beside it (22 Nov 2026); the first's
+   higher up. The third stays in the card's corner. */
+.tool-card.is-on-image .card-country {
+  right: auto;
+  left: calc(var(--image-edge) - var(--country-size) / 2);
+}
+
+.tool-card.is-first .card-country {
+  /* From the card's top, moved up by its own shift (CARD_SHAPE_OFFSETS,
+     utils/cardCountry.ts: by its own height; the card's is small). */
+  top: 0;
+}
+
+/* Mobile: no image beside the text (it's under the title, the card's width):
+   the shape back in its corner (CardCountry.vue), a little bigger. */
+@media (max-width: 1150px) {
+  .tool-card {
+    --country-size: 50%;
+  }
+
+  .tool-card.is-on-image .card-country {
+    left: auto;
+    right: calc(var(--country-size) * -0.22);
+  }
+
+  .tool-card.is-first .card-country {
+    top: calc(var(--country-size) * -0.22);
+  }
 }
 
 .tool-card-eyebrow {

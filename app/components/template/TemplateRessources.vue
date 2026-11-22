@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 defineProps<{
   page: {
     title: string
@@ -25,7 +27,7 @@ defineProps<{
           <p v-if="ressource.subtitle" class="text-row">{{ ressource.subtitle }}</p>
         </NuxtLink>
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div v-if="ressource.description" class="text-note" v-html="ressource.description" />
+        <div v-if="ressource.description" class="text-note" v-html="typeset(ressource.description)" />
       </li>
     </ul>
   </article>

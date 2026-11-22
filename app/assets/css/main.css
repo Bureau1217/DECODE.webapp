@@ -275,6 +275,16 @@ body {
   color: var(--color-ink);
 }
 
+/* No widow in body text (the browser avoids a last line of one word); the
+   CMS's text also gets no-break spaces (utils/typeset.ts), for the browsers
+   that ignore this. Not titles. */
+p,
+li,
+blockquote,
+figcaption {
+  text-wrap: pretty;
+}
+
 /*
  * Type scale — every text on the site uses one of these, nothing sets its
  * own family/size/weight/case. Components keep only color, spacing and
@@ -555,11 +565,23 @@ html.vt-tool-morph::view-transition-new(tools-list-still) {
  * own full color, after this very quick opacity reveal.
  */
 /* A keyword mentioned in a text (utils/keywordTerms.ts). */
+/* A keyword of the left panel mentioned in a text (useKeywordTerms): framed
+   in white, as a keyword (22 Nov 2026, was a dotted underline); filled white
+   under the pointer. The frame follows the word onto a second line. */
 .keyword-term {
   color: inherit;
-  text-decoration: underline dotted 1px;
-  text-underline-offset: 0.2em;
+  text-decoration: none;
+  padding: 0 0.18em;
+  box-shadow: inset 0 0 0 1px #fff;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
   cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.keyword-term:hover {
+  background: #fff;
+  color: var(--color-ink);
 }
 
 .decipher-reveal {
@@ -858,31 +880,24 @@ html.vt-closing::view-transition-new(*.article-subtitle) {
   }
 }
 
-/* The splash's theme switch (Splash.vue, themePixels): the page as it was and
-   as it is, the new one shown through a mask of grid cells growing out from
-   the click (--theme-mask, redrawn step by step), held for --theme-ms. */
-html.theme-pixels::view-transition-old(root),
-html.theme-pixels::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
+/* Splash.vue's shelf,keywords: no footer while it's up, and the room it
+   left given back to the splash (its height and the grid in it). */
+html.splash-no-footer {
+  --footer-height: 0px;
 }
 
-html.theme-pixels::view-transition-new(root) {
-  -webkit-mask-image: var(--theme-mask);
-  mask-image: var(--theme-mask);
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  animation: theme-pixels-hold var(--theme-ms, 1100ms) linear both;
+html.splash-no-footer .site-footer {
+  display: none;
 }
 
-@keyframes theme-pixels-hold {
-  from {
-    opacity: 1;
-  }
+/* Dark ⇄ light (useToggleColorMode): a slow, even cross-fade of the whole
+   page between its two colours. */
+html.vt-theme::view-transition-old(*),
+html.vt-theme::view-transition-new(*) {
+  animation-duration: 0.7s;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+}
 
-  to {
-    opacity: 1;
-  }
+html.vt-theme::view-transition-group(*) {
+  animation-duration: 0.7s;
 }

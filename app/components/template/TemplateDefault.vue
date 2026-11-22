@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { decipherHtml } from '~/utils/decipher'
+import { cardCountryFor } from '~/utils/cardCountry'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 interface ToolRef {
   title: string
   slug: string
@@ -35,6 +38,8 @@ const props = defineProps<{
   prevTo?: string | null
   nextTo?: string | null
   relatedResources?: { title: string, to: string, external: boolean, type?: string }[]
+  /** Its place in the guide (its card's index): its dotted country, as on the card. */
+  index?: number
 }>()
 
 // Only 'text' blocks are rendered — citation/cta/gallery/resources blocks
@@ -82,6 +87,11 @@ const { openedFromCard, drawState, bodyDecipher, root: articleEl, close: closeAr
 const TITLE_SIDE_MARGIN = 12 // px each side, at the least
 useFitLine(articleEl, () => [props.page.title], (el) => el.clientWidth - TITLE_SIDE_MARGIN * 2, () => (window.innerWidth <= 1150 ? 34 : 48))
 
+// Its card's dotted country, in the same corner (utils/cardCountry.ts): a top
+// one over the cover, a bottom one round the title.
+const country = computed(() => (props.index !== undefined && props.index >= 0 ? cardCountryFor('guide', props.index) : null))
+const countryOnTop = computed(() => country.value?.corner === 'tl' || country.value?.corner === 'tr')
+
 // The pale blue is too light for the button's white text: its darker tone instead.
 const toolButtonColor = computed(() => (props.badgeColor === BADGE_COLORS[1] ? deepBadgeColor(props.badgeColor) : props.badgeColor))
 </script>
@@ -90,10 +100,12 @@ const toolButtonColor = computed(() => (props.badgeColor === BADGE_COLORS[1] ? d
   <DetailPanelChrome background="var(--color-brand-resources)" text-color="var(--color-on-fill)" :close-to="closeTo" :prev-to="prevTo" :next-to="nextTo" :close-draw="drawState" :on-close="parentId ? undefined : closeArticle">
     <article ref="articleEl" class="article-detail" :class="`detail-lines-${drawState}`">
       <div v-if="page.header_image" class="article-detail-cover">
+        <div v-if="country && countryOnTop" class="article-detail-country"><CardCountry kind="guide" :index="index!" /></div>
         <img :src="page.header_image.url" :width="page.header_image.width" :height="page.header_image.height" :alt="cleanAlt(page.header_image.alt, page.title)" :style="sharedPart('image')">
       </div>
 
       <header class="article-detail-header">
+        <div v-if="country && (!countryOnTop || !page.header_image)" class="article-detail-country"><CardCountry kind="guide" :index="index!" /></div>
         <h1 class="article-detail-title text-h1" :style="sharedPart('title')">
           <template v-if="openedFromCard">{{ page.title }}</template>
           <DecipherText v-else :text="page.title" />
@@ -146,7 +158,7 @@ const toolButtonColor = computed(() => (props.badgeColor === BADGE_COLORS[1] ? d
           <div
             class="article-detail-paragraph"
             :class="{ 'article-detail-alinea': index === 0 }"
-            v-decipher="bodyDecipher" v-html="decipherHtml(blockTexts[index])"
+            v-decipher="bodyDecipher" v-html="decipherHtml(typeset(blockTexts[index]))"
           />
         </div>
       </TemplateDetailBody>
@@ -161,18 +173,40 @@ const toolButtonColor = computed(() => (props.badgeColor === BADGE_COLORS[1] ? d
    the spec asked for (5% top, 20% each side) rather than clamping to a
    fixed reading width. */
 .article-detail-cover {
+  position: relative;
   padding: 5% 20% 0;
   box-sizing: border-box;
 }
 
 .article-detail-cover img {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: auto;
   display: block;
 }
 
 .article-detail-header {
+  position: relative;
   text-align: center;
+}
+
+/* Its card's dotted country (CardCountry.vue), in the same corner of the
+   cover or of the header, cropped by its own layer (not the header, whose
+   title flies in from the card). About as big as on the card. */
+.article-detail-country {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  --country-size: 31%;
+}
+
+.article-detail-title,
+.article-detail-subtitle {
+  position: relative;
+  z-index: 1;
 }
 
 .article-detail-title {

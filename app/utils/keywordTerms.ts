@@ -21,7 +21,9 @@ const matcher = (id: string, text: string): TermMatcher => {
   const plural = stem === text && exact ? '' : 's?'
   return {
     id,
-    pattern: new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(stem)}${plural}(?![\\p{L}\\p{N}])`, exact ? 'u' : 'iu'),
+    // Any space in the name matches any whitespace: typeset text (utils/typeset.ts)
+    // has no-break spaces between short words and the next.
+    pattern: new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(stem).replace(/ +/g, '\\s+')}${plural}(?![\\p{L}\\p{N}])`, exact ? 'u' : 'iu'),
     length: text.length,
   }
 }

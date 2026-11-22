@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { decipherHtml } from '~/utils/decipher'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 
 // A keyword, opened in the right panel the way a resource is
 // (TemplateRessource.vue).
@@ -44,7 +46,7 @@ const { drawState, bodyDecipher, root, close } = useDetailTransition(() => props
 
       <TemplateDetailBody v-if="page.description" color="var(--color-brand-about)">
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div class="tag-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(page.description)" />
+        <div class="tag-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(typeset(page.description))" />
       </TemplateDetailBody>
       <DetailLinks :label="language === 'fr' ? 'Dans le guide' : 'In the guide'" :items="relatedArticles ?? []" />
       <DetailLinks :label="language === 'fr' ? 'Ressources' : 'Resources'" :items="relatedResources ?? []" />

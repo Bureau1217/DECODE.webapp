@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 // Same fixed half-viewport shell as KeywordsPanel.vue (InfoPanel.vue),
 // but only ever shown on /about (app.vue) in place of it: sourced from
 // the about page's own "Équipes" field
@@ -75,7 +77,7 @@ onBeforeUnmount(() => {
           <div v-if="member.bio && hoveredMember === `${ti}-${mi}`" :class="['team-panel-popup', 'text-note', { 'is-above': popupAbove }]">
             <div class="team-panel-popup-title">{{ member.name }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="team-panel-popup-bio" v-html="member.bio" />
+            <div class="team-panel-popup-bio" v-html="typeset(member.bio)" />
           </div>
         </li>
       </ul>

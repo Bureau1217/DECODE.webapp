@@ -117,5 +117,5 @@ const relatedResources = computed(() => {
 </script>
 
 <template>
-  <TemplateDefault :page="page" :badge-color="badgeColor" :prev-to="prevTo" :next-to="nextTo" :related-resources="relatedResources" />
+  <TemplateDefault :page="page" :index="currentIndex" :badge-color="badgeColor" :prev-to="prevTo" :next-to="nextTo" :related-resources="relatedResources" />
 </template>

@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { decipherHtml } from '~/utils/decipher'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 const props = defineProps<{
   page: {
     title: string
@@ -75,7 +77,7 @@ const { openedFromCard, drawState, bodyDecipher, root, close, style: sharedPart 
 
       <TemplateDetailBody v-if="page.description" color="var(--color-brand-about)" v-on="termEvents">
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <div class="resource-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(descriptionHtml)" />
+        <div class="resource-detail-description" v-decipher="bodyDecipher" v-html="decipherHtml(typeset(descriptionHtml))" />
       </TemplateDetailBody>
       <DetailLinks :label="language === 'fr' ? 'Mots-clés' : 'Keywords'" :items="keywordLinks" />
     </article>

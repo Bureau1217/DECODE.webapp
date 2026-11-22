@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { CategoryWithTags } from '~/composables/useKeywordsPanelCategories'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 // Mirrors the CMS's own "Mot-clés" Panel section (site/blueprints/site.yml):
 // every root page using the `tags` template, each with its tag children —
 // not a fixed list of category names, so a new category added in the CMS
@@ -202,7 +204,7 @@ function isRelated(tagId: string) {
           <div v-if="hoveredTagId === tag.id && tag.description" :class="['keywords-panel-popup', 'text-note', { 'is-above': popupAbove }]" :style="popupFixed ?? undefined">
             <div class="keywords-panel-popup-title">{{ tag.title }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="keywords-panel-popup-definition" v-html="tag.description" />
+            <div class="keywords-panel-popup-definition" v-html="typeset(tag.description)" />
           </div>
         </li>
       </ul>
@@ -215,7 +217,7 @@ function isRelated(tagId: string) {
         <figcaption class="keywords-image-preview-label text-note">
           <div class="keywords-panel-popup-title">{{ previewImage.title }}</div>
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-if="previewImage.description" class="keywords-panel-popup-definition" v-html="previewImage.description" />
+          <div v-if="previewImage.description" class="keywords-panel-popup-definition" v-html="typeset(previewImage.description)" />
         </figcaption>
       </figure>
     </div>

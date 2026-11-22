@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { decipherHtml } from '~/utils/decipher'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 
 // Legal terms or Credits, in the right panel beside the team.
 const props = defineProps<{
@@ -21,7 +23,7 @@ const textBlocks = computed(() => props.blocks.filter((b) => b.type === 'text' &
           <!-- eslint-disable-next-line vue/no-v-html -->
           <h2 v-if="block.content?.title" class="about-section-block-title" v-decipher v-html="decipherHtml(block.content.title)" />
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-decipher v-html="decipherHtml(block.content?.text)" />
+          <div v-decipher v-html="decipherHtml(typeset(block.content?.text))" />
         </section>
       </TemplateDetailBody>
     </article>

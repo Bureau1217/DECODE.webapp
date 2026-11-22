@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 // Entrance state of a custom tool page (TemplateToolPageLayout.vue's
 // `intro` prop) — the left panel only: same h3-band + li-row shell as
 // Campaigns Maps' own intro (CampaignInfoPanel.vue, no campaign
@@ -36,7 +38,7 @@ const readingMode = useReadingMode()
       <h3 class="text-label">Description</h3>
       <ul>
         <!-- eslint-disable-next-line vue/no-v-html -->
-        <li class="tool-intro-description-row" v-html="description" />
+        <li class="tool-intro-description-row" v-html="typeset(description)" />
       </ul>
     </template>
   </InfoPanel>

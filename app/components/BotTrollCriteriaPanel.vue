@@ -8,6 +8,8 @@ import { stackDelay } from '~/utils/stackDelay'
 // accent — same "page gets the next badge color in the cycle" pattern
 // Campaigns Maps set with coral (BADGE_COLORS[0]).
 import type { Criterion } from '~/types/botTroll'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 
 const props = defineProps<{
   criteria: Criterion[]
@@ -65,7 +67,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
           >
             <span>{{ criterion.interface_label }}</span>
             <div v-if="isMobile && hovered?.slug === criterion.slug" class="bt-tooltip bt-inline-definition text-note">
-              <p v-if="criterion.why_it_matters">{{ criterion.why_it_matters }}</p>
+              <p v-if="criterion.why_it_matters">{{ typeset(criterion.why_it_matters) }}</p>
               <p v-if="criterion.observable_signal" class="bt-tooltip-signal">
                 Signal observed — {{ criterion.observable_signal }}
               </p>
@@ -80,7 +82,7 @@ const { hovered, tooltipPos, showTooltip, hideTooltip, tapTooltip, isMobile } = 
     <HoverTooltip v-if="hovered && !isMobile" :pos="tooltipPos" accent="var(--tool-bottroll-accent-deep)">
       <div class="bt-tooltip text-note">
         <strong class="bt-tooltip-title">{{ hovered.interface_label }}</strong>
-        <p v-if="hovered.why_it_matters">{{ hovered.why_it_matters }}</p>
+        <p v-if="hovered.why_it_matters">{{ typeset(hovered.why_it_matters) }}</p>
         <p v-if="hovered.observable_signal" class="bt-tooltip-signal">
           Signal observed — {{ hovered.observable_signal }}
         </p>

@@ -8,6 +8,8 @@
 // visible to editors in the panel (the "results of the game").
 import { useBotTrollAccounts } from '~/composables/useBotTrollAccounts'
 import { VERDICT_OPTIONS, type Verdict, type Account } from '~/types/botTroll'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 
 const account = defineModel<Account | null>('account', { default: null })
 
@@ -177,7 +179,7 @@ function placeholderGradient(seed: string) {
         <div class="bt-post">
           <div class="bt-post-thumb" :style="{ background: placeholderGradient(account.posts[0].id) }" />
           <div class="bt-post-body">
-            <p class="bt-post-caption text-note">{{ account.posts[0].caption }}</p>
+            <p class="bt-post-caption text-note">{{ typeset(account.posts[0].caption) }}</p>
             <p class="bt-post-meta text-caption">
               <span>♡ {{ account.posts[0].likes }}</span>
               <span>💬 {{ account.posts[0].comments }}</span>

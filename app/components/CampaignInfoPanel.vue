@@ -8,6 +8,8 @@
 // tool's own "Related tool" button (TemplateDefault.vue) already use, so
 // the color carries through from the article that links here.
 import type { CampaignWithReceivers } from '~/types/campaign'
+// Body text typeset (no widows, French spacing; never titles).
+const typeset = useTypeset()
 
 const props = defineProps<{
   campaign: CampaignWithReceivers | null
@@ -57,7 +59,7 @@ const display = computed(() => {
         <h3 class="text-label">Description</h3>
         <ul>
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <li class="campaign-panel-description-row" v-html="tool.description" />
+          <li class="campaign-panel-description-row" v-html="typeset(tool.description)" />
         </ul>
       </template>
 
@@ -103,7 +105,7 @@ const display = computed(() => {
     <h3 class="text-label">Analysis</h3>
     <ul>
       <!-- eslint-disable-next-line vue/no-v-html -->
-      <li class="campaign-panel-analysis-row" v-html="display.analysis" />
+      <li class="campaign-panel-analysis-row" v-html="typeset(display.analysis)" />
     </ul>
 
     <h3 class="text-label">Strategies</h3>

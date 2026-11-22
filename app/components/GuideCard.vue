@@ -30,6 +30,9 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
     @mouseenter="onHover"
     @mouseleave="onLeave"
   >
+    <!-- A country in white dots at one of its corners (CardCountry.vue,
+         utils/cardCountry.ts): the first card's at the top left. -->
+    <CardCountry kind="guide" :index="index" editable />
     <div class="guide-card-image-wrap">
       <img v-if="item.header_image" :src="item.header_image.url" :width="item.header_image.width" :height="item.header_image.height" :alt="cleanAlt(item.header_image.alt, item.title)" :style="sharedPart('image')">
     </div>
@@ -44,6 +47,8 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 
 <style scoped>
 .guide-card {
+  /* (CardCountry: placed off the card's corner, cropped by it.) */
+  position: relative;
   background: var(--color-card);
   text-decoration: none;
   display: flex;
@@ -92,6 +97,13 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
 .guide-card-subtitle {
   margin: 6px 0 0;
   text-align: center;
+}
+
+/* Over the card's country (CardCountry.vue, absolutely placed). */
+.guide-card-subtitle,
+.guide-card-title {
+  position: relative;
+  z-index: 1;
 }
 
 /* !important: BadgeChip sets its own color inline. */

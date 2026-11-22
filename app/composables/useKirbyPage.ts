@@ -57,6 +57,19 @@ async function fetchToolsPage(cache: Ref<Record<string, Record<string, unknown>>
   return page
 }
 
+/**
+ * A tool's place in the tools list (its card's index: ToolCover.vue's dotted
+ * country), from the list kept for the session; -1 until it's there.
+ */
+export function useToolIndex(slug: () => string) {
+  const cache = useToolsPageCache()
+  const language = useLanguage()
+  return computed(() => {
+    const tools = (cache.value[language.value]?.tools ?? []) as { slug?: string }[]
+    return tools.findIndex((tool) => tool.slug === slug())
+  })
+}
+
 export async function useToolsPage() {
   const cache = useToolsPageCache()
   const language = useLanguage()
