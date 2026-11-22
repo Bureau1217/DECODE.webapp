@@ -1157,12 +1157,11 @@ const PLAIN_PHRASE = [
 ]
 const PLAIN_SPAN = 0.9 // of the screen's width, one phrase and its gaps (the others as they were)
 const PLAIN_MAX = 0.8 // of the grid's height at most, the tallest
-// Desktop (22 Nov 2026): the images 3% larger, and their middle line a little
-// above the grid's (at this share of its height down: the optical centre),
-// not on it (they sat 15px under it, the room for numbers this splash
-// doesn't show).
+// Desktop (22 Nov 2026): the images 3% larger, and their middle line on the
+// grid's middle (they sat 15px under it, the room for numbers this splash
+// doesn't show; then a little above it, at 0.47, put back).
 const PLAIN_SCALE = 1.03
-const PLAIN_LINE = 0.47
+const PLAIN_LINE = 0.5
 const STAND_PHRASE = SPLASH_PLAIN ? PLAIN_PHRASE : [
   { height: 0.738, ratio: 4 / 5 },
   { height: 1.125, ratio: 1 },
@@ -4151,7 +4150,10 @@ function placeSubtitle() {
   // splash's height), the two as one block centred in the grid, up or down.
   if (SPLASH_BASICS && g) {
     const gap = Math.round(g.boxH * BASICS_SUBTITLE_GAP)
-    const block = frameBottom - frameTop + gap + subtitle.offsetHeight
+    // world (the splash, 22 Nov 2026): the headline itself on the grid's
+    // middle, as the image strip, the subtitle under it; otherwise the two
+    // as one block centred there.
+    const block = SPLASH_WORLD ? frameBottom - frameTop : frameBottom - frameTop + gap + subtitle.offsetHeight
     const target = splashTop + (g.top + g.bottom) / 2 - block / 2
     const lift = Math.round(frameTop + groupLift.value - target)
     if (Math.abs(lift - groupLift.value) > 1) {
