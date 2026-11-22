@@ -398,29 +398,13 @@ onUnmounted(() => {
   }
 }
 
-/* Phone: the MENU tab traces its own outline (pathLength=1), its white fill
-   settling in as the stroke closes, same as the splash's top tab. */
+/* Phone: the MENU tab is the splash's own tab, already there (it slides to
+   this place on its way out, Splash.vue's slideTabToNav): it only warms from
+   the splash's ink to brown, as desktop's first tab. It used to trace its
+   own outline from nothing, so the tab vanished, then drew itself again
+   (22 Nov 2026). */
 .site-nav.is-intro .nav-tab-wrap--mobile .nav-tab-shape path {
-  stroke-dasharray: 1;
-  animation:
-    nav-tab-trim 1.1s cubic-bezier(0.45, 0, 0.25, 1) 0.2s both,
-    nav-tab-warm 1.6s ease-in-out 0.2s both;
-}
-
-@keyframes nav-tab-trim {
-  from {
-    stroke-dashoffset: 1;
-    fill-opacity: 0;
-  }
-
-  70% {
-    fill-opacity: 0;
-  }
-
-  to {
-    stroke-dashoffset: 0;
-    fill-opacity: 1;
-  }
+  animation: nav-tab-warm 1.6s ease-in-out 0.2s both;
 }
 
 @keyframes nav-tab-warm {

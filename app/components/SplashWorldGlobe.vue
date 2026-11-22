@@ -96,7 +96,9 @@ function draw(now: number) {
   const ctx = el?.getContext('2d')
   if (!el || !ctx) return
   if (!rgb.length) readColors()
-  const s = props.settings
+  // (Its plain object, not Vue's reactive proxy: read thousands of times a
+  // frame in drawWorldMap, every read through the proxy cost; performance.)
+  const s = toRaw(props.settings)
   const dt = last ? Math.min(0.1, (now - last) / 1000) : 0
   cycle += dt * (s.pace ?? 1)
   const t = cycle
@@ -233,15 +235,8 @@ function draw(now: number) {
 }
 
 const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-// Drawn 30 times a second, not 60: it turns a turn in minutes and its shapes
-// come and go over seconds, nothing a frame in two would show (performance,
-// 22 Nov 2026: half the splash's main thread went here).
-const FRAME_MS = 1000 / 30
-let drawnAt = 0
 function loop(now: number) {
   frame = requestAnimationFrame(loop)
-  if (now - drawnAt < FRAME_MS - 2) return
-  drawnAt = now
   draw(now)
 }
 

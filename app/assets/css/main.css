@@ -901,3 +901,12 @@ html.vt-theme::view-transition-new(*) {
 html.vt-theme::view-transition-group(*) {
   animation-duration: 0.7s;
 }
+
+/* The texts that slide on their own (the splash's tab, the strip's old
+   scroll, the phone's nav sentence) held still while the colours fade: the
+   page's old picture is frozen as it fades out over the live one, so they
+   showed twice, then jumped (22 Nov 2026). The splash's image strip stops
+   the same way (Splash.vue, driftTick). */
+html.vt-theme :is(.splash-tab-ticker-slide, .splash-images-track, .site-nav-ticker-track) {
+  animation-play-state: paused !important;
+}

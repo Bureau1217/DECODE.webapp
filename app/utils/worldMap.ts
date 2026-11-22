@@ -8,7 +8,7 @@
 // kept as the land is dark), filled or only its edges, borders and coasts as
 // rings, the latitude and longitude lines as faint dots.
 import { SILVER_MAP_DEFAULTS, inverter, pickCells, pickCountries, type Rect, type SilverMapConfig, type SilverMapData } from '~/utils/silverMap'
-import { drawWorldMark, worldColor, worldShown, type MapProjection, type WorldSettings, type WorldShape } from '~/utils/worldGlobe'
+import { worldColor, worldShown, type MapProjection, type WorldLook, type WorldSettings, type WorldShape } from '~/utils/worldGlobe'
 
 const RAD = Math.PI / 180
 
@@ -70,8 +70,10 @@ export function fillAmount(s: WorldSettings, clock: number) {
   return e * e * (3 - 2 * e)
 }
 
-// The first pass's result, for as long as what it depends on stays the same.
-let pass: { key: string, ids: Int16Array, dark: Float32Array, depth: Float32Array, grat: Uint8Array, lonOf: Float32Array, latOf: Float32Array } = { key: '', ids: new Int16Array(0), dark: new Float32Array(0), depth: new Float32Array(0), grat: new Uint8Array(0), lonOf: new Float32Array(0), latOf: new Float32Array(0) }
+// Each cell's place in the projection, the turn aside (see the first pass),
+// kept for as long as the view stays put; and the per-frame arrays, reused.
+interface Geometry { key: string, valid: Uint8Array, offLon: Float32Array, latAt: Float32Array, depthAt: Float32Array, ids: Int16Array, dark: Float32Array, grat: Uint8Array, lonOf: Float32Array }
+let geometry: Geometry = { key: '', valid: new Uint8Array(0), offLon: new Float32Array(0), latAt: new Float32Array(0), depthAt: new Float32Array(0), ids: new Int16Array(0), dark: new Float32Array(0), grat: new Uint8Array(0), lonOf: new Float32Array(0) }
 
 export function drawWorldMap(f: WorldMapFrame) {
   const { ctx, data, s, width, height, grid, t, shapes, rgb, ink } = f
@@ -95,63 +97,66 @@ export function drawWorldMap(f: WorldMapFrame) {
 
   // First pass: each cell's country (-1: off the projection, 0: sea), its
   // land's darkness, its place on the globe (orthographic: for the rim).
+  // Performance (22 Nov 2026): in every one of these projections, turning the
+  // map (its centre's longitude) only adds the same longitude to every cell.
+  // So the costly part, each cell's latitude and its longitude off the centre
+  // (the projection's trigonometry), is kept while the view stays put
+  // (`geometry`), and each frame only adds the turn and looks the country up:
+  // the same picture, every frame, for a fraction of the work.
   const n = cols * rows
   const degPerCell = step / (scale * RAD)
   const ortho = s.projection === 'orthographic'
-  // (The turning centre taken in steps of a quarter cell: the cells only
-  // change land for sea about twice a second, so this pass, the costly one,
-  // is kept until then rather than redone every frame. Performance,
-  // 22 Nov 2026: the splash's main thread was half busy with it.)
-  const lonStep = degPerCell / 4
-  const lonUsed = Math.round(f.lon / lonStep) * lonStep
-  const key = [s.projection, lonUsed, s.lat, s.zoom, s.roll, s.x, s.y, step, s.graticule, s.inGrid, width, height, grid.left, grid.top, grid.right, grid.bottom].join('|')
-  if (pass.key !== key) {
-  const invert = inverter({ projection: s.projection as MapProjection, lon: lonUsed, lat: s.lat })
-  const ids = new Int16Array(n).fill(-1)
-  const dark = new Float32Array(n)
-  const depth = new Float32Array(n).fill(1)
-  const grat = new Uint8Array(n)
-  const lonOf = new Float32Array(n)
-  const latOf = new Float32Array(n)
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const px = x0 + (c + 0.5) * step
-      const py = y0 + (r + 0.5) * step
-      const dx = (px - cx) / scale
-      const dy = (cy - py) / scale
-      const ux = dx * cr + dy * sr
-      const uy = -dx * sr + dy * cr
-      const ll = invert(ux, uy)
-      if (!ll) continue
-      const i = r * cols + c
-      let lon = ll[0]
-      const lat = ll[1]
-      lon = ((lon + 540) % 360) - 180
-      if (ortho) depth[i] = Math.sqrt(Math.max(0, 1 - ux * ux - uy * uy))
-      lonOf[i] = lon
-      latOf[i] = lat
-      let id = 0
-      for (const tile of data.tiles) {
-        const u = (lon - tile.west) * tile.ppd
-        const v = (tile.north - lat) * tile.ppd
-        if (u >= 0 && v >= 0 && u < tile.width - 1 && v < tile.height - 1) {
-          const k = Math.round(v) * tile.width + Math.round(u)
-          id = tile.ids[k]!
-          dark[i] = 1 - tile.lum[k]! / 255
-          break
-        }
-      }
-      ids[i] = id
-      if (s.graticule > 0) {
-        const g = s.graticule
-        const near = (a: number) => Math.abs(a - Math.round(a / g) * g)
-        if (near(lat) < degPerCell * 0.5 || near(lon) < (degPerCell * 0.5) / Math.max(0.05, Math.cos(lat * RAD))) grat[i] = 1
+  const key = [s.projection, s.lat, s.zoom, s.roll, s.x, s.y, step, width, height, grid.left, grid.top, grid.right, grid.bottom, s.inGrid].join('|')
+  if (geometry.key !== key) {
+    const invert = inverter({ projection: s.projection as MapProjection, lon: 0, lat: s.lat })
+    const valid = new Uint8Array(n)
+    const offLon = new Float32Array(n)
+    const latAt = new Float32Array(n)
+    const depthAt = new Float32Array(n).fill(1)
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const px = x0 + (c + 0.5) * step
+        const py = y0 + (r + 0.5) * step
+        const dx = (px - cx) / scale
+        const dy = (cy - py) / scale
+        const ux = dx * cr + dy * sr
+        const uy = -dx * sr + dy * cr
+        const ll = invert(ux, uy)
+        if (!ll) continue
+        const i = r * cols + c
+        valid[i] = 1
+        offLon[i] = ll[0]
+        latAt[i] = ll[1]
+        if (ortho) depthAt[i] = Math.sqrt(Math.max(0, 1 - ux * ux - uy * uy))
       }
     }
+    geometry = { key, valid, offLon, latAt, depthAt, ids: new Int16Array(n), dark: new Float32Array(n), grat: new Uint8Array(n), lonOf: new Float32Array(n) }
   }
-  pass = { key, ids, dark, depth, grat, lonOf, latOf }
+  const { valid, offLon, latAt: latOf, depthAt: depth, ids, dark, grat, lonOf } = geometry
+  ids.fill(-1)
+  grat.fill(0)
+  const tiles = data.tiles
+  const g = s.graticule
+  const near = (a: number) => Math.abs(a - Math.round(a / g) * g)
+  for (let i = 0; i < n; i++) {
+    if (!valid[i]) continue
+    const lat = latOf[i]!
+    const lon = ((offLon[i]! + f.lon + 540) % 360 + 360) % 360 - 180
+    lonOf[i] = lon
+    let id = 0
+    for (const tile of tiles) {
+      const u = (lon - tile.west) * tile.ppd
+      const v = (tile.north - lat) * tile.ppd
+      if (u >= 0 && v >= 0 && u < tile.width - 1 && v < tile.height - 1) {
+        const k = Math.round(v) * tile.width + Math.round(u)
+        id = tile.ids[k]!
+        dark[i] = 1 - tile.lum[k]! / 255
+        break
+      }
+    }
+    ids[i] = id
+    if (g > 0 && (near(lat) < degPerCell * 0.5 || near(lon) < (degPerCell * 0.5) / Math.max(0.05, Math.cos(lat * RAD)))) grat[i] = 1
   }
-  const { ids, dark, depth, grat, lonOf, latOf } = pass
 
   // Composition: the countries, the grid's cells.
   if (s.composition === 'countries') {
@@ -185,7 +190,41 @@ export function drawWorldMap(f: WorldMapFrame) {
   const share = shapes.map((shape) => worldShown(shape, t, s.shown))
   const inkColor = (alpha: number) => `rgba(${ink[0]},${ink[1]},${ink[2]},${alpha})`
 
-  // Second pass: the marks.
+  // Second pass: the marks, gathered by look and colour (one path each,
+  // filled or stroked once) rather than drawn one by one: thousands of calls
+  // a frame were the map's cost (performance, 22 Nov 2026). The same marks
+  // (drawWorldMark's), their colours' blend taken in 32 steps, their
+  // opacity in 64, too fine to see, so that they share paths.
+  const groups = new Map<string, { path: Path2D, fill: boolean, color: string, width: number }>()
+  const quant = (v: number, steps: number) => Math.round(v * steps) / steps
+  function mark(look: WorldLook, sx: number, sy: number, cell: number, size: number, color: string, shapeSize: number, halftone: number) {
+    let fill = false
+    let width = 0
+    let r = 0
+    if (look === 'hatch') width = Math.max(0.5, cell * 0.12 * size * s.stroke)
+    else if (look === 'rings' || look === 'outline') {
+      r = Math.max(0.6, cell * 0.36 * size * s.dot)
+      width = Math.max(0.5, cell * (look === 'outline' ? 0.14 : 0.09) * size * s.stroke)
+    }
+    else {
+      fill = true
+      r = Math.max(0.5, (look === 'halftone' ? cell * (0.12 + 0.42 * halftone) : cell * shapeSize) * size * s.dot)
+    }
+    width = quant(width, 10)
+    const key = `${fill ? 'f' : 's'}${width}${color}`
+    let group = groups.get(key)
+    if (!group) groups.set(key, group = { path: new Path2D(), fill, color, width })
+    if (look === 'hatch') {
+      const h = cell * 0.42 * size
+      group.path.moveTo(sx - h, sy + h)
+      group.path.lineTo(sx + h, sy - h)
+    }
+    else {
+      group.path.moveTo(sx + r, sy)
+      group.path.arc(sx, sy, r, 0, Math.PI * 2)
+    }
+  }
+  const inkAt = (alpha: number) => inkColor(quant(alpha, 64))
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const i = r * cols + c
@@ -210,10 +249,10 @@ export function drawWorldMap(f: WorldMapFrame) {
       if (id === 0 || splitSea) {
         if (splitSea && id === 0) {
           const h = hash(c, r, s.seed)
-          if (h < s.shown || s.shown >= 1) drawWorldMark(ctx, 'dots', sx, sy, step, size, s, inkColor(s.alpha * 0.55 * rim), 0.28, 0.5)
+          if (h < s.shown || s.shown >= 1) mark('dots', sx, sy, step, size, inkAt(s.alpha * 0.55 * rim), 0.28, 0.5)
         }
         else if (grat[i] && id === 0) {
-          drawWorldMark(ctx, 'dots', sx, sy, step, size * 0.6, s, inkColor(0.35 * rim), 0.2, 0.5)
+          mark('dots', sx, sy, step, size * 0.6, inkAt(0.35 * rim), 0.2, 0.5)
         }
         if (id === 0 || splitSea) continue
       }
@@ -227,7 +266,7 @@ export function drawWorldMap(f: WorldMapFrame) {
         if (s.others === 'outline') {
           if (!coastHere && !borderHere) continue
           if ((c + r) % 3 === 0) continue
-          drawWorldMark(ctx, 'outline', sx, sy, step, size, s, inkColor(0.5 * rim), 0.28, 0.5)
+          mark('outline', sx, sy, step, size, inkAt(0.5 * rim), 0.28, 0.5)
           continue
         }
         alpha *= 0.25
@@ -247,8 +286,19 @@ export function drawWorldMap(f: WorldMapFrame) {
       // Grain: kept as the land is dark, its dot as big.
       const d = Math.min(1, Math.max(0, dark[i]! * 1.6))
       if (s.grain > 0 && hash(c, r, s.seed + 1) > 1 - s.grain + s.grain * d) continue
-      const mix = 0.5 + 0.5 * Math.sin(lonOf[i]! * 0.9 + latOf[i]! * 0.6 + id)
-      drawWorldMark(ctx, look, sx, sy, step, size, s, worldColor(rgb, shape, mix, s.blend, alpha), shape.size, s.grain > 0 ? d : 0.5 + 0.5 * Math.sin(c * 0.9 + r * 0.7))
+      const mix = quant(0.5 + 0.5 * Math.sin(lonOf[i]! * 0.9 + latOf[i]! * 0.6 + id), 32)
+      mark(look, sx, sy, step, size, worldColor(rgb, shape, mix, s.blend, quant(alpha, 64)), shape.size, s.grain > 0 ? d : 0.5 + 0.5 * Math.sin(c * 0.9 + r * 0.7))
+    }
+  }
+  for (const group of groups.values()) {
+    if (group.fill) {
+      ctx.fillStyle = group.color
+      ctx.fill(group.path)
+    }
+    else {
+      ctx.strokeStyle = group.color
+      ctx.lineWidth = group.width
+      ctx.stroke(group.path)
     }
   }
 }

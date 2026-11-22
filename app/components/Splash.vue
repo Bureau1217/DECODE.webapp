@@ -76,29 +76,64 @@ function imageLabel(index: number, alt?: string) {
 // if none does, the image goes without one. Only once the page is measured
 // (the server can't measure: the captions come in with the images anyway).
 let labelMeasure: CanvasRenderingContext2D | null = null
+const measuredCaptions = new Map<string, number>()
 function captionWidth(text: string, family: string) {
+  const key = `${family}|${text}`
+  const known = measuredCaptions.get(key)
+  if (known !== undefined) return known
   labelMeasure ??= document.createElement('canvas').getContext('2d')
   if (!labelMeasure) return Infinity
   const size = 10 * (4 / 3) // 10pt: .text-small
   labelMeasure.font = `400 ${size}px ${family}`
-  return labelMeasure.measureText(text.toUpperCase()).width + text.length * size * 0.03
+  const width = labelMeasure.measureText(text.toUpperCase()).width + text.length * size * 0.03
+  measuredCaptions.set(key, width)
+  return width
+}
+// Two keywords too alike to stand side by side (22 Nov 2026): the same, one
+// inside the other, or the same start or ending of 4 letters or more
+// (deepfake / cheapfake, disinformation / malinformation).
+function labelsAlike(a: string | undefined, b: string | undefined) {
+  if (!a || !b) return false
+  const x = a.toLowerCase()
+  const y = b.toLowerCase()
+  if (x.includes(y) || y.includes(x)) return true
+  let start = 0
+  while (start < x.length && x[start] === y[start]) start++
+  let end = 0
+  while (end < x.length && end < y.length && x[x.length - 1 - end] === y[y.length - 1 - end]) end++
+  return start >= 4 || end >= 4
 }
 const CAPTION_GAP = 12 // .splash-image-caption's gap
 const CAPTION_CHIP_PAD = 12 // .splash-image-name's padding, both sides
-function basicsLabel(index: number) {
+// Each image's keyword, kept with the width it was chosen for (the one
+// before it is needed to choose it: they're chosen in turn).
+const labelMemo = new Map<number, { width: number, label: string | undefined }>()
+watch(conceptLabels, () => labelMemo.clear())
+function basicsLabel(index: number): string | undefined {
   const concepts = conceptLabels.value
-  if (!measured.value || !concepts.length) return undefined
+  if (!measured.value || !concepts.length || index < 0) return undefined
   const width = spawnTargetWidth(index)
   if (!width) return undefined
+  const known = labelMemo.get(index)
+  if (known && known.width === Math.round(width)) return known.label
+  // Not alike the two before it (labelsAlike): two DEEPFAKEs, or DEEPFAKE
+  // after CHEAPFAKE, side by side, or with one between (often hidden under
+  // the headline, so they read as side by side).
+  const previous = [basicsLabel(index - 1), basicsLabel(index - 2)]
   const root = getComputedStyle(document.documentElement)
   const mono = root.getPropertyValue('--font-mono') || 'monospace'
   const text = root.getPropertyValue('--font-text') || 'sans-serif'
   const room = width - (SPLASH_PLAIN ? 0 : captionWidth(imageNumber(index), text) + CAPTION_GAP) - CAPTION_CHIP_PAD - 4
+  let label: string | undefined
   for (let k = 0; k < concepts.length; k++) {
-    const label = concepts[(index + k) % concepts.length]!
-    if (captionWidth(label, mono) <= room) return label
+    const candidate = concepts[(index + k) % concepts.length]!
+    if (captionWidth(candidate, mono) <= room && !previous.some((label) => labelsAlike(candidate, label))) {
+      label = candidate
+      break
+    }
   }
-  return undefined
+  labelMemo.set(index, { width: Math.round(width), label })
+  return label
 }
 
 // BADGE_COLORS itself comes from app/utils/badgeColors.ts (Nuxt
@@ -451,9 +486,10 @@ if (WORLD_EDIT) {
     catch {}
   }, { deep: true })
 }
-// Mobile (22 Nov 2026): the dotted map in circle strokes only (its 'rings'),
-// lighter on a small screen; the rest of its settings as they are.
-const worldMobile = ref(false)
+// Mobile (22 Nov 2026): no dotted map behind (it was in circle strokes only,
+// its 'rings', before that). Known from the start on the client, so it's
+// never mounted there.
+const worldMobile = ref(import.meta.client ? window.matchMedia('(max-width: 1150px)').matches : false)
 const worldShownSettings = computed<WorldSettings>(() => (worldMobile.value ? { ...worldSettings.value, looks: ['rings'] } : worldSettings.value))
 if (SPLASH_WORLD && import.meta.client) {
   const query = window.matchMedia('(max-width: 1150px)')
@@ -1121,6 +1157,12 @@ const PLAIN_PHRASE = [
 ]
 const PLAIN_SPAN = 0.9 // of the screen's width, one phrase and its gaps (the others as they were)
 const PLAIN_MAX = 0.8 // of the grid's height at most, the tallest
+// Desktop (22 Nov 2026): the images 3% larger, and their middle line a little
+// above the grid's (at this share of its height down: the optical centre),
+// not on it (they sat 15px under it, the room for numbers this splash
+// doesn't show).
+const PLAIN_SCALE = 1.03
+const PLAIN_LINE = 0.47
 const STAND_PHRASE = SPLASH_PLAIN ? PLAIN_PHRASE : [
   { height: 0.738, ratio: 4 / 5 },
   { height: 1.125, ratio: 1 },
@@ -1950,7 +1992,14 @@ if (SPLASH_ATLAS) {
 const TONE_AUTO = useRoute().query.tone !== 'off'
 const CONTRAST_SPREAD = 0.35
 watch(() => images.value?.length, () => toneImages())
-const toneTables = ref<Record<string, { light: string[], dark: string[] }>>({})
+const toneTables = ref<Record<string, { light: string[], dark: string[], red: string[] }>>({})
+// The red and silver (dark mode's hover, 22 Nov 2026), as the campaigns
+// tool's card (ToolCard.vue): the photo's fitted silver negative, its
+// brightest RED_SHARE of tones (measured on the photo itself, so each photo
+// gets as much red, dark or bright) easing into the deep red, then its shade.
+const RED_SHARE = 0.25
+const RED_DEEP = [226, 101, 79] // #e2654f, the coral's deep tone (badgeColors.ts)
+const RED_SHADE = RED_DEEP.map((v, ch) => v + ([30, 30, 32][ch]! - v) * 0.2)
 const toneId = (url: string) => `splash-tone-${Math.abs([...url].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7))}`
 async function toneImages() {
   if (!TONE_AUTO) return
@@ -1992,9 +2041,24 @@ async function toneImages() {
         const t = s(fit(k / 32), curve)
         return ((from[ch]! + (to[ch]! - from[ch]!) * t) / 255).toFixed(4)
       }).join(' '))
+      // Red and silver: where the brightest RED_SHARE of this photo's tones
+      // fall once fitted, the red easing in over the band's first part.
+      const fitted = sample.map((t) => s(t, curve)).sort((a, b) => a - b)
+      const redFrom = fitted[Math.floor((1 - RED_SHARE) * (fitted.length - 1))]!
+      const ramp = Math.max(0.06, (1 - redFrom) * 0.6)
+      const smooth = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t))
+      const mixRgb = (a: number[], b: number[], t: number) => a.map((v, ch) => v + (b[ch]! - v) * t)
+      const redStops = Array.from({ length: 33 }, (_, k) => {
+        const t = s(fit(k / 32), curve)
+        const silver = mixRgb([244, 244, 242], [159, 161, 163], t)
+        const e = smooth((t - redFrom) / ramp)
+        if (e <= 0) return silver
+        return e < 0.5 ? mixRgb(silver, RED_DEEP, e * 2 * 0.85) : mixRgb(mixRgb(silver, RED_DEEP, 0.85), RED_SHADE, (e - 0.5) * 2)
+      })
+      const red = [0, 1, 2].map((ch) => redStops.map((c) => (c[ch]! / 255).toFixed(4)).join(' '))
       toneTables.value = {
         ...toneTables.value,
-        [image.url]: { light: band([244, 244, 242], [159, 161, 163]), dark: band([233, 233, 231], [28, 28, 28]) },
+        [image.url]: { light: band([244, 244, 242], [159, 161, 163]), dark: band([233, 233, 231], [28, 28, 28]), red },
       }
     }
     catch {
@@ -2431,7 +2495,7 @@ function computeGrid() {
     const phraseWidth = STAND_PHRASE.reduce((sum, beat) => sum + beat.height * beat.ratio, 0)
     const gapPx = spawnGapPx()
     const unit = SPLASH_PLAIN
-      ? Math.round(Math.min(usableH * PLAIN_MAX, (window.innerWidth * PLAIN_SPAN - STAND_PHRASE.length * gapPx) / phraseWidth))
+      ? Math.round(Math.min(usableH * PLAIN_MAX, (window.innerWidth * PLAIN_SPAN - STAND_PHRASE.length * gapPx) / phraseWidth) * PLAIN_SCALE)
       : Math.round(usableH / 2 - cellHeight / 2)
     const tallest = Math.round(unit * STAND_TALLEST)
     // The strip's top (inline) is its images' box's middle (the CSS's
@@ -2439,9 +2503,12 @@ function computeGrid() {
     // where an average image's middle falls on the optical centre.
     const optical = window.innerHeight * STAND_OPTICAL - splashEl.value.getBoundingClientRect().top
     const screenTop = optical + (STAND_MEAN * unit) / 2 - tallest / 2
-    stripStyle.value = { top: `${Math.round(STAND_SCREEN ? screenTop : gridMiddle)}px`, height: `${tallest + STAND_CAPTION}px` }
+    // (plain: on PLAIN_LINE, the CSS's caption room taken back: no numbers.)
+    const plainLine = gridTop + (boxH - gridBottomGap - gridTop) * PLAIN_LINE - STAND_CAPTION / 2
+    stripStyle.value = { top: `${Math.round(STAND_SCREEN ? screenTop : SPLASH_PLAIN ? plainLine : gridMiddle)}px`, height: `${tallest + STAND_CAPTION}px` }
     if (Math.abs(unit - imagesBandHeight.value) > 0.5) {
       imagesBandHeight.value = unit
+      labelMemo.clear()
       const widths: Record<number, number> = {}
       for (const n of Object.keys(spawnWidths.value).map(Number)) widths[n] = spawnTargetWidth(n) || spawnWidths.value[n]!
       spawnWidths.value = widths
@@ -3825,7 +3892,15 @@ function playCalmIntro(at: (ms: number, fn: () => void) => void) {
   at(B + steps.subtitle, () => {
     stepSubtitle.value = true
     if (!STEPS_INTRO) return
-    for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.splash-subtitle-box, .splash-cta') ?? []) decipherIn(el)
+    for (const el of splashEl.value?.querySelectorAll<HTMLElement>('.splash-subtitle-box, .splash-cta') ?? []) {
+      // Held at its own height while its letters come in: growing a line
+      // taller for a moment, it pushed the headline (stacked on it from
+      // below, mobile) down and back up, a jump (22 Nov 2026).
+      el.style.height = `${el.offsetHeight}px`
+      el.style.boxSizing = 'border-box'
+      decipherIn(el)
+      setTimeout(() => { el.style.height = '' }, SUBTITLE_GROW_MS + 400)
+    }
   })
   at(B + steps.strip, () => {
     stepStrip.value = true
@@ -4227,6 +4302,7 @@ function stripFitHeight(room: number) {
 function setBandHeight(height: number) {
   if (Math.abs(height - imagesBandHeight.value) <= 0.5) return
   imagesBandHeight.value = height
+  labelMemo.clear()
   const widths: Record<number, number> = {}
   for (const n of Object.keys(spawnWidths.value).map(Number)) widths[n] = spawnTargetWidth(n) || spawnWidths.value[n]!
   spawnWidths.value = widths
@@ -4239,6 +4315,11 @@ function setBandHeight(height: number) {
 // band's height and place, the images growing and shrinking, the gaps
 // between them too). At least 16px.
 const STAND_MOBILE_MIN_SPACE = 16
+// The subtitle closer under the headline than the other spaces (this share
+// of one), and the images 5% taller than the band's own height would make
+// them (22 Nov 2026).
+const STAND_MOBILE_SUBTITLE_SPACE = 0.35
+const STAND_MOBILE_IMAGE_SCALE = 1.05
 function placeStandMobile() {
   if (!grid.value || !splashEl.value) return false
   const head = sentencesEl.value?.getBoundingClientRect().height ?? 0
@@ -4247,11 +4328,15 @@ function placeStandMobile() {
   const beat = Math.max(0, ...standSlots.value.map((slot) => slot.height)) || 1
   const ctaTop = grid.value.bottom - (splashEl.value.querySelector<HTMLElement>('.splash-cta')?.offsetHeight ?? 0) / 2
   const free = ctaTop - grid.value.top - head - subtitle
-  let tallest = Math.round(stripFullHeight * beat)
-  let space = (free - tallest) / 4
+  // Four spaces, the subtitle's a share of one: the grid's top to the
+  // headline, the headline to the subtitle (smaller), the subtitle to the
+  // images, the images to the button.
+  const spaces = 3 + STAND_MOBILE_SUBTITLE_SPACE
+  let tallest = Math.round(stripFullHeight * beat * STAND_MOBILE_IMAGE_SCALE)
+  let space = (free - tallest) / spaces
   if (space < STAND_MOBILE_MIN_SPACE) {
     space = STAND_MOBILE_MIN_SPACE
-    tallest = Math.round(free - space * 4)
+    tallest = Math.round(free - space * spaces)
   }
   space = Math.round(space)
   stripTallest = tallest
@@ -4264,7 +4349,7 @@ function placeStandMobile() {
   const changed = Math.abs(band - imagesBandHeight.value) > 0.5 || stripStyle.value.top !== top || infoStyle.value.paddingBottom !== paddingBottom
   setBandHeight(band)
   stripStyle.value = { ...stripStyle.value, top, height: `${band}px` }
-  infoStyle.value = { ...infoStyle.value, paddingBottom, '--subtitle-gap': `${space}px` }
+  infoStyle.value = { ...infoStyle.value, paddingBottom, '--subtitle-gap': `${Math.round(space * STAND_MOBILE_SUBTITLE_SPACE)}px` }
   return changed
 }
 function placeStrip() {
@@ -4748,7 +4833,7 @@ onUnmounted(() => {
     <!-- Each image's own duotone (toneImages). -->
     <svg v-if="TONE_AUTO" width="0" height="0" style="position: absolute" aria-hidden="true">
       <template v-for="(tables, url) in toneTables" :key="url">
-        <filter v-for="mode in (['light', 'dark'] as const)" :id="`${toneId(String(url))}-${mode}`" :key="mode" color-interpolation-filters="sRGB">
+        <filter v-for="mode in (['light', 'dark', 'red'] as const)" :id="`${toneId(String(url))}-${mode}`" :key="mode" color-interpolation-filters="sRGB">
           <feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0.299 0.587 0.114 0 0  0 0 0 1 0" />
           <feComponentTransfer>
             <feFuncR type="table" :tableValues="tables[mode][0]" />
@@ -4846,7 +4931,7 @@ onUnmounted(() => {
     </div>
 
     <!-- basics: the dotted countries, in the grid's box, under the images. -->
-    <ClientOnly v-if="SPLASH_WORLD && !SPLASH_WORLD_LAB"><div class="splash-world"><SplashWorldGlobe :colors="COUNTRY_COLORS" :settings="worldShownSettings" :grid="grid" :dark="colorMode === 'dark'" :visible="splashIntro !== 'logo' && stepMap" /></div></ClientOnly>
+    <ClientOnly v-if="SPLASH_WORLD && !SPLASH_WORLD_LAB && !worldMobile"><div class="splash-world"><SplashWorldGlobe :colors="COUNTRY_COLORS" :settings="worldShownSettings" :grid="grid" :dark="colorMode === 'dark'" :visible="splashIntro !== 'logo' && stepMap" /></div></ClientOnly>
     <div v-if="WORLD_EDIT" class="collage-edit-panel countries-edit-panel world-edit-panel" :style="worldPanelPos" @pointerdown.stop @click.stop @mousemove.stop>
       <div class="collage-edit-head" title="Tirer pour déplacer le panneau" @pointerdown="onEditPanelDown($event, 'world')">
         <strong>Globe — réglages</strong>
@@ -5057,7 +5142,7 @@ onUnmounted(() => {
             :src="SPLASH_KEYWORDS_IMAGES ? bandSlot(index)?.src ?? image.url : image.url"
             :alt="cleanAlt(image.alt)"
             :class="{ 'is-hovered': hoveredIndex === index, 'is-toned': toneTables[image.url] }"
-            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, ...(SPAWN_DRIFT ? {} : { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' }) } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)` }"
+            :style="{ maxHeight: imageHeight(index), ...spawnImageStyle(index), ...(SPLASH_ROW && measured && spawnTargetWidth(index) ? { width: `${spawnTargetWidth(index)}px`, ...(SPAWN_DRIFT ? {} : { transform: spawnWidths[index] === undefined ? 'scale(0)' : 'scale(1)' }) } : {}), '--tone-light': `url(#${toneId(image.url)}-light)`, '--tone-dark': `url(#${toneId(image.url)}-dark)`, ...(toneTables[image.url] ? { '--tone-red': `url(#${toneId(image.url)}-red)` } : {}) }"
             :draggable="!COLLAGE_EDIT"
             @load="SPLASH_COLLAGE ? onCollageImageLoad(index, $event) : onStripImageLoad()"
             @mouseenter="hoveredIndex = canHover() && !ALT_HOVER ? index : null"
@@ -7590,7 +7675,8 @@ onUnmounted(() => {
    (app.vue, #duotone-red, as the campaigns tool's card): light mode's pale
    tone glared there. */
 :root[data-theme='dark'] .splash.is-basics.is-stand-hover .splash-image-wrapper.is-pointed img.is-toned {
-  filter: url(#duotone-red) var(--image-shadow) !important;
+  /* Its own, fitted to its tones (toneImages); the shared one until measured. */
+  filter: var(--tone-red, url(#duotone-red)) var(--image-shadow) !important;
 }
 
 /* The image a hovered keyword is linked to, or the one hovered: the lines
@@ -7700,6 +7786,13 @@ onUnmounted(() => {
 /* basics,world: the word on the image's top left corner, over it. */
 .splash.is-world .splash-image-wrapper {
   position: relative;
+}
+
+/* Mobile: the keywords 1.5px smaller (22 Nov 2026). */
+@media (max-width: 1150px) {
+  .splash.is-world .splash-image-name {
+    font-size: calc(13.333px - 1.5px);
+  }
 }
 
 .splash.is-world .splash-image-caption {
