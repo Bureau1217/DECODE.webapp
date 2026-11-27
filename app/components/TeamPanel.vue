@@ -19,9 +19,9 @@ const teams = computed(() => {
         .map((m) => ({
           name: [m.first_name, m.last_name].filter(Boolean).join(' '),
           bio: m.short_bio || '',
-          // The name links to the site its bio's first link points to
-          // (partners, the studio…): editable in the CMS with the bio.
-          url: /href="(https?:\/\/[^"]+)"/.exec(m.short_bio || '')?.[1] ?? '',
+          // The name links to the member's site (partners, the studio…):
+          // its own "Lien" field in the CMS, or else its bio's first link.
+          url: m.link || /href="(https?:\/\/[^"]+)"/.exec(m.short_bio || '')?.[1] || '',
         }))
         .filter((m) => m.name),
     }))

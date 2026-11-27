@@ -6,6 +6,7 @@ export interface TeamMember {
   first_name?: string
   last_name?: string
   short_bio?: string
+  link?: string
 }
 
 export interface TeamBlock {
