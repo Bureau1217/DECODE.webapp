@@ -139,10 +139,19 @@ function selectCategory(slug: string | null) {
      too since ResourceCard's titles became single-line (nowrap), which
      would otherwise widen a column to fit the longest title. */
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  /* Closes the grid's outer box on the sides ResourceCard's own top+left
-     borders don't reach (last column/row have no card past them to draw
-     those edges). */
+}
+
+/* ResourceCard draws its own top and left lines; the cards with nothing
+   to their right or below close the grid themselves, whatever the count
+   (a last row can be incomplete): the last column and the very last card
+   on their right, and the last three cards (the ones with no card three
+   further on) underneath. */
+.resources-grid :deep(.resource-card:nth-child(3n)),
+.resources-grid :deep(.resource-card:last-child) {
   border-right: 1px solid var(--color-brand-resources);
+}
+
+.resources-grid :deep(.resource-card:nth-last-child(-n + 3)) {
   border-bottom: 1px solid var(--color-brand-resources);
 }
 
@@ -165,6 +174,24 @@ function selectCategory(slug: string | null) {
      viewport's own edge instead of exactly filling it. */
   .resources-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The same closing lines, for 2 columns. */
+  .resources-grid :deep(.resource-card:nth-child(3n)) {
+    border-right: none;
+  }
+
+  .resources-grid :deep(.resource-card:nth-child(2n)),
+  .resources-grid :deep(.resource-card:last-child) {
+    border-right: 1px solid var(--color-brand-resources);
+  }
+
+  .resources-grid :deep(.resource-card:nth-last-child(-n + 3)) {
+    border-bottom: none;
+  }
+
+  .resources-grid :deep(.resource-card:nth-last-child(-n + 2)) {
+    border-bottom: 1px solid var(--color-brand-resources);
   }
 
   .resources-grid :deep(.resource-card:nth-child(3n + 1)) {

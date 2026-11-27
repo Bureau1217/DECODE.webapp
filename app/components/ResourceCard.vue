@@ -55,8 +55,8 @@ const { style: sharedPart, open } = useCardTransition(() => props.item.id, () =>
   /* Top+left only (not all 4 sides) — an internal grid edge then gets
      exactly one stroke, from whichever card sits below/right of it,
      instead of two adjacent cards each drawing their own line on the same
-     edge. The grid's own outer right/bottom border (resources/index.vue)
-     closes the box; the outer left stays open on purpose (see that file). */
+     edge. The cards on the grid's right and bottom edges close the box
+     (resources/index.vue); the outer left stays open on purpose (see that file). */
   border-top: 1px solid var(--color-brand-resources);
   border-left: 1px solid var(--color-brand-resources);
   text-decoration: none;
