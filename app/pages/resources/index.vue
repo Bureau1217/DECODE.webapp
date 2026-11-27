@@ -113,6 +113,11 @@ function selectCategory(slug: string | null) {
   overflow-x: auto;
   scrollbar-width: none;
   background: var(--color-brand-resources);
+  /* Held under the index bar while the grid scrolls (.app-content, app.vue,
+     is what scrolls, and it already starts under the bar). */
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .resources-filter-btn {
