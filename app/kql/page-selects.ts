@@ -63,6 +63,12 @@ const pagesRelation = (field: string) => ({
   select: summary,
 })
 
+/** A `blocks` field's image blocks: each block's id and its file, resolved (null for other block types). */
+const blockImages = (field: string) => ({
+  query: `page.content.${field}.toBlocks`,
+  select: { id: true, image: { query: 'block.content.image.toFile', select: imageSelect } },
+})
+
 /** A single-file relation field, resolved for a downloadable link (e.g. a PDF). */
 const fileLink = (field: string) => ({
   query: `page.content.${field}.toFile`,
@@ -255,16 +261,19 @@ export const pageSelects: Record<string, Record<string, unknown>> = {
     header_subtitle: true,
     // No header_image — TemplateAbout.vue doesn't show a cover image.
     // Each paragraph_N_content is its own `blocks` field (same shape as
-    // `default`'s own `content` — see this file's header comment) — only
-    // `text` blocks are rendered (TemplateAbout.vue), same scope boundary
-    // as TemplateDefault.vue; paragraph_1_content's own `image` block
-    // isn't resolved/shown yet.
+    // `default`'s own `content` — see this file's header comment): `text`
+    // and `image` blocks render (TemplateAbout.vue). An image block only
+    // holds a `file://` id, so paragraph_N_images resolves each block's
+    // file, matched back to its block by id.
     paragraph_1_title: true,
     paragraph_1_content: 'page.content.paragraph_1_content.toBlocks.toArray',
+    paragraph_1_images: blockImages('paragraph_1_content'),
     paragraph_2_title: true,
     paragraph_2_content: 'page.content.paragraph_2_content.toBlocks.toArray',
+    paragraph_2_images: blockImages('paragraph_2_content'),
     paragraph_3_title: true,
     paragraph_3_content: 'page.content.paragraph_3_content.toBlocks.toArray',
+    paragraph_3_images: blockImages('paragraph_3_content'),
     legal_content: 'page.content.legal_content.toBlocks.toArray',
     credits_content: 'page.content.credits_content.toBlocks.toArray',
   },

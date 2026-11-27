@@ -3,9 +3,14 @@ import { decipherHtml } from '~/utils/decipher'
 // Body text typeset (no widows, French spacing; never titles).
 const typeset = useTypeset()
 interface ContentBlock {
+  id?: string
   type: string
   isHidden?: boolean
-  content?: { title?: string, text?: string }
+  content?: { title?: string, text?: string, alt?: string, caption?: string }
+}
+interface BlockImage {
+  id: string
+  image: { url: string, alt?: string, width?: number, height?: number } | null
 }
 
 const props = defineProps<{
@@ -16,30 +21,44 @@ const props = defineProps<{
     header_subtitle?: string
     paragraph_1_title?: string
     paragraph_1_content?: ContentBlock[]
+    paragraph_1_images?: BlockImage[]
     paragraph_2_title?: string
     paragraph_2_content?: ContentBlock[]
+    paragraph_2_images?: BlockImage[]
     paragraph_3_title?: string
     paragraph_3_content?: ContentBlock[]
+    paragraph_3_images?: BlockImage[]
   }
   siteTitle: string
 }>()
 
 // 3 paragraphs, each keyed by its own title (the tab's own label — the
 // only place that title shows now, not repeated as a heading above the
-// text too). Only 'text' blocks render (same scope boundary as
-// TemplateDefault.vue's own article body; paragraph_1_content's own
-// inline "image" block isn't resolved/shown yet).
+// text too). 'text' and 'image' blocks render, in the editor's order; an
+// image block's file comes from paragraph_N_images (page-selects.ts),
+// matched by the block's id, and is left out if it has none.
+type Shown = { kind: 'text', html: string, first: boolean } | { kind: 'image', url: string, alt: string, width?: number, height?: number, caption?: string }
 const paragraphs = computed(() =>
   [
-    { title: props.page.paragraph_1_title, content: props.page.paragraph_1_content },
-    { title: props.page.paragraph_2_title, content: props.page.paragraph_2_content },
-    { title: props.page.paragraph_3_title, content: props.page.paragraph_3_content },
+    { title: props.page.paragraph_1_title, content: props.page.paragraph_1_content, images: props.page.paragraph_1_images },
+    { title: props.page.paragraph_2_title, content: props.page.paragraph_2_content, images: props.page.paragraph_2_images },
+    { title: props.page.paragraph_3_title, content: props.page.paragraph_3_content, images: props.page.paragraph_3_images },
   ]
-    .filter((p): p is { title: string, content: ContentBlock[] } => !!p.title)
-    .map((p) => ({
-      ...p,
-      textBlocks: (p.content ?? []).filter((b) => b.type === 'text' && !b.isHidden),
-    })),
+    .filter((p): p is { title: string, content: ContentBlock[], images: BlockImage[] | undefined } => !!p.title)
+    .map((p) => {
+      const files = new Map((p.images ?? []).map((i) => [i.id, i.image]))
+      const blocks: Shown[] = []
+      let texts = 0
+      for (const b of p.content ?? []) {
+        if (b.isHidden) continue
+        if (b.type === 'text') blocks.push({ kind: 'text', html: b.content?.text ?? '', first: texts++ === 0 })
+        else if (b.type === 'image') {
+          const file = b.id ? files.get(b.id) : null
+          if (file?.url) blocks.push({ kind: 'image', url: file.url, alt: b.content?.alt || file.alt || '', width: file.width, height: file.height, caption: b.content?.caption })
+        }
+      }
+      return { title: p.title, blocks }
+    }),
 )
 
 // Real tabs, not anchors — one section showing at a time, swapped by
@@ -75,14 +94,19 @@ const activeIndex = ref(0)
 
       <TemplateDetailBody color="var(--color-brand-about)">
         <section v-if="paragraphs[activeIndex]">
-          <!-- eslint-disable-next-line vue/no-v-html -->
-          <div
-            v-for="(block, bIndex) in paragraphs[activeIndex]!.textBlocks"
-            :key="bIndex"
-            class="about-detail-paragraph"
-            :class="{ 'about-detail-alinea': bIndex === 0 }"
-            v-decipher v-html="decipherHtml(typeset(block.content?.text))"
-          />
+          <template v-for="(block, bIndex) in paragraphs[activeIndex]!.blocks" :key="`${activeIndex}-${bIndex}`">
+            <!-- eslint-disable-next-line vue/no-v-html -->
+            <div
+              v-if="block.kind === 'text'"
+              class="about-detail-paragraph"
+              :class="{ 'about-detail-alinea': block.first }"
+              v-decipher v-html="decipherHtml(typeset(block.html))"
+            />
+            <figure v-else class="about-detail-paragraph about-detail-figure">
+              <img :src="block.url" :alt="block.alt" :width="block.width" :height="block.height" loading="lazy">
+              <figcaption v-if="block.caption" class="text-small">{{ block.caption }}</figcaption>
+            </figure>
+          </template>
         </section>
       </TemplateDetailBody>
     </article>
@@ -154,6 +178,20 @@ const activeIndex = ref(0)
    and the alinea indent (first block only) stay here. */
 .about-detail-paragraph + .about-detail-paragraph {
   margin-top: 1em;
+}
+
+.about-detail-figure {
+  margin: 2em 0 0;
+}
+
+.about-detail-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.about-detail-figure figcaption {
+  margin-top: 8px;
 }
 
 .about-detail-alinea :deep(:first-child) {
