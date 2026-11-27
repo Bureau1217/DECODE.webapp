@@ -19,6 +19,9 @@ const teams = computed(() => {
         .map((m) => ({
           name: [m.first_name, m.last_name].filter(Boolean).join(' '),
           bio: m.short_bio || '',
+          // The name links to the site its bio's first link points to
+          // (partners, the studio…): editable in the CMS with the bio.
+          url: /href="(https?:\/\/[^"]+)"/.exec(m.short_bio || '')?.[1] ?? '',
         }))
         .filter((m) => m.name),
     }))
@@ -73,7 +76,8 @@ onBeforeUnmount(() => {
           @mouseleave="onRowLeave"
           @click="onRowTap(`${ti}-${mi}`)"
         >
-          <span class="team-panel-member"><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
+          <a v-if="member.url" class="team-panel-member is-link" :href="member.url" target="_blank" rel="noopener" @click.stop><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></a>
+          <span v-else class="team-panel-member"><DecipherText :text="member.name" :from="panelMorph.fromAt(textOrder[ti]![mi + 1]!)" /></span>
           <div v-if="member.bio && hoveredMember === `${ti}-${mi}`" :class="['team-panel-popup', 'text-note', { 'is-above': popupAbove }]">
             <div class="team-panel-popup-title">{{ member.name }}</div>
             <!-- eslint-disable-next-line vue/no-v-html -->
@@ -147,6 +151,17 @@ onBeforeUnmount(() => {
   padding: 4px 10px;
   color: var(--color-ink);
   cursor: default;
+}
+
+/* A member with a site (its bio's link): the whole row opens it. */
+.team-panel-member.is-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.team-panel-member.is-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 /* Same box as KeywordsPanel.vue's .keywords-panel-popup (half the row's

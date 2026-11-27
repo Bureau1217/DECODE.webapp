@@ -48,10 +48,9 @@ const language = useLanguage()
 const route = useRoute()
 const router = useRouter()
 const categories = computed(() => {
-  const seen = new Map<string, { slug: string, label: string, count: number }>()
+  const seen = new Map<string, { slug: string, label: string }>()
   for (const item of items.value ?? []) {
-    const c = seen.get(item.category) ?? { slug: item.category, label: item.type, count: 0 }
-    c.count++
+    const c = seen.get(item.category) ?? { slug: item.category, label: item.type }
     seen.set(item.category, c)
   }
   return [...seen.values()]
@@ -68,29 +67,29 @@ function selectCategory(slug: string | null) {
 
 <template>
   <!-- Every published resource (the grid grows with them), filtered by
-       type from the row above it. -->
+       type from the band above it. -->
   <div class="page-with-heading">
     <h1 class="visually-hidden">{{ language === 'fr' ? 'Ressources' : 'Resources' }}</h1>
     <nav v-if="categories.length > 1" class="resources-filter" :aria-label="language === 'fr' ? 'Filtrer par type' : 'Filter by type'">
       <button
         type="button"
-        class="resources-filter-btn text-label"
+        class="resources-filter-btn text-small"
         :class="{ active: !activeCategory }"
         :aria-pressed="!activeCategory"
         @click="selectCategory(null)"
       >
-        {{ language === 'fr' ? 'Tout' : 'All' }} <span class="resources-filter-count">{{ items?.length ?? 0 }}</span>
+        {{ language === 'fr' ? 'Tout' : 'All' }}
       </button>
       <button
         v-for="c in categories"
         :key="c.slug"
         type="button"
-        class="resources-filter-btn text-label"
+        class="resources-filter-btn text-small"
         :class="{ active: activeCategory === c.slug }"
         :aria-pressed="activeCategory === c.slug"
         @click="selectCategory(c.slug)"
       >
-        {{ c.label }} <span class="resources-filter-count">{{ c.count }}</span>
+        {{ c.label }}
       </button>
     </nav>
     <article class="resources-grid">
@@ -100,45 +99,38 @@ function selectCategory(slug: string | null) {
 </template>
 
 <style scoped>
-/* The types, flush against each other above the grid: stroke-only at
-   rest, filled once chosen (the About page's tabs, TemplateAbout.vue, in
-   the resources' own brown). No bottom stroke of its own: the first row
-   of cards draws that line. */
+/* The types: a band right under the index bar, at the height and in the
+   colour of the keyword panel's own bands (KeywordsPanel.vue's CONCEPTS…),
+   holding the Campaigns Maps tool's filter boxes (MapFilters.vue) drawn
+   in white on it, the chosen one filled. */
 .resources-filter {
+  box-sizing: border-box;
+  height: 30px;
+  padding: 0 10px;
   display: flex;
-  flex-wrap: wrap;
-  border-right: 1px solid var(--color-brand-resources);
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--color-brand-resources);
 }
 
 .resources-filter-btn {
   appearance: none;
-  flex: 1 1 0;
-  background: var(--color-surface);
-  color: var(--color-brand-resources);
-  border: 0;
-  border-left: 1px solid var(--color-brand-resources);
-  border-radius: 0;
-  padding: 12px 16px;
   cursor: pointer;
+  flex: none;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--color-on-fill);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-on-fill);
   white-space: nowrap;
 }
 
-.resources-filter-btn:first-child {
-  border-left: none;
-}
-
-.resources-filter-btn:hover {
-  background: color-mix(in srgb, var(--color-brand-resources) 18%, var(--color-surface));
-}
-
 .resources-filter-btn.active {
-  background: var(--color-brand-resources);
-  color: var(--color-surface);
-}
-
-.resources-filter-count {
-  opacity: 0.6;
-  margin-left: 0.4em;
+  background: var(--color-on-fill);
+  color: var(--color-brand-resources);
 }
 
 .resources-grid {
@@ -181,16 +173,6 @@ function selectCategory(slug: string | null) {
 
   .resources-grid :deep(.resource-card:nth-child(2n + 1)) {
     border-left: none;
-  }
-
-  /* The type filter's own line under it: the first row's cards drop
-     theirs (below). */
-  .resources-filter {
-    border-bottom: 1px solid var(--color-brand-resources);
-  }
-
-  .resources-filter-btn {
-    padding: 10px 8px;
   }
 
   /* First row sits right under the index bar's own bottom rule — its

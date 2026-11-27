@@ -103,7 +103,8 @@ const activeIndex = ref(0)
               v-decipher v-html="decipherHtml(typeset(block.html))"
             />
             <figure v-else class="about-detail-paragraph about-detail-figure">
-              <img :src="block.url" :alt="block.alt" :width="block.width" :height="block.height" loading="lazy">
+              <!-- In full colour: the one place on the site without the duotone. -->
+              <img :src="block.url" :alt="block.alt" :width="block.width" :height="block.height" loading="lazy" class="no-duotone">
               <figcaption v-if="block.caption" class="text-small">{{ block.caption }}</figcaption>
             </figure>
           </template>

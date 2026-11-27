@@ -411,7 +411,11 @@ const introTransition = useIntroTransition()
 }
 
 .content-divider.is-resources {
-  background: var(--color-brand-resources);
+  /* White across the type filter's band (resources/index.vue, 30px, right
+     under the index bar where this starts): the index bar's own line
+     carried down between it and the CONCEPTS band; the resources' brown
+     below. */
+  background: linear-gradient(var(--color-chrome-divider) 0 30px, var(--color-brand-resources) 30px);
 }
 
 .content-divider.is-about,
