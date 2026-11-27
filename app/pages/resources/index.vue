@@ -146,17 +146,35 @@ function selectCategory(slug: string | null) {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-/* ResourceCard draws its own top and left lines; the cards with nothing
-   to their right or below close the grid themselves, whatever the count
-   (a last row can be incomplete): the last column and the very last card
-   on their right, and the last three cards (the ones with no card three
-   further on) underneath. */
-.resources-grid :deep(.resource-card:nth-child(3n)),
-.resources-grid :deep(.resource-card:last-child) {
+/* ResourceCard draws its own top and left lines, inside its box. The
+   cards with nothing to their right or below close the grid themselves,
+   whatever the count (a last row can be incomplete): the last column and
+   the very last card on their right, the last three cards (the ones with
+   no card three further on) underneath. Those lines are drawn just
+   outside the card (::after, 1px past its right/bottom edge), exactly
+   where a neighbour's own top/left line would sit, so they meet the other
+   lines without a 1px step; the grid's padding keeps room for them. */
+.resources-grid {
+  padding: 0 1px 1px 0;
+}
+
+.resources-grid :deep(.resource-card) {
+  position: relative;
+}
+
+.resources-grid :deep(.resource-card)::after {
+  content: '';
+  position: absolute;
+  inset: -1px; /* from the outer edge of the card's own top/left line */
+  pointer-events: none;
+}
+
+.resources-grid :deep(.resource-card:nth-child(3n))::after,
+.resources-grid :deep(.resource-card:last-child)::after {
   border-right: 1px solid var(--color-brand-resources);
 }
 
-.resources-grid :deep(.resource-card:nth-last-child(-n + 3)) {
+.resources-grid :deep(.resource-card:nth-last-child(-n + 3))::after {
   border-bottom: 1px solid var(--color-brand-resources);
 }
 
@@ -181,21 +199,29 @@ function selectCategory(slug: string | null) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* ResourceCard clips its content on phones (overflow: hidden): the
+     same clip, 2px wider (a whole pixel of margin even at a half-pixel
+     edge), so the closing lines just outside it stay whole. */
+  .resources-grid :deep(.resource-card) {
+    overflow: visible;
+    clip-path: inset(-2px);
+  }
+
   /* The same closing lines, for 2 columns. */
-  .resources-grid :deep(.resource-card:nth-child(3n)) {
+  .resources-grid :deep(.resource-card:nth-child(3n))::after {
     border-right: none;
   }
 
-  .resources-grid :deep(.resource-card:nth-child(2n)),
-  .resources-grid :deep(.resource-card:last-child) {
+  .resources-grid :deep(.resource-card:nth-child(2n))::after,
+  .resources-grid :deep(.resource-card:last-child)::after {
     border-right: 1px solid var(--color-brand-resources);
   }
 
-  .resources-grid :deep(.resource-card:nth-last-child(-n + 3)) {
+  .resources-grid :deep(.resource-card:nth-last-child(-n + 3))::after {
     border-bottom: none;
   }
 
-  .resources-grid :deep(.resource-card:nth-last-child(-n + 2)) {
+  .resources-grid :deep(.resource-card:nth-last-child(-n + 2))::after {
     border-bottom: 1px solid var(--color-brand-resources);
   }
 
